@@ -7,7 +7,18 @@ import { useQuestStore } from '../stores/questStore';
 
 export function GeneratePage() {
   const navigate = useNavigate();
-  const { generate, result, isLoading, error, reset } = useQuestGeneration();
+  const {
+    generate,
+    regenerate,
+    reviewPlan,
+    result,
+    isLoading,
+    isRegenerating,
+    isReviewing,
+    review,
+    error,
+    reset,
+  } = useQuestGeneration();
   const { addPlan, plans } = useQuestStore();
   const [selectedPlanIndex, setSelectedPlanIndex] = useState(0);
 
@@ -70,6 +81,11 @@ export function GeneratePage() {
               onSelectPlan={setSelectedPlanIndex}
               onSavePlan={handleSavePlan}
               onReset={handleReset}
+              onRegenerate={regenerate}
+              onReviewPlan={reviewPlan}
+              isRegenerating={isRegenerating}
+              isReviewing={isReviewing}
+              review={review}
             />
           ) : (
             <>

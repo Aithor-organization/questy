@@ -1,4 +1,23 @@
-import { openrouter, DEFAULT_MODEL } from './openrouter';
+import { openrouter, DEFAULT_MODEL, getSessionUsage } from './openrouter';
+
+// 사용량 로깅 헬퍼
+function logApiUsage(model: string, usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined) {
+  if (!usage) return;
+
+  const promptTokens = usage.prompt_tokens || 0;
+  const completionTokens = usage.completion_tokens || 0;
+  const totalTokens = usage.total_tokens || 0;
+
+  // Gemini 3 Flash 가격
+  const inputCost = promptTokens * (0.10 / 1_000_000);
+  const outputCost = completionTokens * (0.40 / 1_000_000);
+  const totalCost = inputCost + outputCost;
+
+  console.log(`[API Usage] ${model}`);
+  console.log(`  Input: ${promptTokens.toLocaleString()} tokens ($${inputCost.toFixed(6)})`);
+  console.log(`  Output: ${completionTokens.toLocaleString()} tokens ($${outputCost.toFixed(6)})`);
+  console.log(`  Total: ${totalTokens.toLocaleString()} tokens | Cost: $${totalCost.toFixed(6)}`);
+}
 
 // 분석된 단원 정보
 export interface AnalyzedUnit {
@@ -144,6 +163,9 @@ export async function analyzeTableOfContents(
     response_format: { type: 'json_object' },
     max_tokens: 8192,
   });
+
+  // 사용량 로깅
+  logApiUsage(DEFAULT_MODEL, response.usage);
 
   const content = response.choices[0]?.message?.content || '{"units":[],"studyPlan":null}';
 

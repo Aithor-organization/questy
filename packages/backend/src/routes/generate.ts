@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import { analyzeTableOfContents, DetectedStudyPlan } from '../lib/image-analyzer';
-import { generateDualPlans } from '../lib/ai-quest-generator';
+import { analyzeTableOfContents, DetectedStudyPlan, AnalyzedUnit } from '../lib/image-analyzer';
+import { generateDualPlans, generateQuestsWithAI, AIGeneratedQuest } from '../lib/ai-quest-generator';
+import { reviewPlanWithAI } from '../lib/ai-plan-reviewer';
 
 export const generateRoutes = new Hono();
 
@@ -139,6 +140,132 @@ generateRoutes.post('/', async (c) => {
         code: 'INTERNAL_ERROR',
         message,
       },
+    }, 500);
+  }
+});
+
+// 플랜 재생성 스키마 (이미지 분석 없이 새 일수로 재생성)
+const RegenerateRequestSchema = z.object({
+  materialName: z.string().min(1),
+  analyzedUnits: z.array(z.object({
+    unitNumber: z.number(),
+    unitTitle: z.string(),
+    subSections: z.array(z.string()),
+    difficulty: z.enum(['easy', 'medium', 'hard']),
+  })),
+  targetDays: z.number().int().positive(),
+});
+
+// 플랜 재생성 엔드포인트 (이미지 분석 없이 빠르게)
+generateRoutes.post('/regenerate', async (c) => {
+  try {
+    const body = await c.req.json();
+    const parsed = RegenerateRequestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json({
+        success: false,
+        error: { code: 'INVALID_REQUEST', message: '잘못된 요청입니다' },
+      }, 400);
+    }
+
+    const { materialName, analyzedUnits, targetDays } = parsed.data;
+
+    console.log(`[Regenerate] Generating ${targetDays}-day plan for: ${materialName}`);
+
+    const unitNumbers = analyzedUnits.map((u) => u.unitNumber);
+    const startUnit = Math.min(...unitNumbers);
+    const endUnit = Math.max(...unitNumbers);
+
+    const result = await generateQuestsWithAI(
+      analyzedUnits as AnalyzedUnit[],
+      materialName,
+      startUnit,
+      endUnit,
+      targetDays
+    );
+
+    console.log(`[Regenerate] Generated ${result.dailyQuests.length} quests`);
+
+    return c.json({
+      success: true,
+      data: {
+        plan: {
+          planType: 'custom' as const,
+          planName: `${targetDays}일 맞춤 플랜`,
+          description: `${materialName}을 ${targetDays}일 동안 학습하는 AI 추천 계획입니다`,
+          dailyQuests: result.dailyQuests,
+          totalDays: result.dailyQuests.length,
+          totalEstimatedHours: result.totalEstimatedHours,
+        },
+        recommendations: result.recommendations,
+        aiMessage: result.message,
+      },
+    });
+  } catch (error) {
+    console.error('[Regenerate] Error:', error);
+    return c.json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: '플랜 재생성에 실패했습니다' },
+    }, 500);
+  }
+});
+
+// 플랜 리뷰 스키마
+const ReviewRequestSchema = z.object({
+  materialName: z.string().min(1),
+  planName: z.string().min(1),
+  dailyQuests: z.array(z.object({
+    day: z.number(),
+    unitNumber: z.number(),
+    unitTitle: z.string(),
+    range: z.string(),
+    estimatedMinutes: z.number(),
+    tip: z.string().optional(),
+    topics: z.array(z.string()).optional(),
+    pages: z.string().optional(),
+    objectives: z.array(z.string()).optional(),
+  })),
+  totalDays: z.number(),
+  totalEstimatedHours: z.number(),
+});
+
+// 플랜 리뷰 엔드포인트
+generateRoutes.post('/review', async (c) => {
+  try {
+    const body = await c.req.json();
+    const parsed = ReviewRequestSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json({
+        success: false,
+        error: { code: 'INVALID_REQUEST', message: '잘못된 요청입니다' },
+      }, 400);
+    }
+
+    const { materialName, planName, dailyQuests, totalDays, totalEstimatedHours } = parsed.data;
+
+    console.log(`[Review] Reviewing plan: ${planName} for ${materialName}`);
+
+    const review = await reviewPlanWithAI({
+      materialName,
+      planName,
+      dailyQuests: dailyQuests as AIGeneratedQuest[],
+      totalDays,
+      totalEstimatedHours,
+    });
+
+    console.log(`[Review] Generated review with ${review.strengths.length} strengths, ${review.improvements.length} improvements`);
+
+    return c.json({
+      success: true,
+      data: review,
+    });
+  } catch (error) {
+    console.error('[Review] Error:', error);
+    return c.json({
+      success: false,
+      error: { code: 'INTERNAL_ERROR', message: '플랜 리뷰에 실패했습니다' },
     }, 500);
   }
 });

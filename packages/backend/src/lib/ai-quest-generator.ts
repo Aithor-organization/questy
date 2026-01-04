@@ -2,6 +2,29 @@ import { openrouter, DEFAULT_MODEL } from './openrouter';
 import { AnalyzedUnit, DetectedStudyPlan } from './image-analyzer';
 import { formatDate } from '@questybook/shared';
 
+// 사용량 로깅 헬퍼
+function logApiUsage(
+  model: string,
+  usage: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number } | undefined,
+  context: string
+) {
+  if (!usage) return;
+
+  const promptTokens = usage.prompt_tokens || 0;
+  const completionTokens = usage.completion_tokens || 0;
+  const totalTokens = usage.total_tokens || 0;
+
+  // Gemini 3 Flash 가격
+  const inputCost = promptTokens * (0.10 / 1_000_000);
+  const outputCost = completionTokens * (0.40 / 1_000_000);
+  const totalCost = inputCost + outputCost;
+
+  console.log(`[API Usage] ${model} (${context})`);
+  console.log(`  Input: ${promptTokens.toLocaleString()} tokens ($${inputCost.toFixed(6)})`);
+  console.log(`  Output: ${completionTokens.toLocaleString()} tokens ($${outputCost.toFixed(6)})`);
+  console.log(`  Total: ${totalTokens.toLocaleString()} tokens | Cost: $${totalCost.toFixed(6)}`);
+}
+
 // AI가 생성한 퀘스트 결과 (상세 정보 포함)
 export interface AIGeneratedQuest {
   day: number;
@@ -152,6 +175,9 @@ ${targetUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
     response_format: { type: 'json_object' },
     max_tokens: 8192,
   });
+
+  // 사용량 로깅
+  logApiUsage(DEFAULT_MODEL, response.usage, 'Quest Generation');
 
   const content = response.choices[0]?.message?.content || '{}';
 
@@ -353,6 +379,9 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
     response_format: { type: 'json_object' },
     max_tokens: 16384,
   });
+
+  // 사용량 로깅
+  logApiUsage(DEFAULT_MODEL, response.usage, 'Dual Plan Generation');
 
   const content = response.choices[0]?.message?.content || '{}';
 

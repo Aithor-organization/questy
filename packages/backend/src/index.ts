@@ -7,6 +7,7 @@ import 'dotenv/config';
 import { questRoutes } from './routes/quest';
 import { planRoutes } from './routes/plan';
 import { generateRoutes } from './routes/generate';
+import booksRoutes from './routes/books';
 
 const app = new Hono();
 
@@ -25,6 +26,7 @@ app.get('/health', (c) => c.json({ status: 'healthy' }));
 app.route('/api/quests', questRoutes);
 app.route('/api/plans', planRoutes);
 app.route('/api/generate', generateRoutes);
+app.route('/api/books', booksRoutes);
 
 // 서버 시작
 const port = Number(process.env.PORT) || 3001;
