@@ -1,0 +1,22 @@
+{
+  "name": "questybook",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI 기반 학습 퀘스트 생성 서비스 - 교재/인강을 일일 퀘스트로 변환",
+  "keywords": ["education", "ai", "quest", "learning", "curriculum"],
+  "author": "seohun",
+  "license": "MIT",
+  "scripts": {
+    "dev": "pnpm -r --parallel run dev",
+    "dev:frontend": "pnpm --filter @questybook/frontend dev",
+    "dev:backend": "pnpm --filter @questybook/backend dev",
+    "build": "pnpm -r run build",
+    "lint": "pnpm -r run lint",
+    "test": "pnpm -r run test",
+    "clean": "pnpm -r run clean && rm -rf node_modules"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=9.0.0"
+  }
+}

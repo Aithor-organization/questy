@@ -1,0 +1,19 @@
+# QuestyBook Automation Configuration
+
+auto_learn:
+  enabled: true
+  triggers:
+    - "task_complete"
+    - "error_resolved"
+    - "pattern_discovered"
+
+brain_sync:
+  auto_merge: true
+  merge_on_session_end: true
+
+skill_integration:
+  enabled: true
+  triggers:
+    openrouter: ["ai", "llm", "chat", "completion"]
+    quest: ["퀘스트", "학습", "커리큘럼", "일정"]
+    react: ["컴포넌트", "훅", "상태"]
