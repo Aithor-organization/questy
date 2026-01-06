@@ -10,6 +10,7 @@ import { BookSearch } from '../components/BookSearch';
 import { useQuestGeneration } from '../hooks/useQuestGeneration';
 import type { GeneratedPlan } from '../hooks/useQuestGeneration';
 import { useQuestStore } from '../stores/questStore';
+import { API_BASE_URL } from '../config';
 
 interface ImageData {
   base64: string;
@@ -74,7 +75,7 @@ export function GeneratePageV2() {
     setLoadingPreview(true);
     try {
       const res = await fetch(
-        `http://localhost:3001/api/books/${book.productId}/preview`
+        `${API_BASE_URL}/api/books/${book.productId}/preview`
       );
       const data = await res.json();
       if (data.success && data.data.images.length > 0) {
@@ -116,7 +117,7 @@ export function GeneratePageV2() {
       const imagePromises = selectedImages.map(async (img) => {
         try {
           const proxyRes = await fetch(
-            `http://localhost:3001/api/books/proxy-image?url=${encodeURIComponent(img.imageUrl)}`
+            `${API_BASE_URL}/api/books/proxy-image?url=${encodeURIComponent(img.imageUrl)}`
           );
           const proxyData = await proxyRes.json();
 
@@ -217,22 +218,20 @@ export function GeneratePageV2() {
               <button
                 type="button"
                 onClick={() => setInputMode('upload')}
-                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  inputMode === 'upload'
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${inputMode === 'upload'
                     ? 'bg-white text-[var(--ink-blue)] shadow-sm'
                     : 'text-[var(--pencil-gray)] hover:text-[var(--ink-black)]'
-                }`}
+                  }`}
               >
                 📷 사진 업로드
               </button>
               <button
                 type="button"
                 onClick={() => setInputMode('search')}
-                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-                  inputMode === 'search'
+                className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${inputMode === 'search'
                     ? 'bg-white text-[var(--ink-blue)] shadow-sm'
                     : 'text-[var(--pencil-gray)] hover:text-[var(--ink-black)]'
-                }`}
+                  }`}
               >
                 🔍 교재 검색
               </button>
@@ -327,11 +326,10 @@ export function GeneratePageV2() {
                           key={img.pageNumber}
                           type="button"
                           onClick={() => setZoomedImage(img)}
-                          className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all ${
-                            selectedPages.includes(img.pageNumber)
+                          className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all ${selectedPages.includes(img.pageNumber)
                               ? 'border-[var(--ink-blue)] ring-2 ring-[var(--highlight-blue)]'
                               : 'border-[var(--paper-lines)] hover:border-[var(--pencil-gray)]'
-                          }`}
+                            }`}
                         >
                           <img
                             src={img.imageUrl}
@@ -396,11 +394,10 @@ export function GeneratePageV2() {
                               setZoomedImage(previewImages[currentIndex + 1]);
                             }
                           }}
-                          className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
-                            selectedPages.includes(zoomedImage.pageNumber)
+                          className={`flex-1 py-3 rounded-xl font-medium transition-colors ${selectedPages.includes(zoomedImage.pageNumber)
                               ? 'bg-[var(--highlight-pink)] text-[var(--ink-red)]'
                               : 'bg-[var(--ink-blue)] text-white'
-                          }`}
+                            }`}
                         >
                           {selectedPages.includes(zoomedImage.pageNumber)
                             ? '선택 해제'
@@ -519,11 +516,10 @@ export function GeneratePageV2() {
               <button
                 onClick={handleGenerate}
                 disabled={images.length === 0 || isLoading}
-                className={`w-full py-4 rounded-lg handwrite text-xl transition-all ${
-                  images.length === 0
+                className={`w-full py-4 rounded-lg handwrite text-xl transition-all ${images.length === 0
                     ? 'bg-[var(--paper-lines)] text-[var(--pencil-gray)] cursor-not-allowed'
                     : 'bg-[var(--ink-blue)] text-white hover:shadow-lg'
-                }`}
+                  }`}
               >
                 {isLoading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -538,11 +534,10 @@ export function GeneratePageV2() {
               <button
                 onClick={handleAnalyzeBook}
                 disabled={!selectedBook || selectedPages.length === 0 || isLoading || analyzingBook}
-                className={`w-full py-4 rounded-lg handwrite text-xl transition-all ${
-                  !selectedBook || selectedPages.length === 0
+                className={`w-full py-4 rounded-lg handwrite text-xl transition-all ${!selectedBook || selectedPages.length === 0
                     ? 'bg-[var(--paper-lines)] text-[var(--pencil-gray)] cursor-not-allowed'
                     : 'bg-[var(--ink-blue)] text-white hover:shadow-lg'
-                }`}
+                  }`}
               >
                 {isLoading || analyzingBook ? (
                   <span className="flex items-center justify-center gap-2">

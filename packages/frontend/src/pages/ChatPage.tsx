@@ -10,6 +10,8 @@ import { useNavigate } from 'react-router-dom';
 import { NotebookLayout } from '../components/notebook/NotebookLayout';
 import { useChatStore } from '../stores/chatStore';
 
+import { API_BASE_URL } from '../config';
+
 const QUICK_ACTIONS = [
   { id: 'today', label: '오늘 뭐 공부해?', emoji: '📚' },
   { id: 'progress', label: '내 진도 어때?', emoji: '📊' },
@@ -100,7 +102,7 @@ export function ChatPage() {
     setIsTyping(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/coach/chat', {
+      const response = await fetch(`${API_BASE_URL}/api/coach/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -254,11 +256,10 @@ export function ChatPage() {
                   </p>
                 )}
                 <div
-                  className={`rounded-2xl px-4 py-2 whitespace-pre-wrap ${
-                    msg.role === 'user'
+                  className={`rounded-2xl px-4 py-2 whitespace-pre-wrap ${msg.role === 'user'
                       ? 'bg-[var(--highlight-yellow)] text-[var(--ink-black)]'
                       : 'bg-white border border-[var(--paper-lines)] text-[var(--ink-black)]'
-                  }`}
+                    }`}
                 >
                   {msg.content}
                 </div>

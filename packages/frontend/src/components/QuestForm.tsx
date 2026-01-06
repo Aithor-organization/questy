@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { ImageUploader } from './ImageUploader';
 import { BookSearch } from './BookSearch';
+import { API_BASE_URL } from '../config';
 
 interface ImageData {
   base64: string;
@@ -71,7 +72,7 @@ export function QuestForm({ onSubmit, isLoading }: QuestFormProps) {
     setLoadingPreview(true);
     try {
       const res = await fetch(
-        `http://localhost:3001/api/books/${book.productId}/preview`
+        `${API_BASE_URL}/api/books/${book.productId}/preview`
       );
       const data = await res.json();
       if (data.success && data.data.images.length > 0) {
@@ -120,7 +121,7 @@ export function QuestForm({ onSubmit, isLoading }: QuestFormProps) {
         async (img) => {
           try {
             const proxyRes = await fetch(
-              `http://localhost:3001/api/books/proxy-image?url=${encodeURIComponent(img.imageUrl)}`
+              `${API_BASE_URL}/api/books/proxy-image?url=${encodeURIComponent(img.imageUrl)}`
             );
             const proxyData = await proxyRes.json();
 
@@ -194,22 +195,20 @@ export function QuestForm({ onSubmit, isLoading }: QuestFormProps) {
         <button
           type="button"
           onClick={() => setInputMode('upload')}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-            inputMode === 'upload'
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${inputMode === 'upload'
               ? 'bg-white text-blue-600 shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
-          }`}
+            }`}
         >
           📷 이미지 업로드
         </button>
         <button
           type="button"
           onClick={() => setInputMode('search')}
-          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${
-            inputMode === 'search'
+          className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${inputMode === 'search'
               ? 'bg-white text-blue-600 shadow-sm'
               : 'text-gray-600 hover:text-gray-900'
-          }`}
+            }`}
         >
           🔍 교재 검색
         </button>
@@ -292,11 +291,10 @@ export function QuestForm({ onSubmit, isLoading }: QuestFormProps) {
                     key={img.pageNumber}
                     type="button"
                     onClick={() => setZoomedImage(img)}
-                    className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all ${
-                      selectedPages.includes(img.pageNumber)
+                    className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all ${selectedPages.includes(img.pageNumber)
                         ? 'border-blue-500 ring-2 ring-blue-200'
                         : 'border-gray-200 hover:border-gray-300'
-                    }`}
+                      }`}
                   >
                     <img
                       src={img.imageUrl}
@@ -367,11 +365,10 @@ export function QuestForm({ onSubmit, isLoading }: QuestFormProps) {
                         setZoomedImage(previewImages[currentIndex + 1]);
                       }
                     }}
-                    className={`flex-1 py-3 rounded-xl font-medium transition-colors ${
-                      selectedPages.includes(zoomedImage.pageNumber)
+                    className={`flex-1 py-3 rounded-xl font-medium transition-colors ${selectedPages.includes(zoomedImage.pageNumber)
                         ? 'bg-red-100 text-red-700 hover:bg-red-200'
                         : 'bg-blue-500 text-white hover:bg-blue-600'
-                    }`}
+                      }`}
                   >
                     {selectedPages.includes(zoomedImage.pageNumber)
                       ? '선택 해제'

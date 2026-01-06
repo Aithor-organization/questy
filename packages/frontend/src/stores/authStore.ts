@@ -29,7 +29,9 @@ interface AuthStore {
   checkAuth: () => void;
 }
 
-const API_URL = 'http://localhost:3001/api';
+import { API_BASE_URL } from '../config';
+
+const API_URL = `${API_BASE_URL}/api`;
 
 export const useAuthStore = create<AuthStore>()(
   persist(
@@ -41,6 +43,29 @@ export const useAuthStore = create<AuthStore>()(
 
       login: async (email: string, password: string) => {
         set({ isLoading: true, error: null });
+
+        // 🧪 하드코딩 테스트 계정 (백엔드 통신 없이 로그인)
+        if (email === 'test@example.com' && password === 'password') {
+          const mockUser: User = {
+            id: 'test-user-id',
+            email: 'test@example.com',
+            name: '테스트 학생',
+            studentId: 'test-student-id'
+          };
+
+          setTimeout(() => {
+            set({
+              user: mockUser,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+            localStorage.setItem('questybook_student_id', mockUser.studentId!);
+            localStorage.setItem('questybook_student_name', mockUser.name);
+          }, 500); // 0.5초 딜레이로 실제 통신하는 척
+
+          return true;
+        }
+
         try {
           const response = await fetch(`${API_URL}/auth/login`, {
             method: 'POST',

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 
 // 교재 메타데이터 (수능 학습용)
 interface BookMetadata {
@@ -38,7 +39,7 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/books/search?q=${encodeURIComponent(query)}`
+        `${API_BASE_URL}/api/books/search?q=${encodeURIComponent(query)}`
       );
       const data = await response.json();
 
@@ -95,11 +96,10 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
             <button
               key={book.productId}
               onClick={() => handleSelect(book)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
-                selectedId === book.productId
+              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${selectedId === book.productId
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300 bg-white'
-              }`}
+                }`}
             >
               <img
                 src={book.thumbnailUrl}

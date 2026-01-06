@@ -18,6 +18,7 @@ import {
   QuestCheckItem,
   PlanCard,
 } from '../components/notebook';
+import { API_BASE_URL } from '../config';
 
 interface DailyCoachData {
   dailyMessage: string;
@@ -77,7 +78,7 @@ export function TodayPage() {
 
   const fetchCoachData = async (id: string) => {
     try {
-      const response = await fetch(`http://localhost:3001/api/coach/students/${id}/today`);
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${id}/today`);
       const data = await response.json();
 
       if (data.success) {
@@ -122,7 +123,7 @@ export function TodayPage() {
 
     setIsLoadingReview(true);
     try {
-      const response = await fetch(`http://localhost:3001/api/coach/students/${studentId}/evening-review`, {
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/evening-review`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date: todayStr }),
@@ -168,7 +169,7 @@ export function TodayPage() {
     if (!studentId) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/coach/students/${studentId}/reminder`, {
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/reminder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
@@ -199,7 +200,7 @@ export function TodayPage() {
     if (!studentId) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/coach/students/${studentId}/crisis-intervention`, {
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/crisis-intervention`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ severity: 'moderate' }),
@@ -231,7 +232,7 @@ export function TodayPage() {
     if (!studentId) return;
 
     try {
-      const response = await fetch(`http://localhost:3001/api/coach/students/${studentId}/missed-study`);
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/missed-study`);
       const data = await response.json();
 
       if (data.success) {

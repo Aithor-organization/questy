@@ -10,6 +10,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NotebookLayout } from '../components/notebook/NotebookLayout';
+import { API_BASE_URL } from '../config';
 
 interface Message {
   id: string;
@@ -159,7 +160,7 @@ export function AdmissionPage() {
         // AI API 호출하여 이름 추출 및 응답 생성
         setIsTyping(true);
         try {
-          const response = await fetch('http://localhost:3001/api/coach/admission/chat', {
+          const response = await fetch(`${API_BASE_URL}/api/coach/admission/chat`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -285,7 +286,7 @@ export function AdmissionPage() {
 
   const completeOnboarding = async (info: StudentInfo) => {
     try {
-      const response = await fetch('http://localhost:3001/api/coach/students', {
+      const response = await fetch(`${API_BASE_URL}/api/coach/students`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -336,7 +337,7 @@ export function AdmissionPage() {
 
     try {
       const subject = studentInfo.subjects[0] || 'MATH';
-      const response = await fetch(`http://localhost:3001/api/coach/students/${studentId}/level-test/start`, {
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/level-test/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subject, questionCount: 5 }),
@@ -398,7 +399,7 @@ export function AdmissionPage() {
 
       try {
         const subject = studentInfo.subjects[0] || 'MATH';
-        const response = await fetch(`http://localhost:3001/api/coach/students/${studentId}/level-test/submit`, {
+        const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/level-test/submit`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -446,7 +447,7 @@ export function AdmissionPage() {
 
     try {
       const subject = studentInfo.subjects[0] || 'MATH';
-      const response = await fetch(`http://localhost:3001/api/coach/students/${studentId}/class-options?subject=${subject}`);
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/class-options?subject=${subject}`);
       const data = await response.json();
 
       if (data.success) {
@@ -474,7 +475,7 @@ export function AdmissionPage() {
     setIsTyping(true);
 
     try {
-      await fetch(`http://localhost:3001/api/coach/students/${studentId}/class-assign`, {
+      await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/class-assign`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -549,8 +550,8 @@ export function AdmissionPage() {
               <h2 className="font-bold text-[var(--ink-black)]">입학 상담실</h2>
               <p className="text-xs text-[var(--pencil-gray)]">
                 {step.includes('level-test') ? '📝 레벨 테스트' :
-                 step.includes('class') ? '🏫 반 배정' :
-                 step === 'orientation' ? '📖 오리엔테이션' : 'AI 코치와 함께하는 첫 만남'}
+                  step.includes('class') ? '🏫 반 배정' :
+                    step === 'orientation' ? '📖 오리엔테이션' : 'AI 코치와 함께하는 첫 만남'}
               </p>
             </div>
           </div>
@@ -569,11 +570,10 @@ export function AdmissionPage() {
                 </div>
               )}
               <div
-                className={`max-w-[75%] rounded-2xl px-4 py-2 whitespace-pre-wrap ${
-                  msg.role === 'user'
+                className={`max-w-[75%] rounded-2xl px-4 py-2 whitespace-pre-wrap ${msg.role === 'user'
                     ? 'bg-[var(--highlight-yellow)] text-[var(--ink-black)]'
                     : 'bg-white border border-[var(--paper-lines)] text-[var(--ink-black)]'
-                }`}
+                  }`}
               >
                 {msg.content}
               </div>
@@ -623,11 +623,10 @@ export function AdmissionPage() {
                   <button
                     key={subject.id}
                     onClick={() => handleSubjectToggle(subject.id)}
-                    className={`px-4 py-2 rounded-full border transition-colors ${
-                      studentInfo.subjects.includes(subject.id)
+                    className={`px-4 py-2 rounded-full border transition-colors ${studentInfo.subjects.includes(subject.id)
                         ? 'bg-[var(--highlight-yellow)] border-[var(--sticker-gold)]'
                         : 'bg-white border-[var(--paper-lines)] hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     {subject.emoji} {subject.label}
                   </button>
@@ -669,7 +668,7 @@ export function AdmissionPage() {
                 <span>문제 {currentQuestionIndex + 1} / {levelTestQuestions.length}</span>
                 <span className="text-xs">
                   {levelTestQuestions[currentQuestionIndex].difficulty === 'EASY' ? '⭐' :
-                   levelTestQuestions[currentQuestionIndex].difficulty === 'MEDIUM' ? '⭐⭐' : '⭐⭐⭐'}
+                    levelTestQuestions[currentQuestionIndex].difficulty === 'MEDIUM' ? '⭐⭐' : '⭐⭐⭐'}
                 </span>
               </div>
               <div className="bg-white p-4 rounded-lg border border-[var(--paper-lines)]">
@@ -703,11 +702,11 @@ export function AdmissionPage() {
               <div className="bg-white p-4 rounded-lg border border-[var(--paper-lines)] text-center">
                 <div className="text-4xl mb-2">
                   {levelTestResult.level === 'ADVANCED' ? '🏆' :
-                   levelTestResult.level === 'INTERMEDIATE' ? '🌟' : '💪'}
+                    levelTestResult.level === 'INTERMEDIATE' ? '🌟' : '💪'}
                 </div>
                 <h3 className="font-bold text-lg text-[var(--ink-black)]">
                   {levelTestResult.level === 'ADVANCED' ? '고급' :
-                   levelTestResult.level === 'INTERMEDIATE' ? '중급' : '기초'} 레벨
+                    levelTestResult.level === 'INTERMEDIATE' ? '중급' : '기초'} 레벨
                 </h3>
                 <p className="text-[var(--pencil-gray)] mt-1">{levelTestResult.message}</p>
                 <div className="mt-3 text-2xl font-bold text-[var(--ink-blue)]">
@@ -743,8 +742,8 @@ export function AdmissionPage() {
                       (levelTestResult.level === 'INTERMEDIATE' && option.pace === 'MEDIUM') ||
                       (levelTestResult.level === 'ADVANCED' && option.pace === 'FAST')
                     ) && (
-                      <span className="text-xs bg-[var(--highlight-yellow)] px-2 py-0.5 rounded-full">추천</span>
-                    )}
+                        <span className="text-xs bg-[var(--highlight-yellow)] px-2 py-0.5 rounded-full">추천</span>
+                      )}
                   </div>
                   <p className="text-sm text-[var(--pencil-gray)]">{option.description}</p>
                   <div className="flex flex-wrap gap-1 mt-2">
@@ -793,9 +792,8 @@ export function AdmissionPage() {
                 {ORIENTATION_STEPS.map((_, idx) => (
                   <div
                     key={idx}
-                    className={`w-2 h-2 rounded-full transition-colors ${
-                      idx === orientationIndex ? 'bg-[var(--ink-blue)]' : 'bg-[var(--paper-lines)]'
-                    }`}
+                    className={`w-2 h-2 rounded-full transition-colors ${idx === orientationIndex ? 'bg-[var(--ink-blue)]' : 'bg-[var(--paper-lines)]'
+                      }`}
                   />
                 ))}
               </div>
