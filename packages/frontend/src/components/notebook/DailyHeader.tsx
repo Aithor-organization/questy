@@ -42,7 +42,7 @@ export function DailyHeader({
   const formatted = formatDate(date);
 
   return (
-    <div className="notebook-page mb-6" style={{ padding: 0 }}>
+    <div className="notebook-page-lined mb-6" style={{ paddingTop: 0, paddingBottom: 0, paddingRight: 0 }}>
       {/* 날짜 네비게이션 */}
       <div className="flex items-center justify-between p-4 border-b border-[var(--paper-lines)]">
         <button

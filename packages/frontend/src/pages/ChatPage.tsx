@@ -193,7 +193,7 @@ export function ChatPage() {
   if (!isInitialized) {
     return (
       <NotebookLayout>
-        <div className="notebook-page flex items-center justify-center" style={{ minHeight: '75vh' }}>
+        <div className="notebook-page-chat flex items-center justify-center" style={{ minHeight: '75vh' }}>
           <div className="text-[var(--pencil-gray)]">로딩 중...</div>
         </div>
       </NotebookLayout>
@@ -202,7 +202,7 @@ export function ChatPage() {
 
   return (
     <NotebookLayout>
-      <div className="notebook-page p-0 overflow-hidden flex flex-col" style={{ minHeight: '75vh' }}>
+      <div className="notebook-page-chat p-0 overflow-hidden flex flex-col" style={{ minHeight: '75vh' }}>
         {/* 채팅 헤더 */}
         <div className="bg-[var(--sticker-mint)] px-4 py-3 border-b border-[var(--paper-lines)]">
           <div className="flex items-center justify-between">
