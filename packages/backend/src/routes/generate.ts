@@ -12,10 +12,20 @@ const ImageSchema = z.object({
   type: z.enum(['jpg', 'png']),
 });
 
+// 교재 메타데이터 스키마 (수능 학습용)
+const BookMetadataSchema = z.object({
+  subject: z.string().optional(), // 과목: 수학, 국어, 영어 등
+  targetGrade: z.string().optional(), // 대상: 고1, 고2, 고3, N수생
+  bookType: z.string().optional(), // 유형: 개념서, 유형서, 기출문제집
+  category: z.string().optional(), // Yes24 카테고리
+  description: z.string().optional(), // 간략 설명
+});
+
 const GenerateRequestSchema = z.object({
   materialName: z.string().min(1, '교재 이름을 입력해주세요').max(100),
   images: z.array(ImageSchema).min(1, '이미지를 1장 이상 업로드해주세요').max(4, '최대 4장까지 업로드 가능합니다'),
   totalDays: z.number().int().positive('목표 기간은 1일 이상이어야 합니다'),
+  bookMetadata: BookMetadataSchema.optional(), // 교재 메타데이터 (선택적)
 });
 
 generateRoutes.post('/', async (c) => {
@@ -35,7 +45,7 @@ generateRoutes.post('/', async (c) => {
       }, 400);
     }
 
-    const { materialName, images, totalDays } = parsed.data;
+    const { materialName, images, totalDays, bookMetadata } = parsed.data;
 
     // 1. 모든 이미지 분석 (병렬 처리)
     console.log(`[Generate] Analyzing ${images.length} images for: ${materialName}`);
@@ -90,13 +100,17 @@ generateRoutes.post('/', async (c) => {
 
     // 2. 듀얼 플랜 생성 (학습계획표가 있으면 2개, 없으면 1개)
     console.log(`[Generate] Generating plans with AI... (Unit ${startUnit}~${endUnit})`);
+    if (bookMetadata) {
+      console.log(`[Generate] Book metadata: ${bookMetadata.subject || '-'} / ${bookMetadata.targetGrade || '-'} / ${bookMetadata.bookType || '-'}`);
+    }
     const dualResult = await generateDualPlans(
       uniqueUnits,
       mergedStudyPlan,
       materialName,
       startUnit,
       endUnit,
-      totalDays
+      totalDays,
+      bookMetadata
     );
 
     if (dualResult.plans.length === 0 || dualResult.plans.every((p) => p.dailyQuests.length === 0)) {
@@ -217,6 +231,7 @@ const ReviewRequestSchema = z.object({
   planName: z.string().min(1),
   dailyQuests: z.array(z.object({
     day: z.number(),
+    date: z.string().optional(), // 프론트엔드에서 전송하는 날짜 필드
     unitNumber: z.number(),
     unitTitle: z.string(),
     range: z.string(),
@@ -237,9 +252,19 @@ generateRoutes.post('/review', async (c) => {
     const parsed = ReviewRequestSchema.safeParse(body);
 
     if (!parsed.success) {
+      console.error('[Review] Validation failed:', JSON.stringify(parsed.error.issues, null, 2));
+      console.error('[Review] Received body keys:', Object.keys(body));
+      console.error('[Review] dailyQuests length:', body.dailyQuests?.length ?? 'undefined');
+      console.error('[Review] First quest:', JSON.stringify(body.dailyQuests?.[0], null, 2));
+
+      const firstError = parsed.error.issues[0];
       return c.json({
         success: false,
-        error: { code: 'INVALID_REQUEST', message: '잘못된 요청입니다' },
+        error: {
+          code: 'INVALID_REQUEST',
+          message: firstError?.message || '잘못된 요청입니다',
+          details: parsed.error.issues.map(i => `${i.path.join('.')}: ${i.message}`),
+        },
       }, 400);
     }
 

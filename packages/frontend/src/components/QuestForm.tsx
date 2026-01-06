@@ -8,6 +8,15 @@ interface ImageData {
   preview: string;
 }
 
+// 교재 메타데이터 (수능 학습용)
+interface BookMetadata {
+  subject?: string;
+  targetGrade?: string;
+  bookType?: string;
+  category?: string;
+  description?: string;
+}
+
 interface Yes24Book {
   productId: string;
   title: string;
@@ -15,6 +24,7 @@ interface Yes24Book {
   publisher: string;
   previewUrl: string;
   thumbnailUrl: string;
+  metadata?: BookMetadata;
 }
 
 interface PreviewImage {
@@ -27,6 +37,7 @@ interface FormData {
   images: ImageData[];
   totalDays: number;
   bookProductId?: string; // Yes24 상품 ID (선택적)
+  bookMetadata?: BookMetadata; // 교재 메타데이터 (수능 학습용)
 }
 
 interface QuestFormProps {
@@ -136,6 +147,7 @@ export function QuestForm({ onSubmit, isLoading }: QuestFormProps) {
           images: loadedImages,
           totalDays,
           bookProductId: selectedBook.productId,
+          bookMetadata: selectedBook.metadata,
         });
       } else {
         setError('이미지를 가져올 수 없습니다');

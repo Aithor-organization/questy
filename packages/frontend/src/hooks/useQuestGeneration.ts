@@ -5,10 +5,23 @@ interface ImageData {
   type: 'jpg' | 'png';
 }
 
+// 교재 메타데이터 (수능 학습용)
+interface BookMetadata {
+  subject?: string;
+  targetGrade?: string;
+  bookType?: string;
+  category?: string;
+  description?: string;
+}
+
 interface FormData {
   materialName: string;
   images: ImageData[];
   totalDays: number;
+  bookMetadata?: BookMetadata;
+  bookProductId?: string;
+  excludeWeekends?: boolean;
+  startDate?: string; // ISO date string (YYYY-MM-DD)
 }
 
 export interface DailyQuest {
@@ -118,6 +131,9 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
             type: img.type,
           })),
           totalDays: data.totalDays,
+          bookMetadata: data.bookMetadata,
+          excludeWeekends: data.excludeWeekends,
+          startDate: data.startDate,
         }),
       });
 
@@ -127,10 +143,38 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
         throw new Error(json.error?.message || '퀘스트 생성에 실패했습니다');
       }
 
-      setResult(json.data);
+      const resultData = json.data as GenerateResult;
+      setResult(resultData);
+      setIsLoading(false);
+
+      // 플랜 생성 완료 후 자동으로 첫 번째 플랜 리뷰 시작
+      if (resultData.plans.length > 0) {
+        setIsReviewing(true);
+        try {
+          const reviewResponse = await fetch(`${API_URL}/api/generate/review`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              materialName: resultData.materialName,
+              planName: resultData.plans[0].planName,
+              dailyQuests: resultData.plans[0].dailyQuests,
+              totalDays: resultData.plans[0].totalDays,
+              totalEstimatedHours: resultData.plans[0].totalEstimatedHours,
+            }),
+          });
+
+          const reviewJson = await reviewResponse.json();
+          if (reviewJson.success) {
+            setReview(reviewJson.data);
+          }
+        } catch {
+          // 리뷰 실패는 무시 (사용자가 수동으로 다시 시도 가능)
+        } finally {
+          setIsReviewing(false);
+        }
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다');
-    } finally {
       setIsLoading(false);
     }
   }, []);
@@ -141,6 +185,7 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
 
     setIsRegenerating(true);
     setError(null);
+    setReview(null);
 
     try {
       const response = await fetch(`${API_URL}/api/generate/regenerate`, {
@@ -159,17 +204,43 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
         throw new Error(json.error?.message || '플랜 재생성에 실패했습니다');
       }
 
+      const newPlan = json.data.plan as GeneratedPlan;
+
       // 새 플랜을 plans 배열에 추가/교체
       setResult(prev => prev ? {
         ...prev,
-        plans: [json.data.plan],
+        plans: [newPlan],
         recommendations: json.data.recommendations,
         aiMessage: json.data.aiMessage,
       } : null);
-      setReview(null);
+      setIsRegenerating(false);
+
+      // 재생성 완료 후 자동으로 리뷰 시작
+      setIsReviewing(true);
+      try {
+        const reviewResponse = await fetch(`${API_URL}/api/generate/review`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            materialName: result.materialName,
+            planName: newPlan.planName,
+            dailyQuests: newPlan.dailyQuests,
+            totalDays: newPlan.totalDays,
+            totalEstimatedHours: newPlan.totalEstimatedHours,
+          }),
+        });
+
+        const reviewJson = await reviewResponse.json();
+        if (reviewJson.success) {
+          setReview(reviewJson.data);
+        }
+      } catch {
+        // 리뷰 실패는 무시 (사용자가 수동으로 다시 시도 가능)
+      } finally {
+        setIsReviewing(false);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : '알 수 없는 오류가 발생했습니다');
-    } finally {
       setIsRegenerating(false);
     }
   }, [result]);

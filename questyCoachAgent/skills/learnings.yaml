@@ -1,0 +1,152 @@
+# QuestyCoachAgent Learnings
+# 작업 중 학습한 내용을 여기에 직접 기록합니다.
+
+learnings:
+  - id: L-001
+    date: "2025-01-05"
+    context: "ACE Framework V5.2 에이전트 구축"
+    type: success
+    content: |
+      ACE Builder 스킬을 활용하여 Memory Lane 기반 학습 에이전트 구축 성공.
+      12 Memory Types + 6-Factor Re-Ranking + SM-2 Spaced Repetition 통합.
+    confidence: 0.9
+    tags:
+      - ace-framework
+      - memory-lane
+      - multi-agent
+
+  - id: L-002
+    date: "2025-01-05"
+    context: "TypeScript 프로젝트 구조화"
+    type: success
+    content: |
+      모듈화된 폴더 구조로 프로젝트 생성.
+      core/, memory/, types/, handlers/ 분리로 유지보수성 향상.
+    confidence: 0.85
+    tags:
+      - typescript
+      - project-structure
+
+  - id: L-003
+    date: "2025-01-05"
+    context: "Self-Evolving 지식 전이"
+    type: discovery
+    content: |
+      golden-rules.md와 learnings.yaml을 skills/ 폴더에 복사하여
+      축적된 지식을 새 에이전트에 전이할 수 있음.
+      이를 통해 같은 실수 반복 방지.
+    confidence: 0.9
+    tags:
+      - knowledge-transfer
+      - self-evolving
+
+  - id: L-004
+    date: "2026-01-06"
+    context: "TypeScript Agent Pool 타입 설계"
+    type: success
+    content: |
+      Map<AgentRole, BaseAgent> 대신 Map<Exclude<AgentRole, 'DIRECTOR'>, BaseAgent> 사용.
+      Director는 오케스트레이터로서 agent pool에 포함되지 않아야 함.
+      Exclude 유틸리티 타입으로 타입 안전성 확보.
+    confidence: 0.95
+    tags:
+      - typescript
+      - type-safety
+      - multi-agent
+
+  - id: L-005
+    date: "2026-01-06"
+    context: "TypeScript export 가시성 오류"
+    type: success
+    content: |
+      public method가 반환하는 타입은 반드시 export 되어야 함.
+      EmotionRecord 인터페이스가 exportHistory 메서드의 반환 타입으로 사용되어
+      'cannot be named' 오류 발생. export 키워드 추가로 해결.
+    confidence: 0.9
+    tags:
+      - typescript
+      - export
+      - interface
+
+  - id: L-006
+    date: "2026-01-06"
+    context: "SM-2 Spaced Repetition 구현"
+    type: discovery
+    content: |
+      SM-2 알고리즘에서 quality < 3일 때 repetitions를 0으로 리셋.
+      EMA(지수 이동 평균) α=0.3으로 mastery score 스무딩.
+      interval 계산: 1일 → 6일 → interval * easinessFactor
+    confidence: 0.9
+    tags:
+      - algorithm
+      - spaced-repetition
+      - memory-lane
+
+  - id: L-007
+    date: "2026-01-06"
+    context: "Supervisor Pattern Multi-Agent Orchestration"
+    type: success
+    content: |
+      Supervisor Pattern을 통한 Multi-Agent 오케스트레이션 구현 성공.
+      핵심 구조: Supervisor → IntentClassifier → Agent Pool (Admission, Planner, Coach, Analyst)
+      ExecutionState로 실행 경로 추적 및 에이전트 간 핸드오프 관리.
+      Network/Swarm 대신 Supervisor 선택: 명확한 태스크 위임 + 중앙 제어 필요.
+    confidence: 0.95
+    tags:
+      - multi-agent
+      - supervisor-pattern
+      - orchestration
+
+  - id: L-008
+    date: "2026-01-06"
+    context: "3-Level Router Model Selection"
+    type: success
+    content: |
+      복잡도 기반 3단계 모델 선택 전략 구현.
+      complexity < 0.3: GPT-5-nano (빠른 응답, 의도 분류)
+      0.3-0.6: Claude-4.5-haiku (일상 코칭, 감정 지원)
+      > 0.6: Gemini-3-flash (복잡한 분석, 비전)
+      OpenRouter를 통한 모델 추상화로 향후 모델 교체 용이.
+    confidence: 0.9
+    tags:
+      - llm
+      - model-selection
+      - router
+
+  - id: L-009
+    date: "2026-01-06"
+    context: "TypeScript TopicMastery Interface Alignment"
+    type: warning
+    content: |
+      타입 정의와 실제 사용처의 필드명 불일치 주의.
+      TopicMastery의 easinessFactor vs easeFactor, interval vs intervalDays 혼동.
+      타입 정의 먼저 확인 후 객체 생성 필수.
+      명시적 타입 어노테이션으로 컴파일 타임 오류 조기 발견.
+    confidence: 0.85
+    tags:
+      - typescript
+      - type-safety
+      - interface
+
+  - id: L-010
+    date: "2026-01-06"
+    context: "Module Export Re-export Strategy"
+    type: success
+    content: |
+      타입 re-export 시 출처 명확히 구분.
+      LLM 타입(LLMMessage, LLMResponse)은 './types'가 아닌 './llm'에서 export.
+      모듈 경계 존중하며 re-export하여 사용자 친화적 API 제공.
+      index.ts에서 타입별 출처 주석으로 유지보수성 향상.
+    confidence: 0.85
+    tags:
+      - typescript
+      - module-design
+      - exports
+
+failures: []
+
+metadata:
+  last_updated: "2026-01-06T00:30:00+09:00"
+  total_learnings: 10
+  total_failures: 0
+  source: "self-evolving-agent-system"

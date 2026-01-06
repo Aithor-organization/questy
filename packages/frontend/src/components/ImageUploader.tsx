@@ -32,14 +32,14 @@ export function ImageUploader({ onImagesChange, maxImages = 4 }: ImageUploaderPr
     reader.onload = (e) => {
       const result = e.target?.result as string;
       const base64 = result.split(',')[1];
-      const type = file.type === 'image/png' ? 'png' : 'jpg';
+      const type: 'jpg' | 'png' = file.type === 'image/png' ? 'png' : 'jpg';
 
       setImages(prev => {
         if (prev.length >= maxImages) {
           setError(`최대 ${maxImages}장까지 업로드 가능합니다`);
           return prev;
         }
-        const newImages = [...prev, { base64, type, preview: result }];
+        const newImages: ImageData[] = [...prev, { base64, type, preview: result }];
         onImagesChange(newImages);
         return newImages;
       });

@@ -1,0 +1,314 @@
+/* Notebook Planner Design System */
+/* 노트북/플래너 스타일 - 손글씨 감성 + 종이 텍스처 */
+/* Google Fonts는 index.css에서 import */
+
+:root {
+  /* 색상 팔레트 - 노트북 테마 */
+  --paper-white: #fefdfb;
+  --paper-cream: #f8f5f0;
+  --paper-lines: #e8e4dd;
+  --paper-margin: #ffcccb;
+
+  --ink-black: #2d2d2d;
+  --ink-blue: #1e40af;
+  --ink-red: #dc2626;
+  --pencil-gray: #6b7280;
+
+  --highlight-yellow: #fef08a;
+  --highlight-green: #bbf7d0;
+  --highlight-pink: #fbcfe8;
+  --highlight-blue: #bfdbfe;
+
+  --sticker-gold: #fbbf24;
+  --sticker-coral: #fb7185;
+  --sticker-mint: #34d399;
+
+  /* 그림자 - 종이 질감 */
+  --shadow-paper: 0 1px 3px rgba(0,0,0,0.08), 0 4px 6px rgba(0,0,0,0.04);
+  --shadow-lifted: 0 4px 12px rgba(0,0,0,0.1), 0 8px 24px rgba(0,0,0,0.08);
+  --shadow-sticker: 2px 2px 4px rgba(0,0,0,0.15);
+
+  /* 타이포그래피 */
+  --font-handwrite: 'Nanum Pen Script', cursive;
+  --font-body: 'Gowun Dodum', sans-serif;
+
+  /* 간격 */
+  --line-height: 1.75rem;
+  --margin-line: 3rem;
+}
+
+/* 노트북 배경 */
+.notebook-bg {
+  background-color: var(--paper-cream);
+  background-image:
+    repeating-linear-gradient(
+      transparent,
+      transparent calc(var(--line-height) - 1px),
+      var(--paper-lines) calc(var(--line-height) - 1px),
+      var(--paper-lines) var(--line-height)
+    );
+  background-size: 100% var(--line-height);
+  background-position: 0 0.5rem;
+}
+
+/* 노트북 페이지 */
+.notebook-page {
+  background: var(--paper-white);
+  border-radius: 4px;
+  box-shadow: var(--shadow-paper);
+  position: relative;
+  overflow: hidden;
+}
+
+/* 마진 라인 */
+.notebook-page::before {
+  content: '';
+  position: absolute;
+  left: var(--margin-line);
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--paper-margin);
+}
+
+/* 스프링 홀 */
+.notebook-holes {
+  position: absolute;
+  left: 0.75rem;
+  top: 0;
+  bottom: 0;
+  width: 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  padding: 1rem 0;
+}
+
+.notebook-hole {
+  width: 0.75rem;
+  height: 0.75rem;
+  background: var(--paper-cream);
+  border-radius: 50%;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
+}
+
+/* 손글씨 스타일 텍스트 */
+.handwrite {
+  font-family: var(--font-handwrite);
+  letter-spacing: -0.02em;
+}
+
+.handwrite-lg {
+  font-size: 1.75rem;
+  line-height: 2rem;
+}
+
+.handwrite-xl {
+  font-size: 2.25rem;
+  line-height: 2.5rem;
+}
+
+/* 형광펜 효과 */
+.highlight-yellow {
+  background: linear-gradient(180deg, transparent 50%, var(--highlight-yellow) 50%);
+  padding: 0 4px;
+}
+
+.highlight-green {
+  background: linear-gradient(180deg, transparent 50%, var(--highlight-green) 50%);
+  padding: 0 4px;
+}
+
+.highlight-pink {
+  background: linear-gradient(180deg, transparent 50%, var(--highlight-pink) 50%);
+  padding: 0 4px;
+}
+
+.highlight-blue {
+  background: linear-gradient(180deg, transparent 50%, var(--highlight-blue) 50%);
+  padding: 0 4px;
+}
+
+/* 스티커 스타일 */
+.sticker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.75rem;
+  border-radius: 9999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  box-shadow: var(--shadow-sticker);
+  transform: rotate(-2deg);
+}
+
+.sticker-gold {
+  background: var(--sticker-gold);
+  color: #78350f;
+}
+
+.sticker-coral {
+  background: var(--sticker-coral);
+  color: white;
+}
+
+.sticker-mint {
+  background: var(--sticker-mint);
+  color: #064e3b;
+}
+
+/* 체크박스 스타일 */
+.checkbox-notebook {
+  width: 1.25rem;
+  height: 1.25rem;
+  border: 2px solid var(--pencil-gray);
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.checkbox-notebook.checked {
+  background: var(--ink-blue);
+  border-color: var(--ink-blue);
+}
+
+.checkbox-notebook .checkmark {
+  color: white;
+  font-size: 0.875rem;
+}
+
+/* 날짜 탭 */
+.date-tab {
+  background: var(--paper-white);
+  border: 1px solid var(--paper-lines);
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  padding: 0.5rem 1rem;
+  font-family: var(--font-handwrite);
+  font-size: 1.125rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.date-tab.active {
+  background: var(--highlight-yellow);
+  border-color: var(--sticker-gold);
+  transform: translateY(-2px);
+}
+
+/* 진행률 바 - 컬러풀 펜 스타일 */
+.progress-bar-notebook {
+  height: 0.5rem;
+  background: var(--paper-lines);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--ink-blue), var(--sticker-mint));
+  border-radius: 9999px;
+  transition: width 0.5s ease-out;
+}
+
+/* 포스트잇 스타일 */
+.postit {
+  background: #fff59d;
+  padding: 1rem;
+  position: relative;
+  box-shadow:
+    2px 2px 5px rgba(0,0,0,0.1),
+    inset 0 -40px 40px -40px rgba(0,0,0,0.05);
+  transform: rotate(-1deg);
+}
+
+.postit::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1.5rem;
+  background: linear-gradient(180deg, rgba(0,0,0,0.05), transparent);
+}
+
+/* 와시 테이프 */
+.washi-tape {
+  height: 1.5rem;
+  background: repeating-linear-gradient(
+    45deg,
+    var(--sticker-coral),
+    var(--sticker-coral) 10px,
+    var(--highlight-pink) 10px,
+    var(--highlight-pink) 20px
+  );
+  opacity: 0.8;
+  transform: rotate(-2deg);
+}
+
+/* 퀘스트 카드 - 인덱스 카드 스타일 */
+.quest-card {
+  background: var(--paper-white);
+  border: 1px solid var(--paper-lines);
+  border-radius: 2px;
+  padding: 1rem;
+  position: relative;
+  box-shadow: var(--shadow-paper);
+  transition: all 0.2s;
+}
+
+.quest-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lifted);
+}
+
+.quest-card.completed {
+  opacity: 0.7;
+  background: var(--paper-cream);
+}
+
+.quest-card.completed::after {
+  content: '✓';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotate(-10deg);
+  font-size: 4rem;
+  color: var(--sticker-mint);
+  opacity: 0.3;
+  font-family: var(--font-handwrite);
+}
+
+/* 애니메이션 */
+@keyframes wobble {
+  0%, 100% { transform: rotate(-1deg); }
+  50% { transform: rotate(1deg); }
+}
+
+.animate-wobble {
+  animation: wobble 0.5s ease-in-out;
+}
+
+@keyframes stamp {
+  0% { transform: scale(0) rotate(-20deg); opacity: 0; }
+  50% { transform: scale(1.2) rotate(-10deg); }
+  100% { transform: scale(1) rotate(-5deg); opacity: 1; }
+}
+
+.animate-stamp {
+  animation: stamp 0.4s ease-out forwards;
+}
+
+/* 반응형 */
+@media (max-width: 640px) {
+  :root {
+    --margin-line: 2rem;
+  }
+
+  .handwrite-xl {
+    font-size: 1.75rem;
+  }
+}

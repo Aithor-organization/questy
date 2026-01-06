@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import { searchBooks, getBookDetails, getPreviewImages, scrapeBookData } from '../lib/yes24-scraper';
+import { searchBooks, getBookDetails, getPreviewImages } from '../lib/yes24-scraper';
 
 const books = new Hono();
 
@@ -104,29 +104,6 @@ books.get('/:productId/preview', async (c) => {
     });
   } catch (error) {
     return c.json({ success: false, error: '미리보기 조회 실패' }, 500);
-  }
-});
-
-// 목차 분석 (Vision AI 사용)
-books.post('/:productId/analyze', async (c) => {
-  const productId = c.req.param('productId');
-  const apiKey = process.env.OPENROUTER_API_KEY;
-
-  if (!apiKey) {
-    return c.json({ success: false, error: 'API 키가 설정되지 않았습니다' }, 500);
-  }
-
-  try {
-    const toc = await scrapeBookData(productId, apiKey);
-
-    if (!toc) {
-      return c.json({ success: false, error: '목차 분석 실패' }, 500);
-    }
-
-    return c.json({ success: true, data: toc });
-  } catch (error) {
-    console.error('목차 분석 오류:', error);
-    return c.json({ success: false, error: '목차 분석 중 오류가 발생했습니다' }, 500);
   }
 });
 

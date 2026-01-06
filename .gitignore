@@ -35,3 +35,11 @@ coverage/
 tmp/
 temp/
 *.tmp
+
+# Database
+*.db
+*.sqlite
+
+# Playwright
+playwright-report/
+test-results/

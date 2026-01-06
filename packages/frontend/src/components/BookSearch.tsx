@@ -1,5 +1,14 @@
 import { useState } from 'react';
 
+// 교재 메타데이터 (수능 학습용)
+interface BookMetadata {
+  subject?: string;
+  targetGrade?: string;
+  bookType?: string;
+  category?: string;
+  description?: string;
+}
+
 interface Yes24Book {
   productId: string;
   title: string;
@@ -7,6 +16,7 @@ interface Yes24Book {
   publisher: string;
   previewUrl: string;
   thumbnailUrl: string;
+  metadata?: BookMetadata;
 }
 
 interface BookSearchProps {

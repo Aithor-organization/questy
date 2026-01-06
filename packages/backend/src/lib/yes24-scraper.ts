@@ -10,32 +10,22 @@ export interface Yes24Book {
   publisher: string;
   previewUrl: string;
   thumbnailUrl: string;
+  // 교재 메타데이터 (수능 학습용)
+  metadata?: BookMetadata;
+}
+
+// 수능 학습에 유용한 교재 메타데이터
+export interface BookMetadata {
+  subject?: string;       // 과목: 수학, 국어, 영어, 과학탐구 등
+  targetGrade?: string;   // 대상: 고1, 고2, 고3, N수생, 전학년
+  bookType?: string;      // 유형: 개념서, 유형서, 기출문제집, 모의고사
+  category?: string;      // Yes24 카테고리
+  description?: string;   // 간략 설명 (100자 이내)
 }
 
 export interface PreviewPage {
   pageNumber: number;
   imageUrl: string;
-}
-
-export interface TableOfContents {
-  productId: string;
-  title: string;
-  sections: TOCSection[];
-  totalPages: number;
-  previewPages: PreviewPage[];
-}
-
-export interface TOCSection {
-  number: string;
-  title: string;
-  items: TOCItem[];
-}
-
-export interface TOCItem {
-  title: string;
-  pageStart?: number;
-  pageEnd?: number;
-  topics?: string[];
 }
 
 // Yes24 검색 결과 파싱
@@ -134,6 +124,44 @@ export async function getPreviewImages(productId: string): Promise<PreviewPage[]
   }
 }
 
+// 제목에서 과목 추출
+function extractSubject(title: string, category: string): string | undefined {
+  const text = `${title} ${category}`.toLowerCase();
+  if (text.includes('수학') || text.includes('미적분') || text.includes('기하') || text.includes('확률과 통계')) return '수학';
+  if (text.includes('국어') || text.includes('문학') || text.includes('독서') || text.includes('화법과 작문')) return '국어';
+  if (text.includes('영어') || text.includes('english')) return '영어';
+  if (text.includes('물리')) return '물리학';
+  if (text.includes('화학')) return '화학';
+  if (text.includes('생명과학') || text.includes('생물')) return '생명과학';
+  if (text.includes('지구과학')) return '지구과학';
+  if (text.includes('한국사')) return '한국사';
+  if (text.includes('사회') || text.includes('윤리') || text.includes('정치') || text.includes('경제') || text.includes('지리')) return '사회탐구';
+  if (text.includes('과학탐구') || text.includes('과탐')) return '과학탐구';
+  return undefined;
+}
+
+// 제목에서 대상 학년 추출
+function extractTargetGrade(title: string): string | undefined {
+  if (title.includes('고1') || title.includes('고등 1')) return '고1';
+  if (title.includes('고2') || title.includes('고등 2')) return '고2';
+  if (title.includes('고3') || title.includes('고등 3') || title.includes('수능')) return '고3';
+  if (title.includes('N수') || title.includes('재수')) return 'N수생';
+  if (title.includes('전학년') || title.includes('고등')) return '전학년';
+  return undefined;
+}
+
+// 제목에서 교재 유형 추출
+function extractBookType(title: string): string | undefined {
+  const lowerTitle = title.toLowerCase();
+  if (lowerTitle.includes('개념') || lowerTitle.includes('정석') || lowerTitle.includes('기본')) return '개념서';
+  if (lowerTitle.includes('유형') || lowerTitle.includes('쎈') || lowerTitle.includes('라이트')) return '유형서';
+  if (lowerTitle.includes('기출') || lowerTitle.includes('수능완성') || lowerTitle.includes('수능특강')) return '기출문제집';
+  if (lowerTitle.includes('모의고사') || lowerTitle.includes('모의')) return '모의고사';
+  if (lowerTitle.includes('실전') || lowerTitle.includes('파이널')) return '실전서';
+  if (lowerTitle.includes('문제') || lowerTitle.includes('연습')) return '문제집';
+  return undefined;
+}
+
 // 상품 상세 정보 가져오기
 export async function getBookDetails(productId: string): Promise<Yes24Book | null> {
   const detailUrl = `https://www.yes24.com/Product/Goods/${productId}`;
@@ -154,6 +182,26 @@ export async function getBookDetails(productId: string): Promise<Yes24Book | nul
     const publisherMatch = html.match(/출판사\s*<\/span>\s*<span[^>]*>([^<]+)<\/span>/);
     const publisher = publisherMatch ? publisherMatch[1].trim() : '';
 
+    // 카테고리 추출 (breadcrumb)
+    const categoryMatch = html.match(/class="[^"]*yesAlertLi[^"]*"[^>]*>([^<]+)<\/a>/g);
+    const category = categoryMatch ? categoryMatch.map(m => m.replace(/<[^>]+>/g, '').trim()).join(' > ') : '';
+
+    // 책 소개 추출 (간략하게)
+    const descMatch = html.match(/<div[^>]*class="[^"]*infoWrap_txt[^"]*"[^>]*>([\s\S]*?)<\/div>/);
+    let description = '';
+    if (descMatch) {
+      description = descMatch[1].replace(/<[^>]+>/g, '').trim().slice(0, 100);
+    }
+
+    // 메타데이터 추출
+    const metadata: BookMetadata = {
+      subject: extractSubject(title, category),
+      targetGrade: extractTargetGrade(title),
+      bookType: extractBookType(title),
+      category: category || undefined,
+      description: description || undefined,
+    };
+
     return {
       productId,
       title,
@@ -161,110 +209,10 @@ export async function getBookDetails(productId: string): Promise<Yes24Book | nul
       publisher,
       previewUrl: `https://www.yes24.com/Product/Viewer/Preview/${productId}`,
       thumbnailUrl: `https://image.yes24.com/goods/${productId}/L`,
+      metadata,
     };
   } catch (error) {
     console.error('상품 상세 정보 가져오기 실패:', error);
     return null;
   }
-}
-
-// Vision API로 목차 이미지 분석 (OpenRouter 사용)
-export async function analyzeTableOfContents(
-  imageUrls: string[],
-  apiKey: string
-): Promise<TableOfContents | null> {
-  try {
-    const imageContents = imageUrls.slice(0, 5).map(url => ({
-      type: 'image_url' as const,
-      image_url: { url },
-    }));
-
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.0-flash-001',
-        messages: [
-          {
-            role: 'user',
-            content: [
-              {
-                type: 'text',
-                text: `이 이미지들은 문제집의 목차입니다. 다음 JSON 형식으로 목차를 추출해주세요:
-{
-  "sections": [
-    {
-      "number": "I",
-      "title": "섹션 제목",
-      "items": [
-        {
-          "title": "항목 제목",
-          "pageStart": 10,
-          "pageEnd": 15,
-          "topics": ["주제1", "주제2"]
-        }
-      ]
-    }
-  ],
-  "totalPages": 300
-}
-
-JSON만 출력하세요.`,
-              },
-              ...imageContents,
-            ],
-          },
-        ],
-        response_format: { type: 'json_object' },
-      }),
-    });
-
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content;
-
-    if (content) {
-      const parsed = JSON.parse(content);
-      return {
-        productId: '',
-        title: '',
-        sections: parsed.sections || [],
-        totalPages: parsed.totalPages || 0,
-        previewPages: [],
-      };
-    }
-
-    return null;
-  } catch (error) {
-    console.error('목차 분석 실패:', error);
-    return null;
-  }
-}
-
-// 전체 플로우: 검색 → 미리보기 → 목차 분석
-export async function scrapeBookData(
-  productId: string,
-  apiKey: string
-): Promise<TableOfContents | null> {
-  // 1. 책 상세 정보 가져오기
-  const bookDetails = await getBookDetails(productId);
-  if (!bookDetails) return null;
-
-  // 2. 미리보기 이미지 가져오기
-  const previewImages = await getPreviewImages(productId);
-  if (previewImages.length === 0) return null;
-
-  // 3. 목차 이미지 분석 (처음 5페이지 정도가 목차)
-  const tocImageUrls = previewImages.slice(1, 6).map(p => p.imageUrl);
-  const toc = await analyzeTableOfContents(tocImageUrls, apiKey);
-
-  if (toc) {
-    toc.productId = productId;
-    toc.title = bookDetails.title;
-    toc.previewPages = previewImages;
-  }
-
-  return toc;
 }

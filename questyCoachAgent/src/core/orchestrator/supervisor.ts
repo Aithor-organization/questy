@@ -1,0 +1,604 @@
+/**
+ * Supervisor Orchestrator
+ * Multi-Agent Supervisor Pattern 구현
+ * - 중앙 집중식 라우팅
+ * - 에이전트 조율 및 상태 관리
+ * - 실행 경로 추적
+ */
+
+import type {
+  AgentRole,
+  AgentRequest,
+  AgentResponse,
+  DirectorContext,
+  RouteDecision,
+} from '../../types/agent.js';
+import type {
+  Subject,
+  TopicMastery,
+  AnalyzedUnit,
+  DetectedStudyPlan,
+  PlanPerformanceMemory,
+  AIGeneratedQuest,
+  PlanReview,
+} from '../../types/memory.js';
+import { IntentClassifier } from '../router/index.js';
+import {
+  BaseAgent,
+  CoachAgent,
+  PlannerAgent,
+  AnalystAgent,
+  AdmissionAgent,
+  type DualPlanResult,
+  type AIRecommendation,
+  type ExtendedPlanReview,
+} from '../agents/index.js';
+import { MemoryLane } from '../../memory/index.js';
+import { getLLMClient, type LLMClient } from '../../llm/index.js';
+import { StudentRegistry } from '../../registry/index.js';
+import { QuestGenerator, QuestTracker, ScheduleDelayHandler } from '../../quest/index.js';
+import type { DelayAnalysis, DelayNotification } from '../../quest/index.js';
+
+export interface SupervisorConfig {
+  enableMemoryExtraction: boolean;
+  enableBurnoutCheck: boolean;
+  enableQuestSystem: boolean;
+  defaultSubject: Subject;
+  maxConcurrentAgents: number;
+}
+
+const DEFAULT_CONFIG: SupervisorConfig = {
+  enableMemoryExtraction: true,
+  enableBurnoutCheck: true,
+  enableQuestSystem: true,
+  defaultSubject: 'GENERAL',
+  maxConcurrentAgents: 3,
+};
+
+// 실행 상태 추적
+interface ExecutionState {
+  conversationId: string;
+  studentId: string;
+  activeAgent: AgentRole;
+  executionPath: Array<{
+    agent: AgentRole;
+    timestamp: Date;
+    duration?: number;
+  }>;
+  turnCount: number;
+}
+
+export class Supervisor {
+  private config: SupervisorConfig;
+
+  // 핵심 컴포넌트
+  private classifier: IntentClassifier;
+  private memoryLane: MemoryLane;
+  private llmClient: LLMClient;
+  private studentRegistry: StudentRegistry;
+  private questGenerator: QuestGenerator;
+  private questTracker: QuestTracker;
+  private scheduleDelayHandler: ScheduleDelayHandler;
+
+  // 에이전트 풀 (Worker Agents)
+  private agents: Map<Exclude<AgentRole, 'DIRECTOR'>, BaseAgent>;
+
+  // 실행 상태 추적
+  private executionStates: Map<string, ExecutionState>;  // conversationId → state
+
+  constructor(config: Partial<SupervisorConfig> = {}) {
+    this.config = { ...DEFAULT_CONFIG, ...config };
+
+    // 핵심 컴포넌트 초기화
+    this.classifier = new IntentClassifier();
+    this.memoryLane = new MemoryLane({
+      enableAutoExtraction: this.config.enableMemoryExtraction,
+      enableBurnoutMonitoring: this.config.enableBurnoutCheck,
+    });
+    this.llmClient = getLLMClient();
+    this.studentRegistry = new StudentRegistry();
+    this.questGenerator = new QuestGenerator();
+    this.questTracker = new QuestTracker();
+    this.scheduleDelayHandler = new ScheduleDelayHandler();
+
+    // 에이전트 초기화 (Worker Pool)
+    this.agents = new Map<Exclude<AgentRole, 'DIRECTOR'>, BaseAgent>();
+    this.agents.set('ADMISSION', new AdmissionAgent());
+    this.agents.set('PLANNER', new PlannerAgent());
+    this.agents.set('COACH', new CoachAgent());
+    this.agents.set('ANALYST', new AnalystAgent());
+
+    // 실행 상태 추적
+    this.executionStates = new Map();
+  }
+
+  /**
+   * 메인 처리 엔트리포인트 (Supervisor Loop)
+   */
+  async process(request: AgentRequest): Promise<AgentResponse> {
+    const { studentId, message, conversationId, metadata } = request;
+    const startTime = Date.now();
+
+    // 1. 실행 상태 초기화/복원
+    const state = this.getOrCreateState(conversationId, studentId);
+
+    // 2. 대화 기록 추가
+    this.addToConversationHistory(conversationId, 'user', message);
+
+    // 3. 의도 분류 및 라우팅 결정 (Supervisor Decision)
+    const routeDecision = await this.route(message, state);
+
+    // 4. 번아웃 체크 (전처리)
+    if (this.config.enableBurnoutCheck) {
+      const burnoutResponse = this.checkBurnout(studentId);
+      if (burnoutResponse) {
+        return this.finalizeResponse(burnoutResponse, conversationId, state, startTime);
+      }
+    }
+
+    // 5. 컨텍스트 구성
+    const context = await this.buildContext(studentId, message, metadata?.currentSubject);
+
+    // 6. 에이전트 선택 및 실행 (Worker Delegation)
+    const targetAgent = this.selectAgent(routeDecision);
+    state.activeAgent = targetAgent;
+    state.executionPath.push({
+      agent: targetAgent,
+      timestamp: new Date(),
+    });
+
+    const agent = this.agents.get(targetAgent);
+    if (!agent) {
+      // 폴백: Coach 에이전트
+      const fallback = this.agents.get('COACH')!;
+      const response = await fallback.process(request, context);
+      return this.finalizeResponse(response, conversationId, state, startTime);
+    }
+
+    // 7. 에이전트 실행
+    const response = await agent.process(request, context);
+
+    // 8. 실행 경로 완료 기록
+    const lastPath = state.executionPath[state.executionPath.length - 1];
+    if (lastPath) {
+      lastPath.duration = Date.now() - lastPath.timestamp.getTime();
+    }
+
+    // 9. 후처리 및 응답 반환
+    return this.finalizeResponse(response, conversationId, state, startTime);
+  }
+
+  /**
+   * 의도 기반 라우팅 (Supervisor Routing)
+   */
+  private async route(message: string, state: ExecutionState): Promise<RouteDecision> {
+    // 3-Level Router: 복잡도 기반 동적 라우팅
+    const decision = this.classifier.classify(message);
+    const complexity = this.classifier.calculateComplexity(message);
+
+    // 복잡도에 따른 모델 선택 로깅
+    const selectedModel = this.classifier.selectModel(complexity);
+    console.log(`[Supervisor] Route: ${decision.targetAgent}, Model: ${selectedModel}, Complexity: ${(complexity * 100).toFixed(0)}%`);
+
+    return decision;
+  }
+
+  /**
+   * 에이전트 선택 (Worker Selection)
+   */
+  private selectAgent(decision: RouteDecision): Exclude<AgentRole, 'DIRECTOR'> {
+    // DIRECTOR로 라우팅된 경우 기본 COACH로 폴백
+    if (decision.targetAgent === 'DIRECTOR') {
+      return 'COACH';
+    }
+    return decision.targetAgent as Exclude<AgentRole, 'DIRECTOR'>;
+  }
+
+  /**
+   * 번아웃 체크
+   */
+  private checkBurnout(studentId: string): AgentResponse | null {
+    const burnoutCheck = this.memoryLane.shouldContinueStudying(studentId);
+
+    if (burnoutCheck.recommendation === 'STOP_TODAY') {
+      return {
+        agentRole: 'DIRECTOR',
+        message: `😊 잠깐! ${burnoutCheck.reason}
+
+오늘은 무리하지 말고 쉬어가는 게 어떨까요?
+- 가벼운 산책하기 🚶
+- 좋아하는 음악 듣기 🎵
+- 충분히 수면 취하기 😴
+
+내일 컨디션이 좋아지면 다시 만나요! 💪`,
+        actions: [],
+        memoryExtracted: false,
+        suggestedFollowUp: ['기분이 나아지면 알려줘', '쉬고 나서 다시 시작하자'],
+      };
+    }
+
+    return null;
+  }
+
+  /**
+   * 컨텍스트 구성
+   */
+  private async buildContext(
+    studentId: string,
+    query: string,
+    currentSubject?: Subject
+  ): Promise<DirectorContext> {
+    // 학생 프로필
+    const studentProfile = this.studentRegistry.getStudent(studentId) ??
+      this.studentRegistry.createStudent({ name: '학생' });
+
+    // 활성 학습 계획
+    const activePlans = this.studentRegistry.getActivePlans(studentId);
+
+    // 메모리 컨텍스트
+    const memoryContext = await this.memoryLane.retrieveContext({
+      studentId,
+      query,
+      currentSubject: currentSubject ?? this.config.defaultSubject,
+    });
+
+    // 최근 대화 (간소화)
+    const recentConversations: DirectorContext['recentConversations'] = [];
+
+    return {
+      studentProfile,
+      activePlans,
+      memoryContext,
+      recentConversations,
+    };
+  }
+
+  /**
+   * 응답 최종화
+   */
+  private async finalizeResponse(
+    response: AgentResponse,
+    conversationId: string,
+    state: ExecutionState,
+    startTime: number
+  ): Promise<AgentResponse> {
+    // 대화 기록 추가
+    this.addToConversationHistory(conversationId, 'assistant', response.message);
+
+    // 메모리 추출 (필요 시)
+    if (this.config.enableMemoryExtraction && response.memoryExtracted) {
+      await this.extractMemories(state.studentId, conversationId);
+    }
+
+    // 실행 통계 로깅
+    const totalDuration = Date.now() - startTime;
+    console.log(`[Supervisor] Completed in ${totalDuration}ms, Path: ${state.executionPath.map(p => p.agent).join(' → ')}`);
+
+    // 턴 카운트 증가
+    state.turnCount++;
+
+    return response;
+  }
+
+  /**
+   * 메모리 추출
+   */
+  private async extractMemories(studentId: string, conversationId: string): Promise<void> {
+    // 간소화된 메모리 추출
+    const history = this.getConversationHistory(conversationId);
+
+    await this.memoryLane.extractAndStore(studentId, {
+      conversationId,
+      messages: history,
+    });
+  }
+
+  // ==================== 상태 관리 ====================
+
+  private getOrCreateState(conversationId: string, studentId: string): ExecutionState {
+    let state = this.executionStates.get(conversationId);
+
+    if (!state) {
+      state = {
+        conversationId,
+        studentId,
+        activeAgent: 'COACH',
+        executionPath: [],
+        turnCount: 0,
+      };
+      this.executionStates.set(conversationId, state);
+    }
+
+    return state;
+  }
+
+  // ==================== 대화 기록 관리 ====================
+
+  private conversationHistory: Map<string, Array<{ role: 'user' | 'assistant'; content: string; timestamp: Date }>> = new Map();
+
+  private addToConversationHistory(
+    conversationId: string,
+    role: 'user' | 'assistant',
+    content: string
+  ): void {
+    const history = this.conversationHistory.get(conversationId) ?? [];
+    history.push({ role, content, timestamp: new Date() });
+
+    if (history.length > 50) {
+      history.splice(0, history.length - 50);
+    }
+
+    this.conversationHistory.set(conversationId, history);
+  }
+
+  private getConversationHistory(conversationId: string) {
+    return this.conversationHistory.get(conversationId) ?? [];
+  }
+
+  // ==================== 퀘스트 시스템 통합 ====================
+
+  /**
+   * 오늘의 퀘스트 생성
+   */
+  async generateDailyQuests(studentId: string) {
+    const profile = this.studentRegistry.getStudent(studentId);
+    if (!profile) return null;
+
+    const activePlans = this.studentRegistry.getActivePlans(studentId);
+    const reviewTopics = this.memoryLane.getReviewRecommendations(studentId);
+
+    // 복습 필요 토픽 (TopicMastery 형태로 변환)
+    const reviewDueTopics: TopicMastery[] = reviewTopics.map(topicId => ({
+      topicId,
+      subject: this.config.defaultSubject,
+      masteryScore: 0.5,
+      easinessFactor: 2.5,        // SM-2 EF
+      interval: 1,                 // 복습 간격 (일)
+      repetitions: 1,              // 반복 횟수
+      nextReviewDate: new Date(),
+      lastReviewDate: new Date(),
+      totalAttempts: 1,
+      successfulAttempts: 0,
+    }));
+
+    const todayQuests = await this.questGenerator.generateTodayQuests({
+      request: {
+        studentId,
+        date: new Date(),
+        activePlans: activePlans.map(p => p.id),
+        reviewTopics: reviewTopics,
+      },
+      studentProfile: profile,
+      activePlans,
+      reviewDueTopics,
+      currentStreak: this.questTracker.getStreak(studentId),
+    });
+
+    this.questTracker.saveTodayQuests(todayQuests);
+
+    return todayQuests;
+  }
+
+  // ==================== 접근자 ====================
+
+  getMemoryLane(): MemoryLane {
+    return this.memoryLane;
+  }
+
+  getStudentRegistry(): StudentRegistry {
+    return this.studentRegistry;
+  }
+
+  getQuestTracker(): QuestTracker {
+    return this.questTracker;
+  }
+
+  getScheduleDelayHandler(): ScheduleDelayHandler {
+    return this.scheduleDelayHandler;
+  }
+
+  getAgent(role: Exclude<AgentRole, 'DIRECTOR'>): BaseAgent | undefined {
+    return this.agents.get(role);
+  }
+
+  getCoachAgent(): CoachAgent {
+    return this.agents.get('COACH') as CoachAgent;
+  }
+
+  getAdmissionAgent(): AdmissionAgent {
+    return this.agents.get('ADMISSION') as AdmissionAgent;
+  }
+
+  getExecutionState(conversationId: string): ExecutionState | undefined {
+    return this.executionStates.get(conversationId);
+  }
+
+  // ==================== AI 플랜 생성 API (진화형) ====================
+
+  /**
+   * AI 기반 플랜 생성 (목차 분석 결과 활용)
+   * PlannerAgent의 진화형 플랜 생성 기능 노출
+   *
+   * @param request - 플랜 생성 요청
+   * @returns 듀얼 플랜 결과 (원본 + 맞춤 플랜)
+   */
+  async generatePlanFromAnalysis(request: {
+    studentId: string;
+    materialName: string;
+    analyzedUnits: AnalyzedUnit[];
+    detectedStudyPlan?: DetectedStudyPlan;
+    targetDays: number;
+    bookMetadata?: {
+      subject?: string;
+      targetGrade?: string;
+      bookType?: string;
+    };
+  }) {
+    const plannerAgent = this.agents.get('PLANNER') as PlannerAgent;
+    if (!plannerAgent) {
+      throw new Error('PlannerAgent not initialized');
+    }
+
+    console.log(`[Supervisor] Delegating plan generation for ${request.studentId}`);
+
+    return plannerAgent.generatePlanFromAnalysis(request);
+  }
+
+  /**
+   * 플랜 성과 기록 (진화 학습용)
+   * 플랜 완료 후 성과를 기록하여 다음 플랜 생성 시 활용
+   *
+   * @param performance - 플랜 성과 데이터
+   */
+  async recordPlanPerformance(
+    performance: Omit<PlanPerformanceMemory, 'id' | 'type' | 'createdAt'>
+  ): Promise<void> {
+    const plannerAgent = this.agents.get('PLANNER') as PlannerAgent;
+    if (!plannerAgent) {
+      throw new Error('PlannerAgent not initialized');
+    }
+
+    console.log(`[Supervisor] Recording plan performance for ${performance.planId}`);
+
+    return plannerAgent.recordPlanPerformance(performance);
+  }
+
+  // ==================== AI 플랜 리뷰 API (진화형) ====================
+
+  /**
+   * AI 플랜 리뷰 (진화 학습 포함)
+   * AnalystAgent의 진화형 플랜 리뷰 기능 노출
+   *
+   * @param request - 플랜 리뷰 요청
+   * @returns 확장된 플랜 리뷰 결과
+   */
+  async reviewPlan(request: {
+    materialName: string;
+    planName: string;
+    dailyQuests: AIGeneratedQuest[];
+    totalDays: number;
+    totalEstimatedHours: number;
+    subject?: Subject;
+  }) {
+    const analystAgent = this.agents.get('ANALYST') as AnalystAgent;
+    if (!analystAgent) {
+      throw new Error('AnalystAgent not initialized');
+    }
+
+    console.log(`[Supervisor] Delegating plan review for ${request.planName}`);
+
+    return analystAgent.reviewPlan(request);
+  }
+
+  /**
+   * 리뷰 패턴 성공/실패 기록 (진화 학습용)
+   * 리뷰 제안에 대한 피드백을 기록하여 패턴 신뢰도 조정
+   *
+   * @param patternId - 패턴 ID
+   * @param success - 성공 여부
+   * @param feedback - 사용자 피드백 (선택)
+   */
+  async recordReviewPatternOutcome(
+    patternId: string,
+    success: boolean,
+    feedback?: string
+  ): Promise<void> {
+    const analystAgent = this.agents.get('ANALYST') as AnalystAgent;
+    if (!analystAgent) {
+      throw new Error('AnalystAgent not initialized');
+    }
+
+    console.log(`[Supervisor] Recording pattern outcome for ${patternId}: ${success}`);
+
+    return analystAgent.recordPatternOutcome(patternId, success, feedback);
+  }
+
+  /**
+   * 새로운 리뷰 패턴 생성 (학습)
+   * 새로운 패턴을 발견하여 기록
+   *
+   * @param pattern - 새로운 패턴 정보
+   * @returns 생성된 패턴 ID
+   */
+  async createReviewPattern(pattern: {
+    patternId: string;
+    patternName: string;
+    description: string;
+    triggerConditions: {
+      planDuration?: { min?: number; max?: number };
+      dailyMinutes?: { min?: number; max?: number };
+      subject?: Subject[];
+      unitCount?: { min?: number; max?: number };
+    };
+    issueDescription: string;
+    suggestedFix: string;
+    successfulFixCount: number;
+    failedFixCount: number;
+    confidence: number;
+    validationScore: number;
+  }): Promise<string> {
+    const analystAgent = this.agents.get('ANALYST') as AnalystAgent;
+    if (!analystAgent) {
+      throw new Error('AnalystAgent not initialized');
+    }
+
+    console.log(`[Supervisor] Creating new review pattern: ${pattern.patternName}`);
+
+    return analystAgent.createReviewPattern(pattern);
+  }
+
+  // ==================== 통합 플랜 생성 + 리뷰 ====================
+
+  /**
+   * 플랜 생성 및 자동 리뷰
+   * 플랜을 생성하고 자동으로 리뷰까지 수행
+   *
+   * @param request - 플랜 생성 요청
+   * @returns 플랜 + 리뷰 결과
+   */
+  async generateAndReviewPlan(request: {
+    studentId: string;
+    materialName: string;
+    analyzedUnits: AnalyzedUnit[];
+    detectedStudyPlan?: DetectedStudyPlan;
+    targetDays: number;
+    bookMetadata?: {
+      subject?: string;
+      targetGrade?: string;
+      bookType?: string;
+    };
+  }) {
+    console.log(`[Supervisor] Starting integrated plan generation and review for ${request.studentId}`);
+
+    // 1. 플랜 생성
+    const planResult = await this.generatePlanFromAnalysis(request);
+
+    // 2. 각 플랜에 대해 리뷰 수행
+    const reviewedPlans = await Promise.all(
+      planResult.plans.map(async (plan) => {
+        const review = await this.reviewPlan({
+          materialName: request.materialName,
+          planName: plan.planName,
+          dailyQuests: plan.dailyQuests,
+          totalDays: plan.totalDays,
+          totalEstimatedHours: plan.totalEstimatedHours,
+          subject: request.bookMetadata?.subject as Subject | undefined,
+        });
+
+        return {
+          plan,
+          review,
+        };
+      })
+    );
+
+    console.log(`[Supervisor] Completed integrated generation: ${reviewedPlans.length} plans reviewed`);
+
+    return {
+      hasOriginalPlan: planResult.hasOriginalPlan,
+      reviewedPlans,
+      recommendations: planResult.recommendations,
+      message: planResult.message,
+    };
+  }
+}

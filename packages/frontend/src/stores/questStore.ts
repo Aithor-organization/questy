@@ -1,6 +1,15 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// AI 학습 팁 (수능 맞춤)
+interface StudyTips {
+  importance: string; // "중요도 높음", "자주 출제됨" 등
+  keyPoints: string[]; // 핵심 포인트
+  commonMistakes?: string; // 자주 하는 실수
+  studyMethod?: string; // 추천 학습법
+  relatedUnits?: string; // 연계 단원
+}
+
 interface DailyQuest {
   day: number;
   date: string;
@@ -14,6 +23,8 @@ interface DailyQuest {
   topics?: string[];
   pages?: string;
   objectives?: string[];
+  // AI 학습 팁 (수능 맞춤)
+  studyTips?: StudyTips;
 }
 
 interface Recommendation {
@@ -52,6 +63,8 @@ export interface QuestWithPlan {
   topics?: string[];
   pages?: string;
   objectives?: string[];
+  // AI 학습 팁 (수능 맞춤)
+  studyTips?: StudyTips;
   // 플랜 정보
   planId: string;
   planName: string;

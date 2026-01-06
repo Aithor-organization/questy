@@ -100,8 +100,8 @@ export function GeneratePage() {
               {isLoading && (
                 <div className="mt-6 text-center">
                   <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent" />
-                  <p className="mt-2 text-gray-500 text-sm">
-                    AI가 목차를 분석하고 최적의 플랜을 생성 중...
+                  <p className="mt-2 text-gray-600 font-medium">
+                    퀘스트 생성중입니다
                   </p>
                 </div>
               )}

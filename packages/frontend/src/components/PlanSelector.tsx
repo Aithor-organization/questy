@@ -39,7 +39,7 @@ const intensityColors = {
 export function PlanSelector({
   materialName,
   plans,
-  hasOriginalPlan,
+  hasOriginalPlan: _hasOriginalPlan,
   detectedStudyPlan,
   recommendations,
   aiMessage,
@@ -204,16 +204,25 @@ export function PlanSelector({
         <div className="space-y-3">
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-semibold text-gray-700">🎓 AI 전문가 리뷰</h3>
-            {!review && (
+            {!review && !isReviewing && (
               <button
                 onClick={() => onReviewPlan(selectedPlan)}
                 disabled={isReviewing}
                 className="text-xs px-3 py-1 bg-purple-100 text-purple-700 rounded-full hover:bg-purple-200 disabled:opacity-50 transition-colors"
               >
-                {isReviewing ? '분석 중...' : '플랜 분석받기'}
+                플랜 분석받기
               </button>
             )}
           </div>
+
+          {/* 리뷰 진행 중 로딩 상태 */}
+          {isReviewing && (
+            <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-6 text-center">
+              <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-purple-500 border-t-transparent mb-3" />
+              <p className="text-sm font-medium text-purple-700">AI 전문가가 플랜을 분석 중입니다...</p>
+              <p className="text-xs text-purple-500 mt-1">잠시만 기다려주세요</p>
+            </div>
+          )}
 
           {review && (
             <div className="bg-gradient-to-br from-purple-50 to-indigo-50 rounded-xl p-4 space-y-4">

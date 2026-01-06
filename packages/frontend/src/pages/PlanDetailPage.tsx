@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQuestStore } from '../stores/questStore';
 
@@ -5,6 +6,13 @@ export function PlanDetailPage() {
   const { planId } = useParams<{ planId: string }>();
   const navigate = useNavigate();
   const { getPlanById, removePlan, toggleQuestComplete } = useQuestStore();
+  const [expandedTips, setExpandedTips] = useState<number[]>([]);
+
+  const toggleTips = (day: number) => {
+    setExpandedTips((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  };
 
   const plan = planId ? getPlanById(planId) : undefined;
 
@@ -89,38 +97,102 @@ export function PlanDetailPage() {
         {/* 퀘스트 목록 */}
         <div className="bg-white rounded-2xl shadow-sm p-4">
           <h3 className="text-sm font-semibold text-gray-700 mb-3">📅 전체 일정</h3>
-          <div className="space-y-2 max-h-96 overflow-y-auto">
+          <div className="space-y-2 max-h-[600px] overflow-y-auto">
             {plan.dailyQuests.map((quest) => (
-              <div
-                key={quest.day}
-                className={`flex items-center gap-3 p-3 rounded-lg ${
-                  quest.completed ? 'bg-green-50' : 'bg-gray-50'
-                }`}
-              >
-                <button
-                  onClick={() => toggleQuestComplete(plan.id, quest.day)}
-                  className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
-                    quest.completed
-                      ? 'bg-green-500 border-green-500 text-white'
-                      : 'border-gray-300'
+              <div key={quest.day} className="space-y-1">
+                <div
+                  className={`flex items-center gap-3 p-3 rounded-lg ${
+                    quest.completed ? 'bg-green-50' : 'bg-gray-50'
                   }`}
                 >
-                  {quest.completed && (
-                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                    </svg>
-                  )}
-                </button>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-blue-600 font-medium">Day {quest.day}</span>
-                    <span className="text-xs text-gray-400">{formatDate(quest.date)}</span>
+                  <button
+                    onClick={() => toggleQuestComplete(plan.id, quest.day)}
+                    className={`w-6 h-6 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${
+                      quest.completed
+                        ? 'bg-green-500 border-green-500 text-white'
+                        : 'border-gray-300'
+                    }`}
+                  >
+                    {quest.completed && (
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                      </svg>
+                    )}
+                  </button>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-blue-600 font-medium">Day {quest.day}</span>
+                      <span className="text-xs text-gray-400">{formatDate(quest.date)}</span>
+                      {quest.studyTips && (
+                        <button
+                          onClick={() => toggleTips(quest.day)}
+                          className="text-xs text-purple-600 bg-purple-50 px-2 py-0.5 rounded-full hover:bg-purple-100"
+                        >
+                          💡 학습팁 {expandedTips.includes(quest.day) ? '접기' : '보기'}
+                        </button>
+                      )}
+                    </div>
+                    <p className={`text-sm truncate ${quest.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
+                      {quest.unitNumber}. {quest.unitTitle}
+                    </p>
                   </div>
-                  <p className={`text-sm truncate ${quest.completed ? 'text-gray-500 line-through' : 'text-gray-900'}`}>
-                    {quest.unitNumber}. {quest.unitTitle}
-                  </p>
+                  <span className="text-xs text-gray-400">{quest.estimatedMinutes}분</span>
                 </div>
-                <span className="text-xs text-gray-400">{quest.estimatedMinutes}분</span>
+
+                {/* AI 학습 팁 (펼침) */}
+                {quest.studyTips && expandedTips.includes(quest.day) && (
+                  <div className="ml-9 p-3 bg-purple-50 rounded-lg border border-purple-100 text-sm">
+                    <div className="flex items-center gap-2 mb-2">
+                      <span className="text-purple-700 font-medium">💡 AI 학습 팁</span>
+                      <span className="text-xs text-purple-500 bg-purple-100 px-2 py-0.5 rounded">
+                        {quest.studyTips.importance}
+                      </span>
+                    </div>
+
+                    {/* 핵심 포인트 */}
+                    {quest.studyTips.keyPoints.length > 0 && (
+                      <div className="mb-2">
+                        <p className="text-xs text-purple-600 mb-1">📌 핵심 포인트</p>
+                        <ul className="text-xs text-gray-700 space-y-0.5">
+                          {quest.studyTips.keyPoints.map((point, idx) => (
+                            <li key={idx} className="flex items-start gap-1">
+                              <span className="text-purple-400">•</span>
+                              <span>{point}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* 자주 하는 실수 */}
+                    {quest.studyTips.commonMistakes && (
+                      <div className="mb-2">
+                        <p className="text-xs text-purple-600 mb-1">⚠️ 자주 하는 실수</p>
+                        <p className="text-xs text-gray-700">{quest.studyTips.commonMistakes}</p>
+                      </div>
+                    )}
+
+                    {/* 추천 학습법 */}
+                    {quest.studyTips.studyMethod && (
+                      <div className="mb-2">
+                        <p className="text-xs text-purple-600 mb-1">📚 추천 학습법</p>
+                        <p className="text-xs text-gray-700">{quest.studyTips.studyMethod}</p>
+                      </div>
+                    )}
+
+                    {/* 연계 단원 */}
+                    {quest.studyTips.relatedUnits && (
+                      <div>
+                        <p className="text-xs text-purple-600 mb-1">🔗 연계 단원</p>
+                        <p className="text-xs text-gray-700">{quest.studyTips.relatedUnits}</p>
+                      </div>
+                    )}
+
+                    <p className="text-xs text-gray-400 mt-2 pt-2 border-t border-purple-100">
+                      ℹ️ AI가 생성한 참고 정보입니다
+                    </p>
+                  </div>
+                )}
               </div>
             ))}
           </div>

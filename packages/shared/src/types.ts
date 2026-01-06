@@ -1,5 +1,16 @@
 import { z } from 'zod';
 
+// 교재 메타데이터 (수능 학습용)
+export const BookMetadataSchema = z.object({
+  subject: z.string().optional(), // 과목: 수학, 국어, 영어, 과학탐구 등
+  targetGrade: z.string().optional(), // 대상: 고1, 고2, 고3, N수생, 전학년
+  bookType: z.string().optional(), // 유형: 개념서, 유형서, 기출문제집, 모의고사
+  category: z.string().optional(), // Yes24 카테고리
+  description: z.string().optional(), // 간략 설명 (100자 이내)
+});
+
+export type BookMetadata = z.infer<typeof BookMetadataSchema>;
+
 // 교재/인강 정보
 export const MaterialSchema = z.object({
   id: z.string(),
@@ -12,6 +23,17 @@ export const MaterialSchema = z.object({
 });
 
 export type Material = z.infer<typeof MaterialSchema>;
+
+// AI 학습 팁 (수능 맞춤)
+export const StudyTipsSchema = z.object({
+  importance: z.string(), // "중요도 높음", "자주 출제됨" 등
+  keyPoints: z.array(z.string()), // 핵심 포인트
+  commonMistakes: z.string().optional(), // 자주 하는 실수
+  studyMethod: z.string().optional(), // 추천 학습법
+  relatedUnits: z.string().optional(), // 연계 단원
+});
+
+export type StudyTips = z.infer<typeof StudyTipsSchema>;
 
 // 일일 퀘스트
 export const DailyQuestSchema = z.object({
@@ -28,6 +50,7 @@ export const DailyQuestSchema = z.object({
   })),
   totalEstimatedMinutes: z.number(),
   completed: z.boolean().default(false),
+  studyTips: StudyTipsSchema.optional(), // AI 학습 팁 (수능 맞춤)
 });
 
 export type DailyQuest = z.infer<typeof DailyQuestSchema>;
@@ -62,6 +85,8 @@ export const CreatePlanRequestSchema = z.object({
     restDays: z.array(z.number()).default([]), // 쉬는 요일 (0=일, 6=토)
     difficulty: z.enum(['easy', 'normal', 'hard']).default('normal'),
   }).optional(),
+  // 교재 메타데이터 (수능 학습용) - 선택적
+  bookMetadata: BookMetadataSchema.optional(),
 });
 
 export type CreatePlanRequest = z.infer<typeof CreatePlanRequestSchema>;
