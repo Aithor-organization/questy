@@ -122,6 +122,44 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
     setResult(null);
     setReview(null);
 
+    // 🧪 MVP 모드: 백엔드 없이 목업 데이터 반환
+    const isMvpMode = true; // MVP 모드 활성화
+
+    if (isMvpMode) {
+      setTimeout(() => {
+        const mockPlan: GeneratedPlan = {
+          planType: 'original',
+          planName: '30일 수능 완성 플랜',
+          description: 'AI가 분석한 최적의 학습 로드맵입니다.',
+          totalDays: data.totalDays,
+          totalEstimatedHours: 45,
+          dailyQuests: Array.from({ length: data.totalDays }, (_, i) => ({
+            day: i + 1,
+            date: new Date(Date.now() + i * 86400000).toISOString().split('T')[0],
+            unitNumber: (i % 5) + 1,
+            unitTitle: `단원 ${Math.floor(i / 5) + 1}: 핵심 개념 정리`,
+            range: `${i * 10 + 1}p ~ ${i * 10 + 10}p`,
+            estimatedMinutes: 90,
+            tip: '오늘은 개념 이해에 집중하세요!',
+            objectives: ['기본 공식 암기', '예제 문제 풀이'],
+          })),
+        };
+
+        const mockResult: GenerateResult = {
+          materialName: data.materialName,
+          hasOriginalPlan: true,
+          detectedStudyPlan: { source: 'index_analysis', totalDays: 30 },
+          plans: [mockPlan],
+          aiMessage: '교재 분석이 완료되었습니다! 완벽한 플랜을 준비했어요. 🎉',
+          analyzedUnits: [],
+        };
+
+        setResult(mockResult);
+        setIsLoading(false);
+      }, 2000); // 2초 딜레이
+      return;
+    }
+
     try {
       const response = await fetch(`${API_URL}/api/generate`, {
         method: 'POST',
