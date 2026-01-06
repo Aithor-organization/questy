@@ -289,7 +289,7 @@ export function TodayPage() {
           </div>
         )}
 
-        <NotebookPage decoration="tape" className="text-center">
+        <NotebookPage decoration="holes" className="text-center">
           <div className="py-12">
             <div className="text-6xl mb-4">📓</div>
             <h1 className="handwrite handwrite-xl text-[var(--ink-black)] mb-2">
