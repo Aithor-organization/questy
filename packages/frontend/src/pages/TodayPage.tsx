@@ -271,7 +271,7 @@ export function TodayPage() {
     return (
       <NotebookLayout>
         {coachData && (
-          <div className="notebook-page p-4 bg-[var(--highlight-green)] mb-4">
+          <div className="notebook-page-lined p-4 bg-[var(--highlight-green)] mb-4">
             <div className="flex items-start gap-3">
               <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
                 🤖
@@ -443,7 +443,7 @@ export function TodayPage() {
 
       {/* 코치 인사 메시지 */}
       {coachData && isToday && (
-        <div className="notebook-page p-4 bg-[var(--highlight-green)] mb-4">
+        <div className="notebook-page-lined p-4 bg-[var(--highlight-green)] mb-4">
           <div className="flex items-start gap-3">
             <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl flex-shrink-0 shadow-sm">
               🤖
@@ -519,7 +519,7 @@ export function TodayPage() {
 
       {/* 학습 시작 리마인더 (퀘스트가 있지만 하나도 완료 안됐을 때) */}
       {isToday && quests.length > 0 && quests.every(q => !q.completed) && currentHour >= 10 && (
-        <div className="notebook-page p-4 bg-[var(--highlight-yellow)] mt-4">
+        <div className="notebook-page-lined p-4 bg-[var(--highlight-yellow)] mt-4">
           <div className="flex items-center gap-3">
             <span className="text-2xl">⏰</span>
             <div className="flex-1">
