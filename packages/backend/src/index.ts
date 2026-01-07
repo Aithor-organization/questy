@@ -12,9 +12,13 @@ import booksRoutes from './routes/books';
 const app = new Hono();
 
 // 미들웨어
+app.use('*', async (c, next) => {
+  console.log(`[${new Date().toISOString()}] INCOMING: ${c.req.method} ${c.req.url}`);
+  await next();
+});
 app.use('*', logger());
 app.use('*', cors({
-  origin: ['http://localhost:5173', 'http://localhost:3000'],
+  origin: (origin) => origin, // 개발/데모용으로 모든 Origin 허용
   credentials: true,
 }));
 

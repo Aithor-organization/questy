@@ -1,24 +1,9 @@
-import { useState } from 'react';
+import { API_BASE_URL } from '../config';
 
-interface Yes24Book {
-  productId: string;
-  title: string;
-  author: string;
-  publisher: string;
-  previewUrl: string;
-  thumbnailUrl: string;
-}
-
-interface BookSearchProps {
-  onSelectBook: (book: Yes24Book) => void;
-}
+// ... (previous interfaces)
 
 export function BookSearch({ onSelectBook }: BookSearchProps) {
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Yes24Book[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // ... (previous state)
 
   const handleSearch = async () => {
     if (!query.trim()) return;
@@ -27,9 +12,10 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
     setError('');
 
     try {
-      const response = await fetch(
-        `http://localhost:3001/api/books/search?q=${encodeURIComponent(query)}`
-      );
+      const url = `${API_BASE_URL}/api/books/search?q=${encodeURIComponent(query)}`;
+      console.log('[BookSearch] Requesting:', url);
+
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success) {
@@ -38,7 +24,8 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
         setError(data.error || '검색 실패');
       }
     } catch (err) {
-      setError('서버 연결 실패');
+      console.error('[BookSearch] Error details:', err);
+      setError(err instanceof Error ? `연결 실패: ${err.message}` : '서버 연결 실패');
     } finally {
       setLoading(false);
     }
@@ -85,11 +72,10 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
             <button
               key={book.productId}
               onClick={() => handleSelect(book)}
-              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${
-                selectedId === book.productId
+              className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${selectedId === book.productId
                   ? 'border-blue-500 bg-blue-50'
                   : 'border-gray-200 hover:border-gray-300 bg-white'
-              }`}
+                }`}
             >
               <img
                 src={book.thumbnailUrl}
