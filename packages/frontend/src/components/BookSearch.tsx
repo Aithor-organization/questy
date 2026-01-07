@@ -42,7 +42,11 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
       console.log('[BookSearch] API_BASE_URL:', API_BASE_URL);
       console.log('[BookSearch] Requesting:', url);
 
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        headers: {
+          'ngrok-skip-browser-warning': 'true',
+        },
+      });
       const data = await response.json();
 
       if (data.success) {
