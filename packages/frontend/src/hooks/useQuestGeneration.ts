@@ -123,7 +123,7 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
     setReview(null);
 
     // 🧪 MVP 모드: 백엔드 없이 목업 데이터 반환
-    const isMvpMode = true; // MVP 모드 활성화
+    const isMvpMode = false; // MVP 모드 비활성화 - 진짜 AI 사용
 
     if (isMvpMode) {
       setTimeout(() => {
