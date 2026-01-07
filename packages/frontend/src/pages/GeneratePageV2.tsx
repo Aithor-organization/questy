@@ -75,7 +75,12 @@ export function GeneratePageV2() {
     setLoadingPreview(true);
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/books/${book.productId}/preview`
+        `${API_BASE_URL}/api/books/${book.productId}/preview`,
+        {
+          headers: {
+            'ngrok-skip-browser-warning': 'true',
+          },
+        }
       );
       const data = await res.json();
       if (data.success && data.data.images.length > 0) {
@@ -117,7 +122,12 @@ export function GeneratePageV2() {
       const imagePromises = selectedImages.map(async (img) => {
         try {
           const proxyRes = await fetch(
-            `${API_BASE_URL}/api/books/proxy-image?url=${encodeURIComponent(img.imageUrl)}`
+            `${API_BASE_URL}/api/books/proxy-image?url=${encodeURIComponent(img.imageUrl)}`,
+            {
+              headers: {
+                'ngrok-skip-browser-warning': 'true',
+              },
+            }
           );
           const proxyData = await proxyRes.json();
 
@@ -219,8 +229,8 @@ export function GeneratePageV2() {
                 type="button"
                 onClick={() => setInputMode('upload')}
                 className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${inputMode === 'upload'
-                    ? 'bg-white text-[var(--ink-blue)] shadow-sm'
-                    : 'text-[var(--pencil-gray)] hover:text-[var(--ink-black)]'
+                  ? 'bg-white text-[var(--ink-blue)] shadow-sm'
+                  : 'text-[var(--pencil-gray)] hover:text-[var(--ink-black)]'
                   }`}
               >
                 📷 사진 업로드
@@ -229,8 +239,8 @@ export function GeneratePageV2() {
                 type="button"
                 onClick={() => setInputMode('search')}
                 className={`flex-1 py-2 px-4 rounded-lg text-sm font-medium transition-colors ${inputMode === 'search'
-                    ? 'bg-white text-[var(--ink-blue)] shadow-sm'
-                    : 'text-[var(--pencil-gray)] hover:text-[var(--ink-black)]'
+                  ? 'bg-white text-[var(--ink-blue)] shadow-sm'
+                  : 'text-[var(--pencil-gray)] hover:text-[var(--ink-black)]'
                   }`}
               >
                 🔍 교재 검색
@@ -327,8 +337,8 @@ export function GeneratePageV2() {
                           type="button"
                           onClick={() => setZoomedImage(img)}
                           className={`relative aspect-[3/4] rounded-lg overflow-hidden border-2 transition-all ${selectedPages.includes(img.pageNumber)
-                              ? 'border-[var(--ink-blue)] ring-2 ring-[var(--highlight-blue)]'
-                              : 'border-[var(--paper-lines)] hover:border-[var(--pencil-gray)]'
+                            ? 'border-[var(--ink-blue)] ring-2 ring-[var(--highlight-blue)]'
+                            : 'border-[var(--paper-lines)] hover:border-[var(--pencil-gray)]'
                             }`}
                         >
                           <img
@@ -395,8 +405,8 @@ export function GeneratePageV2() {
                             }
                           }}
                           className={`flex-1 py-3 rounded-xl font-medium transition-colors ${selectedPages.includes(zoomedImage.pageNumber)
-                              ? 'bg-[var(--highlight-pink)] text-[var(--ink-red)]'
-                              : 'bg-[var(--ink-blue)] text-white'
+                            ? 'bg-[var(--highlight-pink)] text-[var(--ink-red)]'
+                            : 'bg-[var(--ink-blue)] text-white'
                             }`}
                         >
                           {selectedPages.includes(zoomedImage.pageNumber)
@@ -517,8 +527,8 @@ export function GeneratePageV2() {
                 onClick={handleGenerate}
                 disabled={images.length === 0 || isLoading}
                 className={`w-full py-4 rounded-lg handwrite text-xl transition-all ${images.length === 0
-                    ? 'bg-[var(--paper-lines)] text-[var(--pencil-gray)] cursor-not-allowed'
-                    : 'bg-[var(--ink-blue)] text-white hover:shadow-lg'
+                  ? 'bg-[var(--paper-lines)] text-[var(--pencil-gray)] cursor-not-allowed'
+                  : 'bg-[var(--ink-blue)] text-white hover:shadow-lg'
                   }`}
               >
                 {isLoading ? (
@@ -535,8 +545,8 @@ export function GeneratePageV2() {
                 onClick={handleAnalyzeBook}
                 disabled={!selectedBook || selectedPages.length === 0 || isLoading || analyzingBook}
                 className={`w-full py-4 rounded-lg handwrite text-xl transition-all ${!selectedBook || selectedPages.length === 0
-                    ? 'bg-[var(--paper-lines)] text-[var(--pencil-gray)] cursor-not-allowed'
-                    : 'bg-[var(--ink-blue)] text-white hover:shadow-lg'
+                  ? 'bg-[var(--paper-lines)] text-[var(--pencil-gray)] cursor-not-allowed'
+                  : 'bg-[var(--ink-blue)] text-white hover:shadow-lg'
                   }`}
               >
                 {isLoading || analyzingBook ? (
