@@ -38,9 +38,11 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
     setError('');
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/books/search?q=${encodeURIComponent(query)}`
-      );
+      const url = `${API_BASE_URL}/api/books/search?q=${encodeURIComponent(query)}`;
+      console.log('[BookSearch] API_BASE_URL:', API_BASE_URL);
+      console.log('[BookSearch] Requesting:', url);
+
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.success) {
