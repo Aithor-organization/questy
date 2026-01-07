@@ -49,7 +49,9 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
         setError(data.error || '검색 실패');
       }
     } catch (err) {
-      setError('서버 연결 실패');
+      console.error('[BookSearch] Error:', err);
+      // @ts-ignore
+      setError(`서버 연결 실패: ${err.message || 'Unknown error'}`);
     } finally {
       setLoading(false);
     }
@@ -97,8 +99,8 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
               key={book.productId}
               onClick={() => handleSelect(book)}
               className={`w-full flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${selectedId === book.productId
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-200 hover:border-gray-300 bg-white'
+                ? 'border-blue-500 bg-blue-50'
+                : 'border-gray-200 hover:border-gray-300 bg-white'
                 }`}
             >
               <img
