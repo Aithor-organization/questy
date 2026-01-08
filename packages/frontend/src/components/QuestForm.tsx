@@ -2,35 +2,12 @@ import { useState } from 'react';
 import { ImageUploader } from './ImageUploader';
 import { BookSearch } from './BookSearch';
 import { API_BASE_URL } from '../config';
+import type { BookMetadata, Yes24Book, PreviewImage } from '@questybook/shared';
 
 interface ImageData {
   base64: string;
   type: 'jpg' | 'png';
   preview: string;
-}
-
-// 교재 메타데이터 (수능 학습용)
-interface BookMetadata {
-  subject?: string;
-  targetGrade?: string;
-  bookType?: string;
-  category?: string;
-  description?: string;
-}
-
-interface Yes24Book {
-  productId: string;
-  title: string;
-  author: string;
-  publisher: string;
-  previewUrl: string;
-  thumbnailUrl: string;
-  metadata?: BookMetadata;
-}
-
-interface PreviewImage {
-  pageNumber: number;
-  imageUrl: string;
 }
 
 interface FormData {

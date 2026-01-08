@@ -97,3 +97,20 @@ export const ApiResponseSchema = <T extends z.ZodTypeAny>(dataSchema: T) =>
     data: dataSchema.optional(),
     error: z.string().optional(),
   });
+
+// Yes24 도서 정보 (도서 검색 API 응답)
+export interface Yes24Book {
+  productId: string;
+  title: string;
+  author: string;
+  publisher: string;
+  previewUrl: string;
+  thumbnailUrl: string;
+  metadata?: BookMetadata;
+}
+
+// 도서 미리보기 이미지
+export interface PreviewImage {
+  pageNumber: number;
+  imageUrl: string;
+}

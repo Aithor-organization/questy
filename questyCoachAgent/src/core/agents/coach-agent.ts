@@ -93,7 +93,8 @@ export class CoachAgent extends BaseAgent {
       message,
       responseType,
       memoryContext,
-      studentState
+      studentState,
+      metadata
     );
 
     return this.createResponse(response, {
@@ -157,7 +158,8 @@ export class CoachAgent extends BaseAgent {
     message: string,
     responseType: ResponseType,
     memoryContext: string,
-    state: StudentState
+    state: StudentState,
+    metadata?: AgentRequest['metadata']
   ): Promise<string> {
     // 응답 유형별 추가 지시사항
     const responseGuidelines: Record<ResponseType, string> = {
@@ -194,11 +196,44 @@ export class CoachAgent extends BaseAgent {
 - 감정: ${state.emotion}
 - 번아웃 레벨: ${state.burnoutLevel}`;
 
+    // 퀘스트 컨텍스트 추출
+    const questContext = metadata?.questContext;
+    let questInfo = '';
+
+    if (questContext) {
+      const { todayQuests, plansCount, completedToday, totalToday } = questContext;
+
+      if (todayQuests && todayQuests.length > 0) {
+        const questList = todayQuests.map((q, i) =>
+          `${i + 1}. [${q.completed ? '완료' : '진행중'}] ${q.unitTitle} (${q.estimatedMinutes}분) - ${q.planName}`
+        ).join('\n');
+
+        questInfo = `
+## 오늘의 학습 현황 (매우 중요)
+- 진행률: ${completedToday}/${totalToday} 완료
+- 총 플랜: ${plansCount}개
+- 오늘의 퀘스트 목록:
+${questList}
+
+학생이 "오늘 뭐 공부해?"라고 묻거나 학습 계획을 물어보면 **위의 퀘스트 목록을 기반으로** 구체적으로 안내하세요.
+이미 완료한 것은 칭찬하고, 남은 퀘스트는 격려하며 시작하도록 유도하세요.`;
+      } else if (plansCount && plansCount > 0) {
+        questInfo = `
+## 오늘의 학습 현황
+- 오늘은 예정된 퀘스트가 없습니다.
+- 밀린 공부가 있거나 휴식일일 수 있습니다. 학생에게 확인해보세요.`;
+      } else {
+        questInfo = `
+## 오늘의 학습 현황
+- 아직 생성된 플랜이 없습니다. 플랜 생성을 제안하세요.`;
+      }
+    }
+
     // 전체 프롬프트 구성
     const fullPrompt = this.buildPrompt(
       this.systemPrompt,
       memoryContext,
-      stateInfo
+      stateInfo + questInfo // 퀘스트 정보 추가
     ) + `\n\n## 이번 응답 가이드라인\n${responseGuidelines[responseType]}`;
 
     try {

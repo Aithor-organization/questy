@@ -1,24 +1,6 @@
 import { useState } from 'react';
 import { API_BASE_URL } from '../config';
-
-// 교재 메타데이터 (수능 학습용)
-interface BookMetadata {
-  subject?: string;
-  targetGrade?: string;
-  bookType?: string;
-  category?: string;
-  description?: string;
-}
-
-interface Yes24Book {
-  productId: string;
-  title: string;
-  author: string;
-  publisher: string;
-  previewUrl: string;
-  thumbnailUrl: string;
-  metadata?: BookMetadata;
-}
+import type { Yes24Book } from '@questybook/shared';
 
 interface BookSearchProps {
   onSelectBook: (book: Yes24Book) => void;

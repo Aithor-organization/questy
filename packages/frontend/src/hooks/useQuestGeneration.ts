@@ -1,17 +1,9 @@
 import { useState, useCallback } from 'react';
+import type { BookMetadata } from '@questybook/shared';
 
 interface ImageData {
   base64: string;
   type: 'jpg' | 'png';
-}
-
-// 교재 메타데이터 (수능 학습용)
-interface BookMetadata {
-  subject?: string;
-  targetGrade?: string;
-  bookType?: string;
-  category?: string;
-  description?: string;
 }
 
 interface FormData {

@@ -18,6 +18,3 @@ export { PlanDetailPageV2 as PlanDetailPage } from './PlanDetailPageV2';
 export { AdmissionPage } from './AdmissionPage';
 export { ChatPage } from './ChatPage';
 export { ReportPage } from './ReportPage';
-
-// Legacy (기존 스타일 - 필요시 사용)
-export { MainPage } from './MainPage';
