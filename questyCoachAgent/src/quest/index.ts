@@ -15,3 +15,10 @@ export type {
   SuggestedQuest,
   DelayNotification,
 } from './schedule-delay-handler.js';
+
+export { ScheduleModifier } from './schedule-modifier.js';
+export type {
+  ScheduleChangeRequest,
+  RescheduleOption,
+  ScheduleModificationResult,
+} from './schedule-modifier.js';

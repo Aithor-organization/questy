@@ -4,6 +4,9 @@
  */
 
 import type { Subject, Emotion, MemoryContext } from './memory.js';
+import type { TodayQuests, QuestStats } from './quest.js';
+import type { DelayAnalysis } from '../quest/schedule-delay-handler.js';
+import type { RescheduleOption } from '../quest/schedule-modifier.js';
 
 // 에이전트 유형
 export type AgentRole =
@@ -22,7 +25,8 @@ export type IntentCategory =
   | 'MOTIVATION'      // 동기부여
   | 'EMOTIONAL'       // 감정 지원
   | 'FEEDBACK'        // 피드백
-  | 'ADMIN';          // 관리
+  | 'ADMIN'           // 관리
+  | 'SCHEDULE_CHANGE'; // 일정 변경
 
 // 라우팅 결정
 export interface RouteDecision {
@@ -117,6 +121,8 @@ export interface AgentResponse {
   actions?: AgentAction[];
   memoryExtracted?: boolean;
   suggestedFollowUp?: string[];
+  // 일정 변경 옵션 (코치 채팅용)
+  rescheduleOptions?: RescheduleOption[];
 }
 
 // 에이전트 액션
@@ -135,6 +141,10 @@ export interface DirectorContext {
     content: string;
     timestamp: Date;
   }>;
+  // 퀘스트 컨텍스트 (코치 대화용)
+  todayQuests?: TodayQuests;
+  delayAnalysis?: DelayAnalysis;
+  questStats?: QuestStats;
 }
 
 // 모델 설정

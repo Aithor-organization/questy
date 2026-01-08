@@ -243,6 +243,7 @@ coachRoutes.post('/chat', async (c) => {
         suggestedFollowUp: response.suggestedFollowUp || [],
         memoryExtracted: response.memoryExtracted,
         actions: response.actions || [],
+        rescheduleOptions: response.rescheduleOptions || [],  // 일정 변경 옵션
       },
     });
   } catch (error) {

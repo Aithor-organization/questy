@@ -120,7 +120,14 @@ export function ChatPage() {
           setSessionId(data.data.studentId);
           localStorage.setItem('questybook_session_id', data.data.studentId);
         }
-        addAssistantMessage(data.data.message, data.data.agentRole);
+        // rescheduleOptions가 있으면 메시지에 포함
+        addMessage({
+          role: 'assistant',
+          content: data.data.message,
+          agentRole: data.data.agentRole,
+          rescheduleOptions: data.data.rescheduleOptions || undefined,
+        });
+        markAllAsRead();
       } else {
         addAssistantMessage('죄송해요, 잠시 문제가 생겼어요. 다시 시도해주세요.', 'COACH');
       }
@@ -133,6 +140,27 @@ export function ChatPage() {
       );
     } finally {
       setIsTyping(false);
+    }
+  };
+
+  // 일정 재조정 적용 핸들러
+  const handleApplyReschedule = async (optionId: string) => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/coach/students/${sessionId}/reschedule/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ optionId }),
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        addAssistantMessage(`✅ ${data.message || '일정이 성공적으로 변경되었어요!'}`, 'PLANNER');
+      } else {
+        addAssistantMessage('일정 변경에 실패했어요. 다시 시도해주세요.', 'COACH');
+      }
+    } catch (error) {
+      console.error('Reschedule apply error:', error);
+      addAssistantMessage('일정 변경 중 오류가 발생했어요.', 'COACH');
     }
   };
 
@@ -257,11 +285,54 @@ export function ChatPage() {
                 )}
                 <div
                   className={`rounded-2xl px-4 py-2 whitespace-pre-wrap ${msg.role === 'user'
-                      ? 'bg-[var(--highlight-yellow)] text-[var(--ink-black)]'
-                      : 'bg-white border border-[var(--paper-lines)] text-[var(--ink-black)]'
+                    ? 'bg-[var(--highlight-yellow)] text-[var(--ink-black)]'
+                    : 'bg-white border border-[var(--paper-lines)] text-[var(--ink-black)]'
                     }`}
                 >
                   {msg.content}
+
+                  {/* 일정 재조정 옵션 카드 */}
+                  {msg.rescheduleOptions && msg.rescheduleOptions.length > 0 && (
+                    <div className="mt-4 space-y-3">
+                      {msg.rescheduleOptions.map(option => (
+                        <div
+                          key={option.id}
+                          className={`p-3 rounded-xl border-2 ${option.isRecommended
+                              ? 'border-[var(--ink-blue)] bg-[var(--highlight-blue)]'
+                              : 'border-[var(--paper-lines)] bg-[var(--paper-cream)]'
+                            }`}
+                        >
+                          <div className="flex justify-between items-start mb-2">
+                            <h4 className="font-bold text-sm">
+                              {option.planName}
+                              {option.isRecommended && (
+                                <span className="ml-2 text-xs bg-[var(--ink-blue)] text-white px-2 py-0.5 rounded-full">
+                                  추천
+                                </span>
+                              )}
+                            </h4>
+                            <span className={`text-xs px-2 py-0.5 rounded ${option.feasibility === 'HIGH' ? 'bg-green-100 text-green-700' :
+                                option.feasibility === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                                  'bg-red-100 text-red-700'
+                              }`}>
+                              {option.feasibility === 'HIGH' ? '쉬움' : option.feasibility === 'MEDIUM' ? '보통' : '어려움'}
+                            </span>
+                          </div>
+                          <p className="text-sm text-[var(--pencil-gray)] mb-2">{option.description}</p>
+                          <p className="text-xs text-[var(--ink-blue)] mb-3">📊 {option.impactSummary}</p>
+                          {option.warningMessage && (
+                            <p className="text-xs text-orange-600 mb-2">⚠️ {option.warningMessage}</p>
+                          )}
+                          <button
+                            onClick={() => handleApplyReschedule(option.id)}
+                            className="w-full py-2 bg-[var(--ink-blue)] text-white rounded-lg text-sm font-medium hover:bg-opacity-90 transition-colors"
+                          >
+                            ✓ 적용하기
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
                 <p className="text-xs text-[var(--pencil-gray)] mt-1 ml-1">
                   {formatTime(msg.timestamp)}

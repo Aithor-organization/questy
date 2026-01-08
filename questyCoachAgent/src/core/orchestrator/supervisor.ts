@@ -12,6 +12,7 @@ import type {
   AgentResponse,
   DirectorContext,
   RouteDecision,
+  StudyPlan,
 } from '../../types/agent.js';
 import type {
   Subject,
@@ -36,8 +37,9 @@ import {
 import { MemoryLane } from '../../memory/index.js';
 import { getLLMClient, type LLMClient } from '../../llm/index.js';
 import { StudentRegistry } from '../../registry/index.js';
-import { QuestGenerator, QuestTracker, ScheduleDelayHandler } from '../../quest/index.js';
-import type { DelayAnalysis, DelayNotification } from '../../quest/index.js';
+import { QuestGenerator, QuestTracker, ScheduleDelayHandler, ScheduleModifier } from '../../quest/index.js';
+import type { DelayAnalysis, DelayNotification, RescheduleOption } from '../../quest/index.js';
+import type { TodayQuests } from '../../types/quest.js';
 
 export interface SupervisorConfig {
   enableMemoryExtraction: boolean;
@@ -79,6 +81,7 @@ export class Supervisor {
   private questGenerator: QuestGenerator;
   private questTracker: QuestTracker;
   private scheduleDelayHandler: ScheduleDelayHandler;
+  private scheduleModifier: ScheduleModifier;
 
   // 에이전트 풀 (Worker Agents)
   private agents: Map<Exclude<AgentRole, 'DIRECTOR'>, BaseAgent>;
@@ -100,6 +103,7 @@ export class Supervisor {
     this.questGenerator = new QuestGenerator();
     this.questTracker = new QuestTracker();
     this.scheduleDelayHandler = new ScheduleDelayHandler();
+    this.scheduleModifier = new ScheduleModifier();
 
     // 에이전트 초기화 (Worker Pool)
     this.agents = new Map<Exclude<AgentRole, 'DIRECTOR'>, BaseAgent>();
@@ -156,7 +160,24 @@ export class Supervisor {
     }
 
     // 7. 에이전트 실행
-    const response = await agent.process(request, context);
+    let response = await agent.process(request, context);
+
+    // 7.5 특수 처리: SCHEDULE_CHANGE 의도인 경우 재조정 옵션 생성
+    if (routeDecision.intent === 'SCHEDULE_CHANGE' && context.activePlans.length > 0) {
+      const rescheduleOptions = this.generateRescheduleOptionsFromMessage(
+        message,
+        studentId,
+        context.activePlans,
+        context.todayQuests ?? null
+      );
+      if (rescheduleOptions.length > 0) {
+        response = {
+          ...response,
+          rescheduleOptions,
+          message: response.message + '\n\n📅 아래 옵션 중 하나를 선택해줘!',
+        };
+      }
+    }
 
     // 8. 실행 경로 완료 기록
     const lastPath = state.executionPath[state.executionPath.length - 1];
@@ -245,12 +266,87 @@ export class Supervisor {
     // 최근 대화 (간소화)
     const recentConversations: DirectorContext['recentConversations'] = [];
 
+    // 🆕 퀘스트 컨텍스트 추가 (코치 대화용)
+    const todayQuests = this.questTracker.getTodayQuests(studentId);
+    const delayAnalysis = this.scheduleDelayHandler.analyzeDelays(studentId, todayQuests);
+    const questStats = this.questTracker.getStats(studentId, 'WEEK');
+
     return {
       studentProfile,
       activePlans,
       memoryContext,
       recentConversations,
+      todayQuests: todayQuests ?? undefined,
+      delayAnalysis,
+      questStats,
     };
+  }
+
+  /**
+   * 메시지에서 일정 변경 요청 파싱 및 옵션 생성
+   */
+  private generateRescheduleOptionsFromMessage(
+    message: string,
+    studentId: string,
+    activePlans: StudyPlan[],
+    todayQuests: TodayQuests | null
+  ): RescheduleOption[] {
+    // 메시지에서 일수 추출 (간단한 파싱)
+    const skipDays = this.parseSkipDaysFromMessage(message);
+
+    if (skipDays === 0) {
+      // 기본값: 3일
+      return this.scheduleModifier.generateRescheduleOptions(
+        { studentId, skipDays: this.generateDateRange(3) },
+        activePlans,
+        todayQuests
+      );
+    }
+
+    const skipDates = this.generateDateRange(skipDays);
+
+    return this.scheduleModifier.generateRescheduleOptions(
+      { studentId, skipDays: skipDates },
+      activePlans,
+      todayQuests
+    );
+  }
+
+  /**
+   * 메시지에서 건너뛸 일수 파싱
+   */
+  private parseSkipDaysFromMessage(message: string): number {
+    // "3일", "며칠", "일주일" 등 파싱
+    const dayMatch = message.match(/(\d+)\s*일/);
+    if (dayMatch) {
+      return parseInt(dayMatch[1], 10);
+    }
+
+    // 특정 키워드
+    if (/일주일|1주/.test(message)) return 7;
+    if (/이틀|2일|내일.*모레/.test(message)) return 2;
+    if (/사흘|3일/.test(message)) return 3;
+    if (/나흘|4일/.test(message)) return 4;
+    if (/닷새|5일/.test(message)) return 5;
+    if (/내일/.test(message)) return 1;
+
+    return 0;
+  }
+
+  /**
+   * 날짜 범위 생성
+   */
+  private generateDateRange(days: number): Date[] {
+    const dates: Date[] = [];
+    const today = new Date();
+
+    for (let i = 0; i < days; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + i + 1); // 내일부터
+      dates.push(date);
+    }
+
+    return dates;
   }
 
   /**

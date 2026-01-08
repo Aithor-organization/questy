@@ -9,6 +9,18 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// 일정 재조정 옵션
+export interface RescheduleOption {
+  id: string;
+  planName: string;
+  description: string;
+  impactSummary: string;
+  strategy: 'COMPRESS' | 'EXTEND' | 'SKIP' | 'REDUCE_LOAD';
+  isRecommended: boolean;
+  feasibility: 'HIGH' | 'MEDIUM' | 'LOW';
+  warningMessage?: string;
+}
+
 // 메시지 인터페이스
 export interface ChatMessage {
   id: string;
@@ -17,6 +29,7 @@ export interface ChatMessage {
   timestamp: string; // ISO string for serialization
   agentRole?: string;
   isRead: boolean;
+  rescheduleOptions?: RescheduleOption[];  // 일정 변경 옵션
 }
 
 // 알림 인터페이스

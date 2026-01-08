@@ -44,6 +44,13 @@ const INTENT_KEYWORDS: Record<IntentCategory, RegExp[]> = {
     /설정|변경|수정|삭제|취소|환불/i,
     /비밀번호|계정|프로필/i,
   ],
+  SCHEDULE_CHANGE: [
+    /일정.*변경|스케줄.*변경|일정.*조정|스케줄.*조정/i,
+    /미루|미뤄|연기|늦춰|뒤로|당기/i,
+    /못할것.*같|못 할것.*같|바빠서|시간.*없|일이.*있어/i,
+    /여행|휴가|아파서|병원|시험.*때문|행사/i,
+    /퀘스트.*변경|일정.*다시|스케줄.*다시/i,
+  ],
 };
 
 // 의도 → 에이전트 매핑
@@ -56,6 +63,7 @@ const INTENT_TO_AGENT: Record<IntentCategory, AgentRole> = {
   EMOTIONAL: 'COACH',
   FEEDBACK: 'ANALYST',
   ADMIN: 'DIRECTOR',
+  SCHEDULE_CHANGE: 'PLANNER',  // 일정 변경은 Planner가 처리
 };
 
 // 복잡도 키워드
