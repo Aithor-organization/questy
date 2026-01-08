@@ -168,10 +168,22 @@ export function TodayPage() {
   const requestReminder = async () => {
     if (!studentId) return;
 
+    // 오늘 완료되지 않은 첫 번째 퀘스트 찾기
+    const incompleteQuest = quests.find(q => !q.completed);
+    const questName = incompleteQuest?.unitTitle || '오늘의 학습';
+    const estimatedMinutes = incompleteQuest?.estimatedMinutes || 30;
+    const questId = incompleteQuest ? `${incompleteQuest.planId}-${incompleteQuest.day}` : 'default';
+
     try {
       const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/reminder`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questId,
+          questName,
+          estimatedMinutes,
+          reminderType: 'first',
+        }),
       });
 
       const data = await response.json();
@@ -180,7 +192,7 @@ export function TodayPage() {
         // 채팅 페이지로 이동하면서 메시지 추가
         addMessage({
           role: 'assistant',
-          content: data.data.message,
+          content: data.data.reminderMessage,
           agentRole: 'COACH',
         });
         navigate('/chat');
