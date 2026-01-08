@@ -331,9 +331,12 @@ export async function generateDualPlans(
   startUnit: number,
   endUnit: number,
   targetDays: number,
-  bookMetadata?: BookMetadata
+  bookMetadata?: BookMetadata,
+  excludeWeekends?: boolean,
+  startDate?: string
 ): Promise<DualPlanResult> {
-  const today = new Date();
+  // 시작 날짜 결정 (startDate가 주어지면 사용, 아니면 오늘)
+  const today = startDate ? new Date(startDate) : new Date();
 
   // 학습계획표가 없으면 단일 플랜만 생성
   if (!studyPlan.hasSchedule || studyPlan.scheduleItems.length === 0) {
@@ -456,13 +459,37 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
       }
     });
 
-    // 날짜 추가
+    // 날짜 추가 (주말 미포함 옵션 적용)
     result.plans = result.plans.map((plan) => ({
       ...plan,
       totalDays: plan.dailyQuests.length,
-      dailyQuests: plan.dailyQuests.map((quest) => {
-        const questDate = new Date(today);
-        questDate.setDate(today.getDate() + quest.day - 1);
+      dailyQuests: plan.dailyQuests.map((quest, index) => {
+        let questDate: Date;
+
+        if (excludeWeekends) {
+          // 주말을 건너뛰며 날짜 계산
+          let daysToAdd = 0;
+          let weekdaysCount = 0;
+          while (weekdaysCount < index + 1) {
+            const checkDate = new Date(today);
+            checkDate.setDate(today.getDate() + daysToAdd);
+            const dayOfWeek = checkDate.getDay();
+            // 0 = 일요일, 6 = 토요일
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+              weekdaysCount++;
+            }
+            if (weekdaysCount < index + 1) {
+              daysToAdd++;
+            }
+          }
+          questDate = new Date(today);
+          questDate.setDate(today.getDate() + daysToAdd);
+        } else {
+          // 기존 로직: 연속 날짜
+          questDate = new Date(today);
+          questDate.setDate(today.getDate() + quest.day - 1);
+        }
+
         return {
           ...quest,
           date: formatDate(questDate),

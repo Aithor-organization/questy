@@ -26,6 +26,8 @@ const GenerateRequestSchema = z.object({
   images: z.array(ImageSchema).min(1, '이미지를 1장 이상 업로드해주세요').max(4, '최대 4장까지 업로드 가능합니다'),
   totalDays: z.number().int().positive('목표 기간은 1일 이상이어야 합니다'),
   bookMetadata: BookMetadataSchema.optional(), // 교재 메타데이터 (선택적)
+  excludeWeekends: z.boolean().optional(), // 주말 미포함 옵션
+  startDate: z.string().optional(), // 시작 날짜 (YYYY-MM-DD)
 });
 
 generateRoutes.post('/', async (c) => {
@@ -45,7 +47,7 @@ generateRoutes.post('/', async (c) => {
       }, 400);
     }
 
-    const { materialName, images, totalDays, bookMetadata } = parsed.data;
+    const { materialName, images, totalDays, bookMetadata, excludeWeekends, startDate } = parsed.data;
 
     // 1. 모든 이미지 분석 (병렬 처리)
     console.log(`[Generate] Analyzing ${images.length} images for: ${materialName}`);
@@ -74,8 +76,8 @@ generateRoutes.post('/', async (c) => {
 
     const mergedStudyPlan: DetectedStudyPlan = detectedStudyPlans.length > 0
       ? detectedStudyPlans.reduce((best, current) =>
-          current.scheduleItems.length > best.scheduleItems.length ? current : best
-        )
+        current.scheduleItems.length > best.scheduleItems.length ? current : best
+      )
       : { hasSchedule: false, totalDays: 0, scheduleItems: [], source: '' };
 
     if (uniqueUnits.length === 0) {
@@ -110,7 +112,9 @@ generateRoutes.post('/', async (c) => {
       startUnit,
       endUnit,
       totalDays,
-      bookMetadata
+      bookMetadata,
+      excludeWeekends,
+      startDate
     );
 
     if (dualResult.plans.length === 0 || dualResult.plans.every((p) => p.dailyQuests.length === 0)) {
