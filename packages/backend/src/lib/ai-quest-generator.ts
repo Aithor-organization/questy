@@ -405,11 +405,11 @@ export async function generateDualPlans(
 - 사용자 목표 기간: ${targetDays}일
 - 시작일: ${formatDate(today)}
 
-## 감지된 학습계획표 (${studyPlan.source})
+## 참고용 학습계획표 (${studyPlan.source})
 총 ${studyPlan.totalDays}일 계획
 ${structureInfo}
 
-### 상세 일정:
+### 상세 일정 (참고용):
 ${scheduleInfo}
 
 ## 단원 정보
@@ -417,19 +417,21 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
    - 소단원: ${u.subSections.join(', ') || '없음'}
    - 난이도: ${u.difficulty}`).join('\n\n')}
 
-위 정보를 바탕으로 두 개의 **완전한** 플랜을 생성해주세요:
+## 요청사항
 
-1. **원본 플랜** (planType: "original"):
-   - 학습계획표 (${studyPlan.totalDays}일)를 그대로 따르는 퀘스트
-   - 위의 상세 일정(주제, 페이지, 학습목표 등)을 그대로 포함
-   - ⚠️ **반드시 ${studyPlan.totalDays}개의 퀘스트** 생성 (day 1부터 day ${studyPlan.totalDays}까지 모두)
+**사용자가 지정한 ${targetDays}일** 기간에 맞춘 플랜을 **하나만** 생성해주세요.
 
-2. **맞춤 플랜** (planType: "custom"):
-   - 사용자의 목표인 ${targetDays}일에 맞춰 재분배한 퀘스트
-   - 상세 정보도 적절히 분배
-   - ⚠️ **반드시 ${targetDays}개의 퀘스트** 생성 (day 1부터 day ${targetDays}까지 모두)
+위 학습계획표의 내용(주제, 페이지, 학습목표 등)을 참고하여 ${targetDays}일에 맞게 재분배하세요.
 
-⚠️ 중요: 5개만 생성하고 중단하지 마세요. 모든 일차를 빠짐없이 생성해야 합니다.`;
+플랜 생성 규칙:
+1. planType: "custom" (사용자 맞춤)
+2. ⚠️ **반드시 ${targetDays}개의 퀘스트** 생성 (day 1부터 day ${targetDays}까지 모두)
+3. 학습계획표의 상세 정보(topics, pages, objectives)를 최대한 활용
+4. 모든 단원이 빠짐없이 포함되어야 함
+
+⚠️ 중요: 
+- "original" 플랜은 생성하지 마세요. "custom" 플랜 **하나만** 생성합니다.
+- 5개만 생성하고 중단하지 마세요. 모든 일차를 빠짐없이 생성해야 합니다.`;
 
   const response = await openrouter.chat.completions.create({
     model: DEFAULT_MODEL,
@@ -452,7 +454,7 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
 
     // 생성된 플랜 일수 검증 및 경고
     result.plans.forEach((plan) => {
-      const expectedDays = plan.planType === 'original' ? studyPlan.totalDays : targetDays;
+      const expectedDays = targetDays;  // 모든 플랜은 targetDays 기준
       const actualDays = plan.dailyQuests.length;
       if (actualDays < expectedDays) {
         console.warn(`[Generate] ⚠️ Plan "${plan.planName}" has only ${actualDays} days, expected ${expectedDays} days`);
@@ -498,10 +500,10 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
     }));
 
     return {
-      hasOriginalPlan: true,
+      hasOriginalPlan: false,  // 항상 custom 플랜만 생성
       plans: result.plans,
       recommendations: result.recommendations || [],
-      message: result.message || `${studyPlan.source} 기반 원본 플랜과 ${targetDays}일 맞춤 플랜을 생성했습니다.`,
+      message: result.message || `${targetDays}일 맞춤 플랜을 생성했습니다.`,
     };
   } catch (error) {
     console.error('Failed to parse dual plan result:', content);
