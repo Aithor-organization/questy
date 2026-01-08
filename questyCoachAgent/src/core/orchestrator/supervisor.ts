@@ -132,12 +132,10 @@ export class Supervisor {
     // 3. 의도 분류 및 라우팅 결정 (Supervisor Decision)
     const routeDecision = await this.route(message, state);
 
-    // 4. 번아웃 체크 (전처리)
+    // 4. 번아웃 경고 확인 (차단하지 않고 경고만)
+    let burnoutWarning: string | null = null;
     if (this.config.enableBurnoutCheck) {
-      const burnoutResponse = this.checkBurnout(studentId);
-      if (burnoutResponse) {
-        return this.finalizeResponse(burnoutResponse, conversationId, state, startTime);
-      }
+      burnoutWarning = this.getBurnoutWarning(studentId);
     }
 
     // 5. 컨텍스트 구성
@@ -161,6 +159,14 @@ export class Supervisor {
 
     // 7. 에이전트 실행
     let response = await agent.process(request, context);
+
+    // 7.2 번아웃 경고가 있으면 메시지 앞에 추가
+    if (burnoutWarning) {
+      response = {
+        ...response,
+        message: burnoutWarning + response.message,
+      };
+    }
 
     // 7.5 특수 처리: SCHEDULE_CHANGE 의도인 경우 재조정 옵션 생성
     if (routeDecision.intent === 'SCHEDULE_CHANGE' && context.activePlans.length > 0) {
@@ -216,26 +222,17 @@ export class Supervisor {
   }
 
   /**
-   * 번아웃 체크
+   * 번아웃 체크 - 경고 메시지 반환 (차단하지 않음)
    */
-  private checkBurnout(studentId: string): AgentResponse | null {
+  private getBurnoutWarning(studentId: string): string | null {
     const burnoutCheck = this.memoryLane.shouldContinueStudying(studentId);
 
     if (burnoutCheck.recommendation === 'STOP_TODAY') {
-      return {
-        agentRole: 'DIRECTOR',
-        message: `😊 잠깐! ${burnoutCheck.reason}
+      return `💛 잠깐! ${burnoutCheck.reason}\n\n오늘은 무리하지 말고 휴식도 고려해봐요. 물론 계속 대화는 할 수 있어요! 😊\n\n---\n\n`;
+    }
 
-오늘은 무리하지 말고 쉬어가는 게 어떨까요?
-- 가벼운 산책하기 🚶
-- 좋아하는 음악 듣기 🎵
-- 충분히 수면 취하기 😴
-
-내일 컨디션이 좋아지면 다시 만나요! 💪`,
-        actions: [],
-        memoryExtracted: false,
-        suggestedFollowUp: ['기분이 나아지면 알려줘', '쉬고 나서 다시 시작하자'],
-      };
+    if (burnoutCheck.recommendation === 'TAKE_BREAK') {
+      return `☕ 쉬어가면서 해요! ${burnoutCheck.reason}\n\n---\n\n`;
     }
 
     return null;
