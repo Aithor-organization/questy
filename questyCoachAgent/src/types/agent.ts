@@ -111,6 +111,19 @@ export interface AgentRequest {
       subjects?: string[];
       goals?: string[];
     };
+    // 프론트엔드에서 전달받은 퀘스트 정보
+    questContext?: {
+      todayQuests?: Array<{
+        unitTitle: string;
+        range: string;
+        completed?: boolean;
+        estimatedMinutes?: number;
+        planName?: string;
+      }>;
+      plansCount?: number;
+      completedToday?: number;
+      totalToday?: number;
+    };
   };
 }
 

@@ -9,6 +9,7 @@ import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NotebookLayout } from '../components/notebook/NotebookLayout';
 import { useChatStore } from '../stores/chatStore';
+import { useQuestStore, getTodayDateString } from '../stores/questStore';
 
 import { API_BASE_URL } from '../config';
 
@@ -30,6 +31,10 @@ export function ChatPage() {
     addMessage,
     markAllAsRead,
   } = useChatStore();
+
+  // Quest store에서 퀘스트/플랜 정보 가져오기
+  const { plans, getQuestsByDate } = useQuestStore();
+  const todayQuests = getQuestsByDate(getTodayDateString());
 
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -102,13 +107,28 @@ export function ChatPage() {
     setIsTyping(true);
 
     try {
+      // 오늘의 퀘스트와 플랜 정보를 함께 전송
+      const questContext = {
+        todayQuests: todayQuests.map(q => ({
+          unitTitle: q.unitTitle,
+          range: q.range,
+          completed: q.completed,
+          estimatedMinutes: q.estimatedMinutes,
+          planName: q.planName,
+        })),
+        plansCount: plans.length,
+        completedToday: todayQuests.filter(q => q.completed).length,
+        totalToday: todayQuests.length,
+      };
+
       const response = await fetch(`${API_BASE_URL}/api/coach/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          studentId: sessionId,  // studentId로 전송 (없으면 서버에서 자동 생성)
+          studentId: sessionId,
           message,
           userName,
+          questContext,  // 퀘스트 정보 추가
         }),
       });
 
@@ -298,8 +318,8 @@ export function ChatPage() {
                         <div
                           key={option.id}
                           className={`p-3 rounded-xl border-2 ${option.isRecommended
-                              ? 'border-[var(--ink-blue)] bg-[var(--highlight-blue)]'
-                              : 'border-[var(--paper-lines)] bg-[var(--paper-cream)]'
+                            ? 'border-[var(--ink-blue)] bg-[var(--highlight-blue)]'
+                            : 'border-[var(--paper-lines)] bg-[var(--paper-cream)]'
                             }`}
                         >
                           <div className="flex justify-between items-start mb-2">
@@ -312,8 +332,8 @@ export function ChatPage() {
                               )}
                             </h4>
                             <span className={`text-xs px-2 py-0.5 rounded ${option.feasibility === 'HIGH' ? 'bg-green-100 text-green-700' :
-                                option.feasibility === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
-                                  'bg-red-100 text-red-700'
+                              option.feasibility === 'MEDIUM' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
                               }`}>
                               {option.feasibility === 'HIGH' ? '쉬움' : option.feasibility === 'MEDIUM' ? '보통' : '어려움'}
                             </span>

@@ -152,6 +152,18 @@ const ChatSchema = z.object({
   metadata: z.object({
     currentSubject: z.enum(['MATH', 'KOREAN', 'ENGLISH', 'SCIENCE', 'SOCIAL', 'GENERAL']).optional(),
   }).optional(),
+  questContext: z.object({
+    todayQuests: z.array(z.object({
+      unitTitle: z.string(),
+      range: z.string(),
+      completed: z.boolean().optional(),
+      estimatedMinutes: z.number().optional(),
+      planName: z.string().optional(),
+    })).optional(),
+    plansCount: z.number().optional(),
+    completedToday: z.number().optional(),
+    totalToday: z.number().optional(),
+  }).optional(),
 });
 
 // 코치와 대화 - Supervisor.process() 사용
@@ -207,13 +219,21 @@ coachRoutes.post('/chat', async (c) => {
       content: message,
     });
 
-    // AgentRequest 생성
+    // AgentRequest 생성 - questContext 포함
+    const { questContext } = parsed.data;
     const request: AgentRequest = {
       studentId: finalStudentId,
       message,
       conversationId: convId,
       metadata: {
         currentSubject: metadata?.currentSubject as Subject | undefined,
+        // 프론트엔드에서 받은 퀘스트 정보를 메타데이터에 추가
+        questContext: questContext ? {
+          todayQuests: questContext.todayQuests || [],
+          plansCount: questContext.plansCount || 0,
+          completedToday: questContext.completedToday || 0,
+          totalToday: questContext.totalToday || 0,
+        } : undefined,
       },
     };
 
@@ -1124,14 +1144,9 @@ coachRoutes.post('/students/:studentId/reminder', async (c) => {
   const registry = supervisor.getStudentRegistry();
   const coachAgent = supervisor.getCoachAgent();
 
+  // 학생이 없어도 기본 이름으로 진행 (프론트엔드 localStorage 사용자)
   const student = registry.getStudent(studentId);
-
-  if (!student) {
-    return c.json({
-      success: false,
-      error: { message: '학생을 찾을 수 없습니다' },
-    }, 404);
-  }
+  const studentName = student?.name || '학생';
 
   try {
     const body = await c.req.json();
@@ -1148,7 +1163,7 @@ coachRoutes.post('/students/:studentId/reminder', async (c) => {
 
     // 리마인더 메시지 생성
     const reminderMessage = await coachAgent.generateStudyStartReminder(
-      student.name,
+      studentName,
       reminderType,
       questName,
       estimatedMinutes
