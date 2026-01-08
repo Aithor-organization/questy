@@ -26,7 +26,7 @@ function getSupervisor(): Supervisor {
   if (!supervisorInstance) {
     supervisorInstance = new Supervisor({
       enableMemoryExtraction: true,
-      enableBurnoutCheck: true,
+      enableBurnoutCheck: false,  // 번아웃 체크 비활성화
       enableQuestSystem: true,
     });
     console.log('[Coach] Supervisor 인스턴스 생성됨');
