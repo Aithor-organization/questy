@@ -108,7 +108,12 @@ export function useBackgroundChat(roomId: string) {
 
           // 현재 보고 있는 채팅방이면 읽음 처리
           const currentPath = window.location.pathname;
-          if (currentPath === `/chat/${roomId}`) {
+          // 기본 채팅방의 경우 /chat 또는 /chat/ai-coach-default 모두 체크
+          const isInCurrentRoom =
+            currentPath === `/chat/${roomId}` ||
+            (currentPath === '/chat' && roomId === 'ai-coach-default');
+
+          if (isInCurrentRoom) {
             markRoomAsRead(roomId);
           } else {
             // 다른 곳에 있으면 알림 표시
@@ -149,7 +154,11 @@ export function useBackgroundChat(roomId: string) {
 
         // 알림 (다른 화면에 있을 때)
         const currentPath = window.location.pathname;
-        if (currentPath !== `/chat/${roomId}`) {
+        const isInCurrentRoom =
+          currentPath === `/chat/${roomId}` ||
+          (currentPath === '/chat' && roomId === 'ai-coach-default');
+
+        if (!isInCurrentRoom) {
           addNotification({
             roomId,
             type: 'message',

@@ -93,9 +93,18 @@ export class LLMClient {
     const modelConfig = MODEL_CONFIGS[model];
     const startTime = Date.now();
 
+    // API 키 확인 (런타임에 환경변수 재확인)
+    const apiKey = this.config.apiKey || process.env.OPENROUTER_API_KEY || '';
+
     // API 키 없으면 시뮬레이션 모드
-    if (!this.config.apiKey) {
+    if (!apiKey) {
+      console.warn('[LLMClient] No API key found, using simulation mode');
       return this.simulateResponse(model, messages, startTime);
+    }
+
+    // API 키가 있으면 config에도 저장 (캐싱)
+    if (!this.config.apiKey && apiKey) {
+      this.config.apiKey = apiKey;
     }
 
     const openRouterModel = OPENROUTER_MODEL_MAP[model];
