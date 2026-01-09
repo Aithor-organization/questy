@@ -45,11 +45,13 @@ export function ChatRoomPage() {
   const [isInitialized, setIsInitialized] = useState(false);
   const initRef = useRef(false);
   const prevRoomIdRef = useRef(targetRoomId);
+  const isFirstScrollRef = useRef(true); // 첫 스크롤 여부 추적
 
   // roomId 변경 시 초기화 상태 리셋
   useEffect(() => {
     if (prevRoomIdRef.current !== targetRoomId) {
       initRef.current = false;
+      isFirstScrollRef.current = true; // 방 변경 시 첫 스크롤 플래그 리셋
       setIsInitialized(false);
       prevRoomIdRef.current = targetRoomId;
     }
@@ -80,8 +82,17 @@ export function ChatRoomPage() {
   }, [targetRoomId, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
 
   // 스크롤 자동 이동
+  // - 첫 진입 시: 즉시 맨 아래로 이동 (애니메이션 없음)
+  // - 이후 메시지 추가 시: 부드럽게 스크롤
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (isFirstScrollRef.current) {
+      // 첫 스크롤은 즉시 이동
+      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+      isFirstScrollRef.current = false;
+    } else {
+      // 이후에는 부드럽게 스크롤
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
   }, [room?.messages]);
 
   // 포커스 시 읽음 처리
