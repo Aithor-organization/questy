@@ -91,7 +91,7 @@ function NavTab({
     >
       {children}
       {badge > 0 && (
-        <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center px-1">
+        <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-[20px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-1 shadow-sm">
           {badge > 99 ? '99+' : badge}
         </span>
       )}
@@ -124,7 +124,7 @@ function BottomNavItem({
       <span className="text-lg relative">
         {icon}
         {badge > 0 && (
-          <span className="absolute -top-2 -right-3 min-w-[16px] h-[16px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+          <span className="absolute -top-2 -right-3 min-w-[18px] h-[18px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5 shadow-sm">
             {badge > 99 ? '99+' : badge}
           </span>
         )}

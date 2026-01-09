@@ -82,9 +82,9 @@ export function ChatRoomCard({ room, onClick }: ChatRoomCardProps) {
             )}
           </p>
 
-          {/* 읽지 않은 메시지 배지 */}
+          {/* 읽지 않은 메시지 배지 - 카카오톡 스타일 */}
           {unreadCount > 0 && (
-            <span className="flex-shrink-0 ml-2 min-w-[20px] h-5 px-1.5 bg-[var(--sticker-red)] text-white text-xs font-medium rounded-full flex items-center justify-center">
+            <span className="flex-shrink-0 ml-2 min-w-[22px] h-[22px] px-1.5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center shadow-sm">
               {unreadCount > 99 ? '99+' : unreadCount}
             </span>
           )}
