@@ -194,6 +194,9 @@ export class PlannerAgent extends BaseAgent {
     const { activePlans, memoryContext } = context;
 
     const requestType = this.classifyRequest(message);
+    console.log(`[PlannerAgent] Processing message: "${message}"`);
+    console.log(`[PlannerAgent] Classified as: ${requestType}`);
+    console.log(`[PlannerAgent] Active plans count: ${activePlans.length}`);
 
     let response: string;
     const actions: AgentAction[] = [];
@@ -958,25 +961,32 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
     message: string,
     memoryContext: DirectorContext['memoryContext']
   ): Promise<string> {
+    console.log(`[PlannerAgent] adjustPlan called with message: "${message}"`);
+    console.log(`[PlannerAgent] Active plan: ${plan ? plan.title : 'none'}`);
+
     // 활성 계획이 없어도 일정 변경 요청은 LLM으로 처리
     const planInfo = plan
       ? `현재 계획: ${plan.title}\n진행률: ${((plan.completedSessions / plan.totalSessions) * 100).toFixed(0)}%\n총 세션: ${plan.totalSessions}회`
       : '현재 활성 계획이 없습니다.';
 
-    const adjustPrompt = `당신은 학습 일정 조정 전문가입니다.
-학생의 요청을 이해하고 적절한 일정 조정 방안을 제시해주세요.
+    const adjustPrompt = `당신은 QuestyBook의 학습 일정 조정 AI입니다.
+당신은 학생의 퀘스트 일정을 직접 변경할 수 있는 권한이 있습니다.
+
+## 중요: 당신이 할 수 있는 것
+- ✅ 퀘스트를 다른 날짜로 이동 (예: 일요일로 옮기기)
+- ✅ 학습 페이스 조정 (빠르게/느리게)
+- ✅ 휴식일 추가
+- ✅ 일정 미루기/당기기
 
 ## 현재 상태
 ${planInfo}
 
-## 조정 가능 사항
-- 퀘스트 날짜 변경 (미루기, 당기기)
-- 페이스 조정 (빠르게, 느리게)
-- 특정 날짜로 일정 이동
-- 휴식일 추가
-
-학생의 상황을 공감하며 친근하게 응답하고, 구체적인 조정 방안을 제시해주세요.
-이모지를 적절히 사용하고, 응답은 200자 이내로 간결하게 해주세요.`;
+## 응답 가이드
+1. 학생의 요청을 긍정적으로 수락하세요 ("네, 옮겨드릴게요!" 등)
+2. 어떻게 변경할지 간단히 설명하세요
+3. 활성 계획이 없으면, 먼저 플랜을 만들어야 한다고 안내하세요
+4. 친근하고 격려하는 톤, 이모지 사용
+5. 응답은 150자 이내로 간결하게`;
 
     try {
       const response = await this.generateResponse(
