@@ -132,8 +132,8 @@ export class Supervisor {
     // 3. 의도 분류 및 라우팅 결정 (Supervisor Decision)
     const routeDecision = await this.route(message, state);
 
-    // 4. 컨텍스트 구성
-    const context = await this.buildContext(studentId, message, metadata?.currentSubject);
+    // 4. 컨텍스트 구성 (프론트엔드 questContext 포함)
+    const context = await this.buildContext(studentId, message, metadata?.currentSubject, metadata?.questContext);
 
     // 5. 에이전트 선택 및 실행 (Worker Delegation)
     const targetAgent = this.selectAgent(routeDecision);
@@ -213,7 +213,21 @@ export class Supervisor {
   private async buildContext(
     studentId: string,
     query: string,
-    currentSubject?: Subject
+    currentSubject?: Subject,
+    frontendQuestContext?: {
+      todayQuests?: Array<{
+        unitTitle: string;
+        range: string;
+        completed?: boolean;
+        estimatedMinutes?: number;
+        planName?: string;
+        planId?: string;
+        day?: number;
+      }>;
+      plansCount?: number;
+      completedToday?: number;
+      totalToday?: number;
+    }
   ): Promise<DirectorContext> {
     // 학생 프로필
     const studentProfile = this.studentRegistry.getStudent(studentId) ??
@@ -233,7 +247,15 @@ export class Supervisor {
     const recentConversations: DirectorContext['recentConversations'] = [];
 
     // 🆕 퀘스트 컨텍스트 추가 (코치 대화용)
-    const todayQuests = this.questTracker.getTodayQuests(studentId);
+    // 1. 내부 tracker에서 조회
+    let todayQuests = this.questTracker.getTodayQuests(studentId);
+
+    // 2. 프론트엔드 questContext가 있고 내부 tracker가 비어있으면 변환하여 사용
+    if (!todayQuests && frontendQuestContext?.todayQuests && frontendQuestContext.todayQuests.length > 0) {
+      console.log(`[Supervisor] Using frontend questContext: ${frontendQuestContext.todayQuests.length} quests`);
+      todayQuests = this.convertFrontendQuestContext(studentId, frontendQuestContext);
+    }
+
     const delayAnalysis = this.scheduleDelayHandler.analyzeDelays(studentId, todayQuests);
     const questStats = this.questTracker.getStats(studentId, 'WEEK');
 
@@ -245,6 +267,85 @@ export class Supervisor {
       todayQuests: todayQuests ?? undefined,
       delayAnalysis,
       questStats,
+    };
+  }
+
+  /**
+   * 프론트엔드 questContext를 TodayQuests 형식으로 변환
+   */
+  private convertFrontendQuestContext(
+    studentId: string,
+    frontendContext: {
+      todayQuests?: Array<{
+        unitTitle: string;
+        range: string;
+        completed?: boolean;
+        estimatedMinutes?: number;
+        planName?: string;
+        planId?: string;
+        day?: number;
+      }>;
+      plansCount?: number;
+      completedToday?: number;
+      totalToday?: number;
+    }
+  ): TodayQuests {
+    const now = new Date();
+    const quests = frontendContext.todayQuests ?? [];
+
+    // 프론트엔드 퀘스트를 DailyQuest 형식으로 변환
+    const mainQuests: import('../../types/quest.js').DailyQuest[] = quests.map((q, idx) => {
+      const estimatedMins = q.estimatedMinutes ?? 30;
+      const isCompleted = q.completed ?? false;
+      return {
+        id: `frontend-quest-${idx}-${Date.now()}`,
+        studentId,
+        date: now,
+        type: 'STUDY' as const,
+        title: q.unitTitle,
+        description: q.range,
+        subject: 'GENERAL' as const,
+        planId: q.planId,
+        targetValue: estimatedMins,
+        currentValue: isCompleted ? estimatedMins : 0,
+        unit: '분',
+        status: isCompleted ? 'COMPLETED' as const : 'AVAILABLE' as const,
+        difficulty: 'MEDIUM' as const,
+        priority: 1,
+        xpReward: 100,
+        estimatedMinutes: estimatedMins,
+        expiresAt: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+        tags: q.planName ? [q.planName] : [],
+        // day 정보 저장 (확장)
+        ...(q.day !== undefined && { day: q.day }),
+      };
+    });
+
+    return {
+      studentId,
+      date: now,
+      mainQuests,
+      bonusQuests: [],
+      reviewQuests: [],
+      summary: {
+        totalQuests: quests.length,
+        completedQuests: frontendContext.completedToday ?? quests.filter(q => q.completed === true).length,
+        inProgressQuests: 0,
+        availableQuests: quests.filter(q => q.completed !== true).length,
+        totalXpAvailable: quests.length * 100,
+        earnedXp: (frontendContext.completedToday ?? 0) * 100,
+        estimatedTotalMinutes: quests.reduce((sum, q) => sum + (q.estimatedMinutes ?? 30), 0),
+        actualSpentMinutes: 0,
+        streakDays: 0,
+        isStreakActive: false,
+        completionRate: frontendContext.completedToday && frontendContext.totalToday
+          ? frontendContext.completedToday / frontendContext.totalToday
+          : 0,
+      },
+      dailyMessage: '오늘도 화이팅!',
+      coachTip: '',
+      generatedAt: now,
+      generatedBy: 'SYSTEM',
     };
   }
 

@@ -120,6 +120,8 @@ export interface AgentRequest {
         completed?: boolean;
         estimatedMinutes?: number;
         planName?: string;
+        planId?: string;
+        day?: number;
       }>;
       plansCount?: number;
       completedToday?: number;
