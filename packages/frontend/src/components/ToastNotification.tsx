@@ -6,13 +6,14 @@
  * - 클릭 시 해당 채팅방으로 이동
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useChatStore, type ChatNotification } from '../stores/chatStore';
 
 export function ToastNotification() {
   const navigate = useNavigate();
   const [visibleNotifications, setVisibleNotifications] = useState<ChatNotification[]>([]);
+  const shownIdsRef = useRef<Set<string>>(new Set());
 
   const {
     notifications,
@@ -24,10 +25,13 @@ export function ToastNotification() {
   useEffect(() => {
     const unreadNotifications = notifications.filter(n => !n.isRead);
     const newNotifications = unreadNotifications.filter(
-      n => !visibleNotifications.find(v => v.id === n.id)
+      n => !shownIdsRef.current.has(n.id)
     );
 
     if (newNotifications.length > 0) {
+      // 새 알림 ID 기록
+      newNotifications.forEach(n => shownIdsRef.current.add(n.id));
+
       setVisibleNotifications(prev => [...newNotifications, ...prev].slice(0, 3));
 
       // 5초 후 자동 제거
@@ -37,7 +41,7 @@ export function ToastNotification() {
         }, 5000);
       });
     }
-  }, [notifications, visibleNotifications]);
+  }, [notifications]);
 
   const handleClick = (notification: ChatNotification) => {
     markNotificationAsRead(notification.id);
@@ -54,7 +58,7 @@ export function ToastNotification() {
   if (visibleNotifications.length === 0) return null;
 
   return (
-    <div className="fixed top-4 right-4 z-50 space-y-2 max-w-sm">
+    <div className="fixed top-16 right-4 z-[100] space-y-2 max-w-sm">
       {visibleNotifications.map(notification => {
         const room = getRoomById(notification.roomId);
 
