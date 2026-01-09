@@ -104,6 +104,74 @@ interface ChatStore {
 // 기본 AI 코치 채팅방 ID
 export const DEFAULT_ROOM_ID = 'ai-coach-default';
 
+// 이전 버전 localStorage 키
+const OLD_STORAGE_KEY = 'questybook-chat-storage';
+const NEW_STORAGE_KEY = 'questybook-chat-storage-v2';
+
+// 기존 v1 데이터를 v2로 마이그레이션
+function migrateFromOldStorage(): void {
+  try {
+    const oldData = localStorage.getItem(OLD_STORAGE_KEY);
+    const newData = localStorage.getItem(NEW_STORAGE_KEY);
+
+    // 이미 새 데이터가 있거나 기존 데이터가 없으면 스킵
+    if (!oldData) return;
+
+    const parsed = JSON.parse(oldData);
+    const oldState = parsed?.state;
+
+    // 기존 메시지가 있는 경우만 마이그레이션
+    if (oldState?.messages && oldState.messages.length > 0) {
+      // 새 데이터가 없거나 기본 채팅방에 메시지가 없으면 마이그레이션
+      let shouldMigrate = false;
+
+      if (!newData) {
+        shouldMigrate = true;
+      } else {
+        const newParsed = JSON.parse(newData);
+        const newRooms = newParsed?.state?.rooms || [];
+        const defaultRoom = newRooms.find((r: ChatRoom) => r.isDefault);
+        // 새 기본 채팅방이 비어있으면 마이그레이션
+        if (!defaultRoom || defaultRoom.messages.length === 0) {
+          shouldMigrate = true;
+        }
+      }
+
+      if (shouldMigrate) {
+        const migratedRoom: ChatRoom = {
+          id: DEFAULT_ROOM_ID,
+          name: 'AI 학습 코치',
+          emoji: '🤖',
+          description: '언제든 물어보세요!',
+          createdAt: new Date().toISOString(),
+          messages: oldState.messages,
+          isDefault: true,
+        };
+
+        const newState = {
+          state: {
+            rooms: [migratedRoom],
+            notifications: [],
+            pendingResponses: [],
+          },
+          version: 2,
+        };
+
+        localStorage.setItem(NEW_STORAGE_KEY, JSON.stringify(newState));
+        console.log(`[ChatStore] 기존 대화 ${oldState.messages.length}개 마이그레이션 완료`);
+      }
+    }
+
+    // 마이그레이션 후 기존 데이터 삭제
+    localStorage.removeItem(OLD_STORAGE_KEY);
+  } catch (error) {
+    console.error('[ChatStore] 마이그레이션 실패:', error);
+  }
+}
+
+// 앱 시작 시 마이그레이션 실행
+migrateFromOldStorage();
+
 // 기본 채팅방 생성
 const createDefaultRoom = (): ChatRoom => ({
   id: DEFAULT_ROOM_ID,
@@ -300,7 +368,7 @@ export const useChatStore = create<ChatStore>()(
       },
     }),
     {
-      name: 'questybook-chat-storage-v2',
+      name: NEW_STORAGE_KEY,
       // 마이그레이션: 기존 데이터가 있으면 기본 채팅방으로 이관
       migrate: (persistedState: unknown, _version: number) => {
         const state = persistedState as Partial<ChatStore> & { messages?: ChatMessage[] };
