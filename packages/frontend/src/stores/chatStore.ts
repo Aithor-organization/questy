@@ -1,9 +1,9 @@
 /**
  * Chat Store
- * 채팅 메시지 영구 저장 (카카오톡처럼)
- * - localStorage에 메시지 저장
- * - 탭 이동/앱 재시작 후에도 유지
- * - 읽지 않은 알림 개수 관리
+ * 여러 채팅방 지원 + 백그라운드 응답 + 알림 시스템
+ * - 카카오톡 스타일 채팅 목록
+ * - localStorage에 메시지 영구 저장
+ * - 백그라운드에서 AI 응답 생성 유지
  */
 
 import { create } from 'zustand';
@@ -26,15 +26,27 @@ export interface ChatMessage {
   id: string;
   role: 'assistant' | 'user';
   content: string;
-  timestamp: string; // ISO string for serialization
+  timestamp: string;
   agentRole?: string;
   isRead: boolean;
-  rescheduleOptions?: RescheduleOption[];  // 일정 변경 옵션
+  rescheduleOptions?: RescheduleOption[];
+}
+
+// 채팅방 인터페이스
+export interface ChatRoom {
+  id: string;
+  name: string;
+  emoji: string;
+  description?: string;
+  createdAt: string;
+  messages: ChatMessage[];
+  isDefault?: boolean; // 기본 AI 코치 채팅방
 }
 
 // 알림 인터페이스
 export interface ChatNotification {
   id: string;
+  roomId: string;
   type: 'message' | 'delay' | 'reminder' | 'achievement';
   title: string;
   message: string;
@@ -43,79 +55,200 @@ export interface ChatNotification {
   data?: Record<string, unknown>;
 }
 
+// 대기 중인 응답 (백그라운드 처리용)
+export interface PendingResponse {
+  roomId: string;
+  userMessageId: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  startedAt: string;
+}
+
 interface ChatStore {
-  // 메시지
-  messages: ChatMessage[];
-  conversationId: string | null;
+  // 채팅방
+  rooms: ChatRoom[];
 
   // 알림
   notifications: ChatNotification[];
 
-  // 상태
-  lastReadTimestamp: string | null;
+  // 백그라운드 응답 대기열
+  pendingResponses: PendingResponse[];
+
+  // 채팅방 액션
+  createRoom: (name: string, emoji: string, description?: string) => string;
+  deleteRoom: (roomId: string) => void;
+  getRoomById: (roomId: string) => ChatRoom | undefined;
+  getDefaultRoom: () => ChatRoom;
 
   // 메시지 액션
-  addMessage: (message: Omit<ChatMessage, 'id' | 'timestamp' | 'isRead'>) => void;
-  setMessages: (messages: ChatMessage[]) => void;
-  clearMessages: () => void;
-  markAllAsRead: () => void;
+  addMessage: (roomId: string, message: Omit<ChatMessage, 'id' | 'timestamp' | 'isRead'>) => string;
+  markRoomAsRead: (roomId: string) => void;
+  clearRoomMessages: (roomId: string) => void;
 
-  // 대화 관리
-  setConversationId: (id: string) => void;
+  // 백그라운드 응답 액션
+  addPendingResponse: (roomId: string, userMessageId: string) => void;
+  updatePendingResponse: (userMessageId: string, status: PendingResponse['status']) => void;
+  removePendingResponse: (userMessageId: string) => void;
+  getPendingResponseForRoom: (roomId: string) => PendingResponse | undefined;
 
   // 알림 액션
   addNotification: (notification: Omit<ChatNotification, 'id' | 'timestamp' | 'isRead'>) => void;
   markNotificationAsRead: (id: string) => void;
   clearNotifications: () => void;
 
-  // 읽기 상태
-  getUnreadCount: () => number;
+  // 카운트
+  getUnreadCountForRoom: (roomId: string) => number;
+  getTotalUnreadCount: () => number;
   getUnreadNotificationCount: () => number;
 }
+
+// 기본 AI 코치 채팅방 ID
+export const DEFAULT_ROOM_ID = 'ai-coach-default';
+
+// 기본 채팅방 생성
+const createDefaultRoom = (): ChatRoom => ({
+  id: DEFAULT_ROOM_ID,
+  name: 'AI 학습 코치',
+  emoji: '🤖',
+  description: '언제든 물어보세요!',
+  createdAt: new Date().toISOString(),
+  messages: [],
+  isDefault: true,
+});
 
 export const useChatStore = create<ChatStore>()(
   persist(
     (set, get) => ({
-      messages: [],
-      conversationId: null,
+      rooms: [createDefaultRoom()],
       notifications: [],
-      lastReadTimestamp: null,
+      pendingResponses: [],
 
-      // 메시지 추가
-      addMessage: (message) => {
-        const newMessage: ChatMessage = {
-          ...message,
-          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          timestamp: new Date().toISOString(),
-          isRead: message.role === 'user', // 사용자 메시지는 자동으로 읽음 처리
+      // 채팅방 생성
+      createRoom: (name, emoji, description) => {
+        const newRoom: ChatRoom = {
+          id: `room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name,
+          emoji,
+          description,
+          createdAt: new Date().toISOString(),
+          messages: [],
         };
 
         set((state) => ({
-          messages: [...state.messages, newMessage].slice(-100), // 최근 100개만 유지
+          rooms: [...state.rooms, newRoom],
         }));
+
+        return newRoom.id;
       },
 
-      // 메시지 설정 (복원용)
-      setMessages: (messages) => {
-        set({ messages });
-      },
-
-      // 메시지 삭제
-      clearMessages: () => {
-        set({ messages: [], conversationId: null });
-      },
-
-      // 모든 메시지 읽음 처리
-      markAllAsRead: () => {
+      // 채팅방 삭제 (기본 채팅방은 삭제 불가)
+      deleteRoom: (roomId) => {
         set((state) => ({
-          messages: state.messages.map((m) => ({ ...m, isRead: true })),
-          lastReadTimestamp: new Date().toISOString(),
+          rooms: state.rooms.filter((r) => r.id !== roomId || r.isDefault),
         }));
       },
 
-      // 대화 ID 설정
-      setConversationId: (id) => {
-        set({ conversationId: id });
+      // 채팅방 조회
+      getRoomById: (roomId) => {
+        return get().rooms.find((r) => r.id === roomId);
+      },
+
+      // 기본 채팅방 조회 (없으면 생성)
+      getDefaultRoom: () => {
+        const { rooms } = get();
+        let defaultRoom = rooms.find((r) => r.isDefault);
+
+        if (!defaultRoom) {
+          defaultRoom = createDefaultRoom();
+          set((state) => ({
+            rooms: [defaultRoom!, ...state.rooms],
+          }));
+        }
+
+        return defaultRoom;
+      },
+
+      // 메시지 추가
+      addMessage: (roomId, message) => {
+        const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+        const newMessage: ChatMessage = {
+          ...message,
+          id: messageId,
+          timestamp: new Date().toISOString(),
+          isRead: message.role === 'user',
+        };
+
+        set((state) => ({
+          rooms: state.rooms.map((room) =>
+            room.id === roomId
+              ? {
+                  ...room,
+                  messages: [...room.messages, newMessage].slice(-100),
+                }
+              : room
+          ),
+        }));
+
+        return messageId;
+      },
+
+      // 채팅방 읽음 처리
+      markRoomAsRead: (roomId) => {
+        set((state) => ({
+          rooms: state.rooms.map((room) =>
+            room.id === roomId
+              ? {
+                  ...room,
+                  messages: room.messages.map((m) => ({ ...m, isRead: true })),
+                }
+              : room
+          ),
+        }));
+      },
+
+      // 채팅방 메시지 삭제
+      clearRoomMessages: (roomId) => {
+        set((state) => ({
+          rooms: state.rooms.map((room) =>
+            room.id === roomId ? { ...room, messages: [] } : room
+          ),
+        }));
+      },
+
+      // 대기 중인 응답 추가
+      addPendingResponse: (roomId, userMessageId) => {
+        const pending: PendingResponse = {
+          roomId,
+          userMessageId,
+          status: 'pending',
+          startedAt: new Date().toISOString(),
+        };
+
+        set((state) => ({
+          pendingResponses: [...state.pendingResponses, pending],
+        }));
+      },
+
+      // 대기 중인 응답 상태 업데이트
+      updatePendingResponse: (userMessageId, status) => {
+        set((state) => ({
+          pendingResponses: state.pendingResponses.map((p) =>
+            p.userMessageId === userMessageId ? { ...p, status } : p
+          ),
+        }));
+      },
+
+      // 대기 중인 응답 제거
+      removePendingResponse: (userMessageId) => {
+        set((state) => ({
+          pendingResponses: state.pendingResponses.filter(
+            (p) => p.userMessageId !== userMessageId
+          ),
+        }));
+      },
+
+      // 채팅방의 대기 중인 응답 조회
+      getPendingResponseForRoom: (roomId) => {
+        return get().pendingResponses.find((p) => p.roomId === roomId);
       },
 
       // 알림 추가
@@ -128,7 +261,7 @@ export const useChatStore = create<ChatStore>()(
         };
 
         set((state) => ({
-          notifications: [newNotification, ...state.notifications].slice(0, 50), // 최근 50개만
+          notifications: [newNotification, ...state.notifications].slice(0, 50),
         }));
       },
 
@@ -146,26 +279,52 @@ export const useChatStore = create<ChatStore>()(
         set({ notifications: [] });
       },
 
-      // 읽지 않은 메시지 개수
-      getUnreadCount: () => {
-        const { messages } = get();
-        return messages.filter((m) => !m.isRead && m.role === 'assistant').length;
+      // 채팅방별 읽지 않은 메시지 개수
+      getUnreadCountForRoom: (roomId) => {
+        const room = get().rooms.find((r) => r.id === roomId);
+        if (!room) return 0;
+        return room.messages.filter((m) => !m.isRead && m.role === 'assistant').length;
+      },
+
+      // 전체 읽지 않은 메시지 개수
+      getTotalUnreadCount: () => {
+        const { rooms } = get();
+        return rooms.reduce((total, room) => {
+          return total + room.messages.filter((m) => !m.isRead && m.role === 'assistant').length;
+        }, 0);
       },
 
       // 읽지 않은 알림 개수
       getUnreadNotificationCount: () => {
-        const { notifications } = get();
-        return notifications.filter((n) => !n.isRead).length;
+        return get().notifications.filter((n) => !n.isRead).length;
       },
     }),
     {
-      name: 'questybook-chat-storage',
+      name: 'questybook-chat-storage-v2',
+      // 마이그레이션: 기존 데이터가 있으면 기본 채팅방으로 이관
+      migrate: (persistedState: unknown, _version: number) => {
+        const state = persistedState as Partial<ChatStore> & { messages?: ChatMessage[] };
+
+        // v1에서 v2로 마이그레이션 (단일 messages → rooms 구조)
+        if (state.messages && !state.rooms) {
+          const defaultRoom = createDefaultRoom();
+          defaultRoom.messages = state.messages;
+          return {
+            ...state,
+            rooms: [defaultRoom],
+            messages: undefined,
+          };
+        }
+
+        return state;
+      },
+      version: 2,
     }
   )
 );
 
-// 총 읽지 않은 개수 (메시지 + 알림)
+// 총 읽지 않은 개수 (메시지 + 알림) - 하위 호환성
 export function getTotalUnreadCount(): number {
   const store = useChatStore.getState();
-  return store.getUnreadCount() + store.getUnreadNotificationCount();
+  return store.getTotalUnreadCount() + store.getUnreadNotificationCount();
 }

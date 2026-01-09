@@ -10,7 +10,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuestStore, getTodayDateString } from '../stores/questStore';
-import { useChatStore } from '../stores/chatStore';
+import { useChatStore, DEFAULT_ROOM_ID } from '../stores/chatStore';
 import {
   NotebookLayout,
   NotebookPage,
@@ -141,7 +141,7 @@ export function TodayPage() {
         setShowEveningReview(true);
 
         // 채팅 히스토리에도 추가
-        addMessage({
+        addMessage(DEFAULT_ROOM_ID, {
           role: 'assistant',
           content: data.data.message,
           agentRole: 'COACH',
@@ -190,20 +190,20 @@ export function TodayPage() {
 
       if (data.success) {
         // 채팅 페이지로 이동하면서 메시지 추가
-        addMessage({
+        addMessage(DEFAULT_ROOM_ID, {
           role: 'assistant',
           content: data.data.reminderMessage,
           agentRole: 'COACH',
         });
-        navigate('/chat');
+        navigate('/chat/' + DEFAULT_ROOM_ID);
       }
     } catch (error) {
-      addMessage({
+      addMessage(DEFAULT_ROOM_ID, {
         role: 'assistant',
         content: `📚 ${studentName}님, 오늘의 퀘스트가 기다리고 있어요!\n\n작은 것부터 시작해볼까요? 한 문제만 풀어봐요! 💪`,
         agentRole: 'COACH',
       });
-      navigate('/chat');
+      navigate('/chat/' + DEFAULT_ROOM_ID);
     }
   };
 
@@ -221,14 +221,14 @@ export function TodayPage() {
       const data = await response.json();
 
       if (data.success) {
-        addMessage({
+        addMessage(DEFAULT_ROOM_ID, {
           role: 'assistant',
           content: data.data.message,
           agentRole: 'COACH',
         });
       }
     } catch (error) {
-      addMessage({
+      addMessage(DEFAULT_ROOM_ID, {
         role: 'assistant',
         content: `💕 ${studentName}님, 많이 힘드셨죠?\n\n괜찮아요. 누구나 지칠 때가 있어요. 지금은 무리하지 말고, 마음 편히 쉬어도 돼요.\n\n언제든 이야기하고 싶으면 여기 있을게요. 💙`,
         agentRole: 'COACH',
@@ -236,7 +236,7 @@ export function TodayPage() {
     }
 
     setShowCrisisModal(false);
-    navigate('/chat');
+    navigate('/chat/' + DEFAULT_ROOM_ID);
   };
 
   // 미학습 대응
@@ -248,14 +248,14 @@ export function TodayPage() {
       const data = await response.json();
 
       if (data.success) {
-        addMessage({
+        addMessage(DEFAULT_ROOM_ID, {
           role: 'assistant',
           content: data.data.message,
           agentRole: 'COACH',
         });
       }
     } catch (error) {
-      addMessage({
+      addMessage(DEFAULT_ROOM_ID, {
         role: 'assistant',
         content: `😊 ${studentName}님, 좀 쉬었어도 괜찮아요!\n\n다시 시작하는 것 자체가 대단한 거예요. 오늘은 가볍게 하나만 해볼까요? 💪`,
         agentRole: 'COACH',
@@ -263,7 +263,7 @@ export function TodayPage() {
     }
 
     setShowMissedStudyAlert(false);
-    navigate('/chat');
+    navigate('/chat/' + DEFAULT_ROOM_ID);
   };
 
   // 날짜 이동

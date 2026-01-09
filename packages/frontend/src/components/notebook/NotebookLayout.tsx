@@ -15,7 +15,7 @@ interface NotebookLayoutProps {
 
 export function NotebookLayout({ children }: NotebookLayoutProps) {
   const location = useLocation();
-  const unreadCount = useChatStore((state) => state.getUnreadCount());
+  const unreadCount = useChatStore((state) => state.getTotalUnreadCount());
 
   return (
     <div className="min-h-screen notebook-bg">

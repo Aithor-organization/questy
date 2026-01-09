@@ -13,7 +13,7 @@ import { NotebookLayout, NotebookPage } from '../components/notebook';
 export function MyPage() {
   const navigate = useNavigate();
   const { user, logout } = useAuthStore();
-  const clearMessages = useChatStore((state) => state.clearMessages);
+  const clearRoomMessages = useChatStore((state) => state.clearRoomMessages);
   const clearNotifications = useChatStore((state) => state.clearNotifications);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
@@ -24,7 +24,10 @@ export function MyPage() {
 
   const handleResetAllData = () => {
     // 모든 스토어 초기화
-    clearMessages();
+    // 각 채팅방 메시지 삭제
+    useChatStore.getState().rooms.forEach((room) => {
+      clearRoomMessages(room.id);
+    });
     clearNotifications();
     useQuestStore.getState().plans.forEach((plan) => {
       useQuestStore.getState().removePlan(plan.id);

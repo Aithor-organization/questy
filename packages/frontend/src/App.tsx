@@ -14,9 +14,11 @@ import {
   GeneratePage,
   PlanDetailPage,
   AdmissionPage,
-  ChatPage,
+  ChatListPage,
+  ChatRoomPage,
   ReportPage,
 } from './pages';
+import { ToastNotification } from './components/ToastNotification';
 
 // 인증이 필요한 라우트를 보호하는 컴포넌트
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -43,6 +45,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 function App() {
   return (
     <BrowserRouter>
+      {/* 전역 토스트 알림 */}
+      <ToastNotification />
+
       <Routes>
         {/* 공개 라우트 (로그인/회원가입) */}
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
@@ -51,7 +56,11 @@ function App() {
         {/* 보호된 라우트 */}
         <Route path="/" element={<ProtectedRoute><TodayPage /></ProtectedRoute>} />
         <Route path="/admission" element={<ProtectedRoute><AdmissionPage /></ProtectedRoute>} />
-        <Route path="/chat" element={<ProtectedRoute><ChatPage /></ProtectedRoute>} />
+
+        {/* 채팅 시스템 (카카오톡 스타일) */}
+        <Route path="/chat" element={<ProtectedRoute><ChatListPage /></ProtectedRoute>} />
+        <Route path="/chat/:roomId" element={<ProtectedRoute><ChatRoomPage /></ProtectedRoute>} />
+
         <Route path="/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
         <Route path="/mypage" element={<ProtectedRoute><MyPage /></ProtectedRoute>} />
         <Route path="/planner" element={<ProtectedRoute><PlannerPage /></ProtectedRoute>} />
