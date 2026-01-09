@@ -126,6 +126,8 @@ ${studentInfo}`.trim();
       actions: options.actions ?? [],
       memoryExtracted: options.memoryExtracted ?? false,
       suggestedFollowUp: options.suggestedFollowUp ?? [],
+      messageActions: options.messageActions,
+      rescheduleOptions: options.rescheduleOptions,
     };
   }
 }

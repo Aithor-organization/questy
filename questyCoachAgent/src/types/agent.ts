@@ -156,6 +156,7 @@ export interface MessageAction {
   data?: {
     daysToAdd?: number;
     planId?: string;
+    questId?: string;
     questDay?: number;
     newDate?: string;
     navigateTo?: string;

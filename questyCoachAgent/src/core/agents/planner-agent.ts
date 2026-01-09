@@ -17,6 +17,7 @@ import type {
   StudyPlan,
   StudySession,
   AgentAction,
+  MessageAction,
 } from '../../types/agent.js';
 import type {
   Subject,
@@ -139,6 +140,97 @@ export interface PlanGenerationRequest {
 
 // ===================== 헬퍼 함수 =====================
 
+// ===================== 날짜 파싱 유틸리티 =====================
+
+/**
+ * 한국어 날짜 표현을 파싱하여 Date 객체 반환
+ * 예: "일요일", "내일", "모레", "다음주 월요일", "3일 뒤"
+ */
+function parseKoreanDate(message: string): Date | null {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // 요일 파싱 (일요일, 월요일, ...)
+  const dayNames = ['일요일', '월요일', '화요일', '수요일', '목요일', '금요일', '토요일'];
+  const dayShortNames = ['일', '월', '화', '수', '목', '금', '토'];
+
+  for (let i = 0; i < dayNames.length; i++) {
+    if (message.includes(dayNames[i]) || new RegExp(`${dayShortNames[i]}요일`).test(message)) {
+      // 다음 해당 요일 찾기
+      const targetDay = i;
+      const currentDay = today.getDay();
+      let daysToAdd = targetDay - currentDay;
+      if (daysToAdd <= 0) {
+        daysToAdd += 7; // 다음 주로
+      }
+      const result = new Date(today);
+      result.setDate(today.getDate() + daysToAdd);
+      return result;
+    }
+  }
+
+  // "내일"
+  if (/내일/.test(message)) {
+    const result = new Date(today);
+    result.setDate(today.getDate() + 1);
+    return result;
+  }
+
+  // "모레"
+  if (/모레/.test(message)) {
+    const result = new Date(today);
+    result.setDate(today.getDate() + 2);
+    return result;
+  }
+
+  // "N일 뒤/후" 또는 "N일 미뤄"
+  const daysMatch = message.match(/(\d+)\s*일\s*(뒤|후|미뤄|미루|연기)/);
+  if (daysMatch) {
+    const days = parseInt(daysMatch[1], 10);
+    const result = new Date(today);
+    result.setDate(today.getDate() + days);
+    return result;
+  }
+
+  // "다음주"
+  if (/다음\s*주/.test(message)) {
+    // 다음주 시작일 (월요일)
+    const result = new Date(today);
+    const daysUntilMonday = (8 - today.getDay()) % 7 || 7;
+    result.setDate(today.getDate() + daysUntilMonday);
+    return result;
+  }
+
+  // "이번주 토요일/일요일" 등
+  if (/이번\s*주/.test(message)) {
+    for (let i = 0; i < dayNames.length; i++) {
+      if (message.includes(dayNames[i])) {
+        const targetDay = i;
+        const currentDay = today.getDay();
+        let daysToAdd = targetDay - currentDay;
+        if (daysToAdd < 0) {
+          return null; // 이번주에 이미 지난 요일
+        }
+        const result = new Date(today);
+        result.setDate(today.getDate() + daysToAdd);
+        return result;
+      }
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Date를 YYYY-MM-DD 형식 문자열로 변환
+ */
+function formatDateString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 /**
  * 주말을 건너뛰고 N번째 평일 날짜를 계산
  */
@@ -201,6 +293,8 @@ export class PlannerAgent extends BaseAgent {
     let response: string;
     const actions: AgentAction[] = [];
 
+    let messageActions: MessageAction[] = [];
+
     switch (requestType) {
       case 'CREATE_PLAN':
         const planResult = await this.createStudyPlan(
@@ -216,7 +310,14 @@ export class PlannerAgent extends BaseAgent {
         break;
 
       case 'ADJUST_PLAN':
-        response = await this.adjustPlan(activePlans[0], message, memoryContext);
+        const adjustResult = await this.adjustPlanWithActions(
+          activePlans[0],
+          message,
+          memoryContext,
+          context.todayQuests
+        );
+        response = adjustResult.message;
+        messageActions = adjustResult.messageActions;
         break;
 
       case 'CHECK_SCHEDULE':
@@ -235,6 +336,7 @@ export class PlannerAgent extends BaseAgent {
     return this.createResponse(response, {
       actions,
       suggestedFollowUp: this.generateFollowUps(requestType),
+      messageActions: messageActions.length > 0 ? messageActions : undefined,
     });
   }
 
@@ -956,57 +1058,168 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
     return sessions;
   }
 
-  private async adjustPlan(
+  /**
+   * 일정 조정 + 실제 액션 버튼 생성
+   */
+  private async adjustPlanWithActions(
     plan: StudyPlan | undefined,
     message: string,
-    memoryContext: DirectorContext['memoryContext']
-  ): Promise<string> {
-    console.log(`[PlannerAgent] adjustPlan called with message: "${message}"`);
+    memoryContext: DirectorContext['memoryContext'],
+    todayQuests?: DirectorContext['todayQuests']
+  ): Promise<{ message: string; messageActions: MessageAction[] }> {
+    console.log(`[PlannerAgent] adjustPlanWithActions called with message: "${message}"`);
     console.log(`[PlannerAgent] Active plan: ${plan ? plan.title : 'none'}`);
 
-    // 활성 계획이 없어도 일정 변경 요청은 LLM으로 처리
+    // 모든 퀘스트 결합 (mainQuests + bonusQuests + reviewQuests)
+    const allQuests = [
+      ...(todayQuests?.mainQuests ?? []),
+      ...(todayQuests?.bonusQuests ?? []),
+      ...(todayQuests?.reviewQuests ?? []),
+    ];
+    console.log(`[PlannerAgent] Today quests count: ${allQuests.length}`);
+
+    const messageActions: MessageAction[] = [];
+
+    // 1. 날짜 파싱
+    const targetDate = parseKoreanDate(message);
+    const targetDateStr = targetDate ? formatDateString(targetDate) : null;
+    console.log(`[PlannerAgent] Parsed target date: ${targetDateStr}`);
+
+    // 2. "오늘" 퀘스트 미루기 패턴 감지
+    const isPostponeToday = /오늘|지금/.test(message) && /미뤄|미루|연기|못/.test(message);
+    const postponeDaysMatch = message.match(/(\d+)\s*일/);
+    const postponeDays = postponeDaysMatch ? parseInt(postponeDaysMatch[1], 10) : 1;
+
+    // 3. 퀘스트 정보 확인
+    const hasQuests = allQuests.length > 0;
+    const incompleteQuests = allQuests.filter(q => q.status !== 'COMPLETED');
+
+    // 4. 메시지 액션 생성
+    if (isPostponeToday && hasQuests) {
+      // 오늘 퀘스트 전체 미루기
+      messageActions.push({
+        id: `postpone-today-${Date.now()}`,
+        type: 'POSTPONE_TODAY',
+        label: `오늘 퀘스트 ${postponeDays}일 미루기`,
+        icon: '📅',
+        data: { daysToAdd: postponeDays },
+      });
+    } else if (targetDate && hasQuests) {
+      // 특정 날짜로 옮기기
+      for (const quest of incompleteQuests) {
+        // DailyQuest는 planId와 date를 가짐
+        if (quest.planId) {
+          // quest의 날짜에서 day 계산 (플랜 시작일 기준)
+          const questDate = new Date(quest.date);
+          const dayNumber = Math.floor((questDate.getTime() - new Date().setHours(0, 0, 0, 0)) / (1000 * 60 * 60 * 24)) + 1;
+
+          messageActions.push({
+            id: `reschedule-${quest.planId}-${quest.id}-${Date.now()}`,
+            type: 'RESCHEDULE_QUEST',
+            label: `"${quest.title}" → ${this.formatDateKorean(targetDate)}로 이동`,
+            icon: '📆',
+            data: {
+              planId: quest.planId,
+              questId: quest.id,
+              questDay: dayNumber,
+              newDate: targetDateStr!,
+            },
+          });
+        }
+      }
+
+      // 퀘스트 정보가 없어도 일반 미루기 버튼 제공
+      if (messageActions.length === 0) {
+        const daysToTarget = Math.ceil((targetDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+        messageActions.push({
+          id: `postpone-to-date-${Date.now()}`,
+          type: 'POSTPONE_TODAY',
+          label: `${this.formatDateKorean(targetDate)}로 미루기`,
+          icon: '📅',
+          data: { daysToAdd: daysToTarget },
+        });
+      }
+    }
+
+    // 5. 응답 메시지 생성
+    let responseMessage: string;
+
+    if (!plan && !hasQuests) {
+      responseMessage = '아직 활성 플랜이 없어요! 📚\n먼저 학습 계획을 만들어볼까요?';
+      messageActions.push({
+        id: `navigate-new-plan-${Date.now()}`,
+        type: 'NAVIGATE',
+        label: '새 플랜 만들기',
+        icon: '➕',
+        data: { navigateTo: '/new-plan' },
+      });
+    } else if (messageActions.length > 0) {
+      // 액션 버튼이 있으면 짧은 확인 메시지
+      const dateStr = targetDate ? this.formatDateKorean(targetDate) : `${postponeDays}일 뒤`;
+      responseMessage = `네, ${dateStr}로 옮겨드릴게요! 📅\n아래 버튼을 눌러 확정해주세요 👇`;
+    } else {
+      // LLM으로 응답 생성 (폴백)
+      responseMessage = await this.generateAdjustResponse(message, plan, memoryContext);
+    }
+
+    return { message: responseMessage, messageActions };
+  }
+
+  /**
+   * 날짜를 한국어로 포맷
+   */
+  private formatDateKorean(date: Date): string {
+    const days = ['일', '월', '화', '수', '목', '금', '토'];
+    const month = date.getMonth() + 1;
+    const day = date.getDate();
+    const dayOfWeek = days[date.getDay()];
+    return `${month}/${day}(${dayOfWeek})`;
+  }
+
+  /**
+   * LLM 기반 조정 응답 생성 (폴백용)
+   */
+  private async generateAdjustResponse(
+    message: string,
+    plan: StudyPlan | undefined,
+    memoryContext: DirectorContext['memoryContext']
+  ): Promise<string> {
     const planInfo = plan
-      ? `현재 계획: ${plan.title}\n진행률: ${((plan.completedSessions / plan.totalSessions) * 100).toFixed(0)}%\n총 세션: ${plan.totalSessions}회`
+      ? `현재 계획: ${plan.title}\n진행률: ${((plan.completedSessions / plan.totalSessions) * 100).toFixed(0)}%`
       : '현재 활성 계획이 없습니다.';
 
     const adjustPrompt = `당신은 QuestyBook의 학습 일정 조정 AI입니다.
-당신은 학생의 퀘스트 일정을 직접 변경할 수 있는 권한이 있습니다.
-
-## 중요: 당신이 할 수 있는 것
-- ✅ 퀘스트를 다른 날짜로 이동 (예: 일요일로 옮기기)
-- ✅ 학습 페이스 조정 (빠르게/느리게)
-- ✅ 휴식일 추가
-- ✅ 일정 미루기/당기기
+학생의 요청을 친근하게 수락하고, 어떻게 변경할지 안내하세요.
 
 ## 현재 상태
 ${planInfo}
 
 ## 응답 가이드
-1. 학생의 요청을 긍정적으로 수락하세요 ("네, 옮겨드릴게요!" 등)
-2. 어떻게 변경할지 간단히 설명하세요
-3. 활성 계획이 없으면, 먼저 플랜을 만들어야 한다고 안내하세요
-4. 친근하고 격려하는 톤, 이모지 사용
-5. 응답은 150자 이내로 간결하게`;
+- 긍정적으로 수락 ("네, 옮겨드릴게요!" 등)
+- 친근한 톤, 이모지 사용
+- 100자 이내로 간결하게`;
 
     try {
-      const response = await this.generateResponse(
-        adjustPrompt,
-        message,
-        {
-          model: 'claude-4.5-haiku',
-          temperature: 0.7,
-          maxTokens: 512,
-        }
-      );
-      return response;
-    } catch (error) {
-      console.error('[PlannerAgent] LLM adjust plan failed:', error);
-      // 폴백: 기본 응답
-      if (!plan) {
-        return '조정할 활성 계획이 없어요. 새 계획을 만들까요? 📅';
-      }
-      return `현재 계획: ${plan.title}\n진행률: ${((plan.completedSessions / plan.totalSessions) * 100).toFixed(0)}%\n\n어떻게 조정할까요? 😊`;
+      return await this.generateResponse(adjustPrompt, message, {
+        model: 'claude-4.5-haiku',
+        temperature: 0.7,
+        maxTokens: 256,
+      });
+    } catch {
+      return plan
+        ? '일정을 조정해드릴게요! 📅'
+        : '먼저 플랜을 만들어볼까요? 📚';
     }
+  }
+
+  // 기존 adjustPlan은 호환성을 위해 유지 (deprecated)
+  private async adjustPlan(
+    plan: StudyPlan | undefined,
+    message: string,
+    memoryContext: DirectorContext['memoryContext']
+  ): Promise<string> {
+    const result = await this.adjustPlanWithActions(plan, message, memoryContext);
+    return result.message;
   }
 
   private generateScheduleSummary(plans: StudyPlan[], reviewDue: TopicMastery[]): string {
