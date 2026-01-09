@@ -224,6 +224,44 @@ export class Supervisor {
         planId?: string;
         day?: number;
       }>;
+      // 전체 일정 정보
+      activePlans?: Array<{
+        id: string;
+        title: string;
+        textbookTitle?: string;
+        subject?: string;
+        totalDays: number;
+        completedDays: number;
+        startDate: string;
+        targetEndDate: string;
+        status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+        dailyQuests?: Array<{
+          day: number;
+          date: string;
+          unitTitle: string;
+          range: string;
+          completed: boolean;
+          estimatedMinutes?: number;
+        }>;
+      }>;
+      upcomingQuests?: Array<{
+        date: string;
+        quests: Array<{
+          planId: string;
+          planTitle: string;
+          day: number;
+          unitTitle: string;
+          range: string;
+          estimatedMinutes?: number;
+        }>;
+      }>;
+      weeklyStats?: {
+        totalQuests: number;
+        completedQuests: number;
+        completionRate: number;
+        streakDays: number;
+        averageMinutesPerDay: number;
+      };
       plansCount?: number;
       completedToday?: number;
       totalToday?: number;
@@ -259,6 +297,20 @@ export class Supervisor {
     const delayAnalysis = this.scheduleDelayHandler.analyzeDelays(studentId, todayQuests);
     const questStats = this.questTracker.getStats(studentId, 'WEEK');
 
+    // 전체 일정 컨텍스트 추출
+    const fullScheduleContext = frontendQuestContext ? {
+      activePlans: frontendQuestContext.activePlans,
+      upcomingQuests: frontendQuestContext.upcomingQuests,
+      weeklyStats: frontendQuestContext.weeklyStats,
+    } : undefined;
+
+    if (fullScheduleContext?.activePlans?.length) {
+      console.log(`[Supervisor] Full schedule: ${fullScheduleContext.activePlans.length} active plans`);
+    }
+    if (fullScheduleContext?.upcomingQuests?.length) {
+      console.log(`[Supervisor] Upcoming quests: ${fullScheduleContext.upcomingQuests.length} days scheduled`);
+    }
+
     return {
       studentProfile,
       activePlans,
@@ -267,6 +319,7 @@ export class Supervisor {
       todayQuests: todayQuests ?? undefined,
       delayAnalysis,
       questStats,
+      fullScheduleContext,
     };
   }
 

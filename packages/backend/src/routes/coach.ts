@@ -168,13 +168,56 @@ const ChatSchema = z.object({
     currentSubject: z.enum(['MATH', 'KOREAN', 'ENGLISH', 'SCIENCE', 'SOCIAL', 'GENERAL']).optional(),
   }).optional(),
   questContext: z.object({
+    // 오늘의 퀘스트
     todayQuests: z.array(z.object({
       unitTitle: z.string(),
       range: z.string(),
       completed: z.boolean().optional(),
       estimatedMinutes: z.number().optional(),
       planName: z.string().optional(),
+      planId: z.string().optional(),
+      day: z.number().optional(),
     })).optional(),
+    // 활성 플랜 목록 (전체 일정)
+    activePlans: z.array(z.object({
+      id: z.string(),
+      title: z.string(),
+      textbookTitle: z.string().optional(),
+      subject: z.string().optional(),
+      totalDays: z.number(),
+      completedDays: z.number(),
+      startDate: z.string(),
+      targetEndDate: z.string(),
+      status: z.enum(['ACTIVE', 'PAUSED', 'COMPLETED']),
+      dailyQuests: z.array(z.object({
+        day: z.number(),
+        date: z.string(),
+        unitTitle: z.string(),
+        range: z.string(),
+        completed: z.boolean(),
+        estimatedMinutes: z.number().optional(),
+      })).optional(),
+    })).optional(),
+    // 향후 N일간의 퀘스트 (캘린더)
+    upcomingQuests: z.array(z.object({
+      date: z.string(),
+      quests: z.array(z.object({
+        planId: z.string(),
+        planTitle: z.string(),
+        day: z.number(),
+        unitTitle: z.string(),
+        range: z.string(),
+        estimatedMinutes: z.number().optional(),
+      })),
+    })).optional(),
+    // 주간 통계
+    weeklyStats: z.object({
+      totalQuests: z.number(),
+      completedQuests: z.number(),
+      completionRate: z.number(),
+      streakDays: z.number(),
+      averageMinutesPerDay: z.number(),
+    }).optional(),
     plansCount: z.number().optional(),
     completedToday: z.number().optional(),
     totalToday: z.number().optional(),
@@ -234,7 +277,7 @@ coachRoutes.post('/chat', async (c) => {
       content: message,
     });
 
-    // AgentRequest 생성 - questContext 포함
+    // AgentRequest 생성 - questContext 포함 (전체 일정 정보 포함)
     const { questContext } = parsed.data;
     const request: AgentRequest = {
       studentId: finalStudentId,
@@ -245,6 +288,9 @@ coachRoutes.post('/chat', async (c) => {
         // 프론트엔드에서 받은 퀘스트 정보를 메타데이터에 추가
         questContext: questContext ? {
           todayQuests: questContext.todayQuests || [],
+          activePlans: questContext.activePlans || [],
+          upcomingQuests: questContext.upcomingQuests || [],
+          weeklyStats: questContext.weeklyStats,
           plansCount: questContext.plansCount || 0,
           completedToday: questContext.completedToday || 0,
           totalToday: questContext.totalToday || 0,

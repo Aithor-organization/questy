@@ -16,7 +16,35 @@ interface QuestContext {
     completed: boolean;
     estimatedMinutes: number;
     planName: string;
+    planId?: string;
+    day?: number;
   }>;
+  // 전체 일정 정보 (학습설계사 일정 조회용)
+  activePlans?: Array<{
+    id: string;
+    title: string;
+    totalDays: number;
+    completedDays: number;
+    startDate: string;
+    targetEndDate: string;
+    status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+    dailyQuests?: Array<{
+      day: number;
+      date: string;
+      unitTitle: string;
+      range: string;
+      completed: boolean;
+      estimatedMinutes?: number;
+    }>;
+  }>;
+  // 주간 통계
+  weeklyStats?: {
+    totalQuests: number;
+    completedQuests: number;
+    completionRate: number;
+    streakDays: number;
+    averageMinutesPerDay: number;
+  };
   plansCount: number;
   completedToday: number;
   totalToday: number;

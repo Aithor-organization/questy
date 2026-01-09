@@ -15,6 +15,7 @@ import type {
   AgentRequest,
   AgentResponse,
   DirectorContext,
+  MessageAction,
 } from '../../types/agent.js';
 import type {
   TopicMastery,
@@ -25,6 +26,7 @@ import type {
   ReviewPatternMemory,
 } from '../../types/memory.js';
 import { v4 as uuidv4 } from 'uuid';
+import { QuestActions } from '../shared/quest-actions.js';
 
 // ===================== 시스템 프롬프트 =====================
 
@@ -144,6 +146,42 @@ export class AnalystAgent extends BaseAgent {
   ): Promise<AgentResponse> {
     const { message } = request;
     const { studentProfile, activePlans, memoryContext } = context;
+    const messageActions: MessageAction[] = [];
+
+    // 일정 조정 요청 감지 - AnalystAgent도 스케줄 관련 작업 가능
+    if (QuestActions.isScheduleRequest(message)) {
+      console.log('[AnalystAgent] Schedule request detected - generating actions');
+      const todayQuests = context.todayQuests;
+      const result = QuestActions.generateRescheduleActions(
+        message,
+        todayQuests,
+        activePlans?.[0],
+      );
+
+      messageActions.push(...result.messageActions);
+
+      // 분석 관점의 일정 조정 응답
+      const analysisResponse = this.generateScheduleAnalysisResponse(message, result.message, context);
+
+      return this.createResponse(analysisResponse, {
+        suggestedFollowUp: ['일정 조정 후 진도 분석할까요?', '학습 패턴 분석이 필요한가요?'],
+        messageActions,
+      });
+    }
+
+    // 일정 조회 요청 처리
+    if (QuestActions.isScheduleQuery(message)) {
+      console.log('[AnalystAgent] Schedule query detected');
+      const summary = QuestActions.generateScheduleSummary(
+        activePlans ?? [],
+        context.fullScheduleContext
+      );
+
+      const analysisIntro = '📊 **학습 일정 분석 리포트**\n\n';
+      return this.createResponse(analysisIntro + summary + this.generateScheduleInsights(context), {
+        suggestedFollowUp: ['진도율을 더 분석해볼까요?', '취약점 분석도 함께할까요?'],
+      });
+    }
 
     // 분석 유형 파악
     const analysisType = this.classifyAnalysisRequest(message);
@@ -183,6 +221,57 @@ export class AnalystAgent extends BaseAgent {
     return this.createResponse(response, {
       suggestedFollowUp: this.generateFollowUps(analysisType),
     });
+  }
+
+  /**
+   * 일정 관련 분석 응답 생성
+   */
+  private generateScheduleAnalysisResponse(
+    originalMessage: string,
+    actionMessage: string,
+    context: DirectorContext
+  ): string {
+    let response = `📊 **일정 조정 분석**\n\n${actionMessage}\n\n`;
+
+    // 분석 관점 추가
+    const weeklyStats = context.fullScheduleContext?.weeklyStats;
+    if (weeklyStats) {
+      response += `📈 **이번 주 현황 분석**\n`;
+      response += `- 완료율: ${weeklyStats.completionRate}%\n`;
+      response += `- 연속 학습: ${weeklyStats.streakDays}일\n`;
+
+      if (weeklyStats.completionRate < 50) {
+        response += '\n💡 **분석 제안**: 완료율이 낮아요. 일정을 조정해서 부담을 줄여보는 건 어떨까요?';
+      } else if (weeklyStats.completionRate >= 80) {
+        response += '\n🌟 **분석 결과**: 완료율이 높아요! 현재 페이스가 잘 맞는 것 같아요.';
+      }
+    }
+
+    return response;
+  }
+
+  /**
+   * 일정 관련 인사이트 생성
+   */
+  private generateScheduleInsights(context: DirectorContext): string {
+    let insights = '\n\n📈 **학습 인사이트**\n';
+
+    const weeklyStats = context.fullScheduleContext?.weeklyStats;
+    if (weeklyStats) {
+      if (weeklyStats.streakDays >= 7) {
+        insights += `🔥 ${weeklyStats.streakDays}일 연속 학습 중! 훌륭해요!\n`;
+      } else if (weeklyStats.streakDays >= 3) {
+        insights += `💪 ${weeklyStats.streakDays}일 연속 학습! 조금만 더 힘내요!\n`;
+      }
+
+      if (weeklyStats.completionRate >= 80) {
+        insights += '✅ 이번 주 완료율이 매우 높아요. 꾸준함이 빛나요!\n';
+      } else if (weeklyStats.completionRate < 50) {
+        insights += '📅 이번 주 완료율이 낮아요. 일정 조정을 고려해보세요.\n';
+      }
+    }
+
+    return insights;
   }
 
   // ===================== AI 플랜 리뷰 (진화형) =====================

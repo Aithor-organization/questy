@@ -14,9 +14,11 @@ import type {
   StudentProfile,
   LearningStyle,
   AgentAction,
+  MessageAction,
 } from '../../types/agent.js';
 import type { Subject } from '../../types/memory.js';
 import { v4 as uuidv4 } from 'uuid';
+import { QuestActions } from '../shared/quest-actions.js';
 
 const ADMISSION_SYSTEM_PROMPT = `당신은 학습 상담 전문가 AI입니다.
 
@@ -60,6 +62,45 @@ export class AdmissionAgent extends BaseAgent {
   ): Promise<AgentResponse> {
     const { message, studentId, metadata } = request;
     const studentProfile = context?.studentProfile;
+    const messageActions: MessageAction[] = [];
+
+    // 일정 조정/조회 요청 감지 - AdmissionAgent도 스케줄 관련 작업 가능
+    if (context && QuestActions.isScheduleRequest(message)) {
+      console.log('[AdmissionAgent] Schedule request detected - generating actions');
+      const todayQuests = context.todayQuests;
+      const activePlans = context.activePlans;
+      const result = QuestActions.generateRescheduleActions(
+        message,
+        todayQuests,
+        activePlans?.[0],
+      );
+
+      messageActions.push(...result.messageActions);
+
+      return this.createResponse(
+        `물론이죠! 일정 조정을 도와드릴게요. 😊\n\n${result.message}`,
+        {
+          suggestedFollowUp: ['다른 도움이 필요하세요?', '온보딩을 계속할까요?'],
+          messageActions,
+        }
+      );
+    }
+
+    // 일정 조회 요청 처리
+    if (context && QuestActions.isScheduleQuery(message)) {
+      console.log('[AdmissionAgent] Schedule query detected');
+      const summary = QuestActions.generateScheduleSummary(
+        context.activePlans ?? [],
+        context.fullScheduleContext
+      );
+
+      return this.createResponse(
+        `학습 일정을 확인해볼게요! 📅\n\n${summary}`,
+        {
+          suggestedFollowUp: ['온보딩을 계속할까요?', '다른 질문이 있으세요?'],
+        }
+      );
+    }
 
     // 프론트엔드에서 전달한 stage 우선 사용, 없으면 자동 결정
     const providedStage = metadata?.stage as string | undefined;

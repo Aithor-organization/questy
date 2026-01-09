@@ -14,7 +14,9 @@ import type {
   AgentRequest,
   AgentResponse,
   DirectorContext,
+  MessageAction,
 } from '../../types/agent.js';
+import { QuestActions } from '../shared/quest-actions.js';
 
 // 오늘의 학습 현황 인터페이스
 interface TodayStudyStatus {
@@ -78,6 +80,70 @@ export class CoachAgent extends BaseAgent {
     context: DirectorContext
   ): Promise<AgentResponse> {
     const { message, metadata } = request;
+    const messageActions: MessageAction[] = [];
+
+    // 일정 조정/조회 요청 감지 - CoachAgent도 스케줄 관련 작업 가능
+    if (QuestActions.isScheduleRequest(message)) {
+      console.log('[CoachAgent] Schedule request detected - generating actions');
+      const todayQuests = context.todayQuests;
+      const activePlans = context.activePlans;
+      const result = QuestActions.generateRescheduleActions(
+        message,
+        todayQuests,
+        activePlans?.[0], // 첫 번째 활성 플랜
+      );
+
+      messageActions.push(...result.messageActions);
+
+      // 일정 조정 액션과 함께 코칭 메시지 생성
+      const coachingResponse = await this.generateScheduleCoachingResponse(
+        message,
+        result.message,
+        context
+      );
+
+      return this.createResponse(coachingResponse, {
+        memoryExtracted: true,
+        suggestedFollowUp: ['일정 조정 완료 후 알려줘', '다른 도움이 필요해?'],
+        messageActions,
+      });
+    }
+
+    // 일정 조회 요청 처리
+    if (QuestActions.isScheduleQuery(message)) {
+      console.log('[CoachAgent] Schedule query detected');
+      const summary = QuestActions.generateScheduleSummary(
+        context.activePlans ?? [],
+        context.fullScheduleContext
+      );
+
+      const coachingIntro = '물론이지! 네 학습 일정을 알려줄게 📚\n\n';
+      return this.createResponse(coachingIntro + summary, {
+        memoryExtracted: true,
+        suggestedFollowUp: ['오늘 바로 시작할까?', '일정 조정이 필요해?'],
+      });
+    }
+
+    // 플랜 생성 요청 감지
+    if (QuestActions.isPlanCreationRequest(message)) {
+      console.log('[CoachAgent] Plan creation request detected');
+      messageActions.push({
+        id: `navigate-new-plan-${Date.now()}`,
+        type: 'NAVIGATE',
+        label: '새 플랜 만들기',
+        icon: '➕',
+        data: { navigateTo: '/new-plan' },
+      });
+
+      return this.createResponse(
+        '새로운 학습 계획을 세우고 싶구나! 🎯\n아래 버튼을 눌러 플랜을 만들어보자.',
+        {
+          memoryExtracted: true,
+          suggestedFollowUp: ['어떤 과목을 공부하고 싶어?'],
+          messageActions,
+        }
+      );
+    }
 
     // 학생 상태 파악
     const studentState = this.analyzeStudentState(message, context);
@@ -86,13 +152,13 @@ export class CoachAgent extends BaseAgent {
     const responseType = this.determineResponseType(studentState, message);
 
     // 메모리 컨텍스트 적용
-    const memoryContext = this.buildMemoryContext(context);
+    const memoryContextStr = this.buildMemoryContext(context);
 
     // 응답 생성
     const response = await this.generateCoachingResponse(
       message,
       responseType,
-      memoryContext,
+      memoryContextStr,
       studentState,
       metadata
     );
@@ -101,6 +167,26 @@ export class CoachAgent extends BaseAgent {
       memoryExtracted: true,
       suggestedFollowUp: this.generateFollowUps(responseType),
     });
+  }
+
+  /**
+   * 일정 관련 코칭 응답 생성
+   */
+  private async generateScheduleCoachingResponse(
+    originalMessage: string,
+    actionMessage: string,
+    context: DirectorContext
+  ): Promise<string> {
+    // 간단한 공감 + 액션 메시지 조합
+    const empathyPrefixes = [
+      '알겠어! 😊 ',
+      '물론이지! ',
+      '응, 도와줄게! ',
+      '그래, 조정해줄게! ',
+    ];
+    const prefix = empathyPrefixes[Math.floor(Math.random() * empathyPrefixes.length)];
+
+    return prefix + actionMessage;
   }
 
   /**

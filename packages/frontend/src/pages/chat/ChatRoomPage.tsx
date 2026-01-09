@@ -106,7 +106,40 @@ export function ChatRoomPage() {
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
 
-    // 퀘스트 컨텍스트 구성
+    // 주간 통계 계산
+    const today = new Date();
+    const weekStart = new Date(today);
+    weekStart.setDate(today.getDate() - today.getDay()); // 이번주 일요일
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6); // 이번주 토요일
+
+    // 이번 주 퀘스트 수집
+    const allQuests = plans.flatMap(p =>
+      p.dailyQuests.map(q => ({ ...q, planId: p.id }))
+    );
+    const weekQuests = allQuests.filter(q => {
+      const questDate = new Date(q.date);
+      return questDate >= weekStart && questDate <= weekEnd;
+    });
+    const completedWeekQuests = weekQuests.filter(q => q.completed);
+
+    // 연속 학습일 계산 (간단 버전)
+    let streakDays = 0;
+    const checkDate = new Date(today);
+    for (let i = 0; i < 30; i++) {
+      const dateStr = checkDate.toISOString().split('T')[0];
+      const dayQuests = allQuests.filter(q => q.date === dateStr);
+      if (dayQuests.length > 0 && dayQuests.every(q => q.completed)) {
+        streakDays++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else if (dayQuests.length > 0) {
+        break;
+      } else {
+        checkDate.setDate(checkDate.getDate() - 1);
+      }
+    }
+
+    // 퀘스트 컨텍스트 구성 (activePlans 포함)
     const questContext = {
       todayQuests: todayQuests.map(q => ({
         unitTitle: q.unitTitle,
@@ -114,7 +147,39 @@ export function ChatRoomPage() {
         completed: q.completed ?? false,
         estimatedMinutes: q.estimatedMinutes,
         planName: q.planName,
+        planId: q.planId,
+        day: q.day,
       })),
+      // 전체 일정 정보 추가 (학습설계사 일정 조회용)
+      activePlans: plans.map(p => ({
+        id: p.id,
+        title: p.materialName,
+        totalDays: p.summary.totalDays,
+        completedDays: p.dailyQuests.filter(q => q.completed).length,
+        startDate: p.dailyQuests[0]?.date ?? p.createdAt.split('T')[0],
+        targetEndDate: p.dailyQuests[p.dailyQuests.length - 1]?.date ?? p.createdAt.split('T')[0],
+        status: 'ACTIVE' as const,
+        dailyQuests: p.dailyQuests.map(q => ({
+          day: q.day,
+          date: q.date,
+          unitTitle: q.unitTitle,
+          range: q.range,
+          completed: q.completed ?? false,
+          estimatedMinutes: q.estimatedMinutes,
+        })),
+      })),
+      // 주간 통계
+      weeklyStats: {
+        totalQuests: weekQuests.length,
+        completedQuests: completedWeekQuests.length,
+        completionRate: weekQuests.length > 0
+          ? Math.round((completedWeekQuests.length / weekQuests.length) * 100)
+          : 0,
+        streakDays,
+        averageMinutesPerDay: plans.length > 0
+          ? Math.round(plans.reduce((sum, p) => sum + p.summary.averageMinutesPerDay, 0) / plans.length)
+          : 0,
+      },
       plansCount: plans.length,
       completedToday: todayQuests.filter(q => q.completed).length,
       totalToday: todayQuests.length,

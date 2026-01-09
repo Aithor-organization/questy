@@ -283,12 +283,15 @@ export class PlannerAgent extends BaseAgent {
     context: DirectorContext
   ): Promise<AgentResponse> {
     const { message, studentId } = request;
-    const { activePlans, memoryContext } = context;
+    const { activePlans, memoryContext, fullScheduleContext } = context;
 
     const requestType = this.classifyRequest(message);
     console.log(`[PlannerAgent] Processing message: "${message}"`);
     console.log(`[PlannerAgent] Classified as: ${requestType}`);
     console.log(`[PlannerAgent] Active plans count: ${activePlans.length}`);
+    if (fullScheduleContext?.activePlans?.length) {
+      console.log(`[PlannerAgent] Full schedule available: ${fullScheduleContext.activePlans.length} plans with details`);
+    }
 
     let response: string;
     const actions: AgentAction[] = [];
@@ -321,7 +324,7 @@ export class PlannerAgent extends BaseAgent {
         break;
 
       case 'CHECK_SCHEDULE':
-        response = this.generateScheduleSummary(activePlans, memoryContext.reviewDue);
+        response = this.generateScheduleSummary(activePlans, memoryContext.reviewDue, fullScheduleContext);
         break;
 
       case 'RECOMMEND':
@@ -1095,16 +1098,8 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
     const incompleteQuests = allQuests.filter(q => q.status !== 'COMPLETED');
 
     // 4. 메시지 액션 생성
-    if (isPostponeToday && hasQuests) {
-      // 오늘 퀘스트 전체 미루기
-      messageActions.push({
-        id: `postpone-today-${Date.now()}`,
-        type: 'POSTPONE_TODAY',
-        label: `오늘 퀘스트 ${postponeDays}일 미루기`,
-        icon: '📅',
-        data: { daysToAdd: postponeDays },
-      });
-    } else if (targetDate && hasQuests) {
+    // 특정 날짜가 지정된 경우 (일요일, 내일 등) RESCHEDULE_QUEST 우선
+    if (targetDate && hasQuests) {
       // 특정 날짜로 옮기기
       for (const quest of incompleteQuests) {
         // DailyQuest는 planId와 date를 가짐
@@ -1139,6 +1134,15 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
           data: { daysToAdd: daysToTarget },
         });
       }
+    } else if (isPostponeToday && hasQuests) {
+      // 날짜 지정 없이 "오늘 퀘스트 미뤄줘" (기본 1일 또는 N일)
+      messageActions.push({
+        id: `postpone-today-${Date.now()}`,
+        type: 'POSTPONE_TODAY',
+        label: `오늘 퀘스트 ${postponeDays}일 미루기`,
+        icon: '📅',
+        data: { daysToAdd: postponeDays },
+      });
     }
 
     // 5. 응답 메시지 생성
@@ -1222,12 +1226,61 @@ ${planInfo}
     return result.message;
   }
 
-  private generateScheduleSummary(plans: StudyPlan[], reviewDue: TopicMastery[]): string {
-    let summary = '📅 **오늘의 학습 일정**\n\n';
+  private generateScheduleSummary(
+    plans: StudyPlan[],
+    reviewDue: TopicMastery[],
+    fullScheduleContext?: DirectorContext['fullScheduleContext']
+  ): string {
+    let summary = '📅 **학습 일정**\n\n';
 
-    if (plans.length === 0) {
+    // 전체 일정 컨텍스트가 있으면 더 상세한 정보 제공
+    if (fullScheduleContext?.activePlans?.length) {
+      summary = '📅 **전체 학습 일정**\n\n';
+
+      for (const plan of fullScheduleContext.activePlans) {
+        const progress = Math.round((plan.completedDays / plan.totalDays) * 100);
+        summary += `📚 **${plan.title}**\n`;
+        summary += `   진행률: ${progress}% (${plan.completedDays}/${plan.totalDays}일)\n`;
+        summary += `   기간: ${plan.startDate.slice(5)} ~ ${plan.targetEndDate.slice(5)}\n`;
+
+        // 앞으로 3일간의 퀘스트
+        if (plan.dailyQuests?.length) {
+          const upcomingQuests = plan.dailyQuests
+            .filter(q => !q.completed)
+            .slice(0, 3);
+
+          if (upcomingQuests.length > 0) {
+            summary += `   예정:\n`;
+            for (const quest of upcomingQuests) {
+              const dateStr = quest.date.slice(5, 10);
+              summary += `   • ${dateStr}: ${quest.unitTitle} (${quest.range})\n`;
+            }
+          }
+        }
+        summary += '\n';
+      }
+
+      // 주간 통계
+      if (fullScheduleContext.weeklyStats) {
+        const stats = fullScheduleContext.weeklyStats;
+        summary += `📊 **이번 주 현황**\n`;
+        summary += `   완료: ${stats.completedQuests}/${stats.totalQuests} (${stats.completionRate}%)\n`;
+        summary += `   연속 학습: ${stats.streakDays}일\n\n`;
+      }
+
+      // 향후 일정
+      if (fullScheduleContext.upcomingQuests?.length) {
+        summary += `🗓️ **앞으로의 일정**\n`;
+        for (const day of fullScheduleContext.upcomingQuests.slice(0, 5)) {
+          const dateStr = day.date.slice(5, 10);
+          const questCount = day.quests.length;
+          summary += `   ${dateStr}: ${questCount}개 퀘스트\n`;
+        }
+      }
+    } else if (plans.length === 0) {
       summary += '활성 계획이 없어요. 새 계획을 세워볼까요?\n';
     } else {
+      // 기존 로직 (내부 plans 사용)
       for (const plan of plans) {
         const nextSession = plan.sessions.find(s => s.status === 'PENDING');
         if (nextSession) {

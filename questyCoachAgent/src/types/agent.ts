@@ -114,6 +114,7 @@ export interface AgentRequest {
     };
     // 프론트엔드에서 전달받은 퀘스트 정보
     questContext?: {
+      // 오늘의 퀘스트
       todayQuests?: Array<{
         unitTitle: string;
         range: string;
@@ -123,6 +124,46 @@ export interface AgentRequest {
         planId?: string;
         day?: number;
       }>;
+      // 활성 플랜 목록 (전체 일정)
+      activePlans?: Array<{
+        id: string;
+        title: string;
+        textbookTitle?: string;
+        subject?: string;
+        totalDays: number;
+        completedDays: number;
+        startDate: string;        // ISO date string
+        targetEndDate: string;    // ISO date string
+        status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+        dailyQuests?: Array<{
+          day: number;
+          date: string;           // ISO date string
+          unitTitle: string;
+          range: string;
+          completed: boolean;
+          estimatedMinutes?: number;
+        }>;
+      }>;
+      // 향후 N일간의 퀘스트 (전체 일정 캘린더)
+      upcomingQuests?: Array<{
+        date: string;             // ISO date string
+        quests: Array<{
+          planId: string;
+          planTitle: string;
+          day: number;
+          unitTitle: string;
+          range: string;
+          estimatedMinutes?: number;
+        }>;
+      }>;
+      // 주간 통계
+      weeklyStats?: {
+        totalQuests: number;
+        completedQuests: number;
+        completionRate: number;   // 0-100
+        streakDays: number;
+        averageMinutesPerDay: number;
+      };
       plansCount?: number;
       completedToday?: number;
       totalToday?: number;
@@ -180,6 +221,46 @@ export interface DirectorContext {
   todayQuests?: TodayQuests;
   delayAnalysis?: DelayAnalysis;
   questStats?: QuestStats;
+  // 전체 일정 컨텍스트 (프론트엔드에서 전달)
+  fullScheduleContext?: {
+    activePlans?: Array<{
+      id: string;
+      title: string;
+      textbookTitle?: string;
+      subject?: string;
+      totalDays: number;
+      completedDays: number;
+      startDate: string;
+      targetEndDate: string;
+      status: 'ACTIVE' | 'PAUSED' | 'COMPLETED';
+      dailyQuests?: Array<{
+        day: number;
+        date: string;
+        unitTitle: string;
+        range: string;
+        completed: boolean;
+        estimatedMinutes?: number;
+      }>;
+    }>;
+    upcomingQuests?: Array<{
+      date: string;
+      quests: Array<{
+        planId: string;
+        planTitle: string;
+        day: number;
+        unitTitle: string;
+        range: string;
+        estimatedMinutes?: number;
+      }>;
+    }>;
+    weeklyStats?: {
+      totalQuests: number;
+      completedQuests: number;
+      completionRate: number;
+      streakDays: number;
+      averageMinutesPerDay: number;
+    };
+  };
 }
 
 // 모델 설정
