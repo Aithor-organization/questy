@@ -664,22 +664,41 @@ ${excludeWeekends ? '\n⚠️ 두 플랜 모두 주말(토/일)은 건너뛰고 
 
   /**
    * LLM 호출 - 퀘스트 생성
-   * TODO: 실제 OpenRouter/Gemini API 연동
    */
   private async callLLMForQuests(prompt: string): Promise<AIQuestResult> {
-    // 현재는 폴백 응답 반환
-    // 실제 구현에서는 OpenRouter API 호출
-    console.log('[PlannerAgent] LLM call for quests (mock)');
+    console.log('[PlannerAgent] LLM call for quests');
 
-    return {
-      dailyQuests: [],
-      recommendations: [
-        { suggestedDays: 30, reason: '하루 45분 기준', intensity: 'normal', dailyStudyMinutes: 45 },
-        { suggestedDays: 20, reason: '하루 60분 집중', intensity: 'intensive', dailyStudyMinutes: 60 },
-      ],
-      totalEstimatedHours: 22.5,
-      message: 'AI 플랜 생성 기능이 곧 활성화됩니다.',
-    };
+    try {
+      // BaseAgent의 generateResponse 사용
+      const response = await this.generateResponse(
+        QUEST_GENERATION_PROMPT,
+        prompt,
+        {
+          model: 'gemini-3-flash',
+          temperature: 0.5,
+          maxTokens: 8192,
+        }
+      );
+
+      // JSON 파싱 시도
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('[PlannerAgent] No JSON found in response, using fallback');
+        throw new Error('No JSON in response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      return {
+        dailyQuests: parsed.dailyQuests ?? [],
+        recommendations: parsed.recommendations ?? [],
+        totalEstimatedHours: parsed.totalEstimatedHours ?? 0,
+        message: parsed.message ?? '학습 플랜이 생성되었습니다.',
+      };
+    } catch (error) {
+      console.error('[PlannerAgent] LLM quest generation failed:', error);
+      throw error;
+    }
   }
 
   /**
@@ -690,14 +709,68 @@ ${excludeWeekends ? '\n⚠️ 두 플랜 모두 주말(토/일)은 건너뛰고 
     originalDays: number,
     targetDays: number
   ): Promise<DualPlanResult> {
-    console.log('[PlannerAgent] LLM call for dual plans (mock)');
+    console.log('[PlannerAgent] LLM call for dual plans');
 
-    return {
-      hasOriginalPlan: true,
-      plans: [],
-      recommendations: [],
-      message: 'AI 듀얼 플랜 생성 기능이 곧 활성화됩니다.',
-    };
+    const dualPlanPrompt = `${QUEST_GENERATION_PROMPT}
+
+## 추가 요구사항 - 듀얼 플랜 생성
+두 개의 학습 플랜을 생성해주세요:
+1. **원본 플랜** (planType: "original"): 학습계획표(${originalDays}일)를 그대로 따르는 퀘스트
+2. **맞춤 플랜** (planType: "custom"): 사용자 목표(${targetDays}일)에 맞춰 재분배한 퀘스트
+
+## 출력 형식 (JSON)
+{
+  "plans": [
+    {
+      "planType": "original",
+      "planName": "원본 ${originalDays}일 플랜",
+      "description": "학습계획표 기반 플랜",
+      "dailyQuests": [...],
+      "totalEstimatedHours": 75
+    },
+    {
+      "planType": "custom",
+      "planName": "${targetDays}일 맞춤 플랜",
+      "description": "개인 목표에 맞춘 AI 추천 플랜",
+      "dailyQuests": [...],
+      "totalEstimatedHours": 75
+    }
+  ],
+  "recommendations": [...],
+  "message": "두 가지 플랜을 생성했습니다"
+}`;
+
+    try {
+      // BaseAgent의 generateResponse 사용
+      const response = await this.generateResponse(
+        dualPlanPrompt,
+        prompt,
+        {
+          model: 'gemini-3-flash',
+          temperature: 0.5,
+          maxTokens: 8192,
+        }
+      );
+
+      // JSON 파싱 시도
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('[PlannerAgent] No JSON found in dual plan response, using fallback');
+        throw new Error('No JSON in response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      return {
+        hasOriginalPlan: true,
+        plans: parsed.plans ?? [],
+        recommendations: parsed.recommendations ?? [],
+        message: parsed.message ?? `원본(${originalDays}일)과 맞춤(${targetDays}일) 플랜을 생성했습니다.`,
+      };
+    } catch (error) {
+      console.error('[PlannerAgent] LLM dual plan generation failed:', error);
+      throw error;
+    }
   }
 
   /**

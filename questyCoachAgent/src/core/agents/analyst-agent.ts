@@ -487,11 +487,45 @@ ${patternImprovements.improvements.length > 0
    * LLM 호출 - 리뷰 생성
    */
   private async callLLMForReview(prompt: string): Promise<PlanReview> {
-    // TODO: 실제 OpenRouter/Gemini API 연동
-    console.log('[AnalystAgent] LLM call for review (mock)');
+    console.log('[AnalystAgent] LLM call for review');
 
-    // 현재는 폴백 응답
-    throw new Error('LLM not configured');
+    try {
+      // BaseAgent의 generateResponse 사용
+      const response = await this.generateResponse(
+        PLAN_REVIEW_SYSTEM_PROMPT,
+        prompt,
+        {
+          model: 'gemini-3-flash',
+          temperature: 0.3,
+          maxTokens: 2048,
+        }
+      );
+
+      // JSON 파싱 시도
+      const jsonMatch = response.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        console.warn('[AnalystAgent] No JSON found in response, using fallback');
+        throw new Error('No JSON in response');
+      }
+
+      const parsed = JSON.parse(jsonMatch[0]);
+
+      return {
+        overallScore: parsed.overallScore ?? 7,
+        strengths: parsed.strengths ?? [],
+        improvements: parsed.improvements ?? [],
+        suggestions: parsed.motivationalTips ?? [],
+        riskAssessment: parsed.riskAssessment ?? {
+          burnoutRisk: 'LOW',
+          dropOffRisk: 'LOW',
+          overloadDays: [],
+        },
+        coachMessage: parsed.expertAdvice ?? '좋은 계획이에요! 화이팅! 💪',
+      };
+    } catch (error) {
+      console.error('[AnalystAgent] LLM review generation failed:', error);
+      throw error;
+    }
   }
 
   /**
