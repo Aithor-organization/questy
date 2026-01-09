@@ -107,7 +107,7 @@ export function useBackgroundChat(roomId: string) {
 
           // 현재 보고 있는 채팅방이면 읽음 처리
           const currentPath = window.location.pathname;
-          if (currentPath === `/chat/${roomId}` || (roomId === 'ai-coach-default' && currentPath === '/chat')) {
+          if (currentPath === `/chat/${roomId}`) {
             markRoomAsRead(roomId);
           } else {
             // 다른 곳에 있으면 알림 표시
