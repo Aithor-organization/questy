@@ -225,7 +225,8 @@ export class PlannerAgent extends BaseAgent {
         break;
 
       default:
-        response = '어떤 계획을 세워드릴까요? 📚\n- 새 교재 학습 계획\n- 현재 진도 조정\n- 복습 스케줄 확인';
+        // GENERAL 케이스도 LLM으로 처리
+        response = await this.handleGeneralRequest(message, activePlans, memoryContext);
     }
 
     return this.createResponse(response, {
@@ -821,12 +822,62 @@ ${excludeWeekends ? '\n⚠️ 두 플랜 모두 주말(토/일)은 건너뛰고 
     };
   }
 
+  // ===================== GENERAL 요청 LLM 처리 =====================
+
+  /**
+   * 일반적인 학습 계획 관련 요청을 LLM으로 처리
+   */
+  private async handleGeneralRequest(
+    message: string,
+    activePlans: StudyPlan[],
+    memoryContext: DirectorContext['memoryContext']
+  ): Promise<string> {
+    const planInfo = activePlans.length > 0
+      ? activePlans.map(p => `- ${p.title} (진행률: ${((p.completedSessions / p.totalSessions) * 100).toFixed(0)}%)`).join('\n')
+      : '현재 활성 계획이 없습니다.';
+
+    const generalPrompt = `당신은 친근한 학습 계획 전문가입니다.
+학생의 질문이나 요청에 도움을 주세요.
+
+## 현재 학습 상황
+${planInfo}
+
+## 제공 가능한 서비스
+- 새 교재 학습 계획 수립
+- 현재 진도 조정
+- 복습 스케줄 확인
+- 학습 일정 변경 (미루기, 당기기)
+- 학습 추천
+
+학생의 요청을 이해하고 적절한 도움을 제공해주세요.
+친근하고 격려하는 톤으로 응답하며, 이모지를 적절히 사용하세요.
+응답은 200자 이내로 간결하게 해주세요.`;
+
+    try {
+      const response = await this.generateResponse(
+        generalPrompt,
+        message,
+        {
+          model: 'claude-4.5-haiku',
+          temperature: 0.7,
+          maxTokens: 512,
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error('[PlannerAgent] LLM general request failed:', error);
+      // 폴백: 기본 응답
+      return '어떤 계획을 세워드릴까요? 📚\n- 새 교재 학습 계획\n- 현재 진도 조정\n- 복습 스케줄 확인';
+    }
+  }
+
   // ===================== 기존 메서드 유지 =====================
 
   private classifyRequest(message: string): PlanRequestType {
     if (/이미지|목차|사진/.test(message)) return 'GENERATE_FROM_IMAGE';
     if (/새|시작|만들어|계획.*세워/.test(message)) return 'CREATE_PLAN';
-    if (/조정|바꿔|수정|변경/.test(message)) return 'ADJUST_PLAN';
+    // 일정 변경/미루기 관련 패턴 추가
+    if (/조정|바꿔|수정|변경|미뤄|미룰|연기|옮겨|늦춰|당겨/.test(message)) return 'ADJUST_PLAN';
     if (/일정|스케줄|언제|뭐.*해야/.test(message)) return 'CHECK_SCHEDULE';
     if (/추천|권장|어떻게/.test(message)) return 'RECOMMEND';
     return 'GENERAL';
@@ -907,30 +958,45 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
     message: string,
     memoryContext: DirectorContext['memoryContext']
   ): Promise<string> {
-    if (!plan) {
-      return '조정할 활성 계획이 없어요. 새 계획을 만들까요?';
+    // 활성 계획이 없어도 일정 변경 요청은 LLM으로 처리
+    const planInfo = plan
+      ? `현재 계획: ${plan.title}\n진행률: ${((plan.completedSessions / plan.totalSessions) * 100).toFixed(0)}%\n총 세션: ${plan.totalSessions}회`
+      : '현재 활성 계획이 없습니다.';
+
+    const adjustPrompt = `당신은 학습 일정 조정 전문가입니다.
+학생의 요청을 이해하고 적절한 일정 조정 방안을 제시해주세요.
+
+## 현재 상태
+${planInfo}
+
+## 조정 가능 사항
+- 퀘스트 날짜 변경 (미루기, 당기기)
+- 페이스 조정 (빠르게, 느리게)
+- 특정 날짜로 일정 이동
+- 휴식일 추가
+
+학생의 상황을 공감하며 친근하게 응답하고, 구체적인 조정 방안을 제시해주세요.
+이모지를 적절히 사용하고, 응답은 200자 이내로 간결하게 해주세요.`;
+
+    try {
+      const response = await this.generateResponse(
+        adjustPrompt,
+        message,
+        {
+          model: 'claude-4.5-haiku',
+          temperature: 0.7,
+          maxTokens: 512,
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error('[PlannerAgent] LLM adjust plan failed:', error);
+      // 폴백: 기본 응답
+      if (!plan) {
+        return '조정할 활성 계획이 없어요. 새 계획을 만들까요? 📅';
+      }
+      return `현재 계획: ${plan.title}\n진행률: ${((plan.completedSessions / plan.totalSessions) * 100).toFixed(0)}%\n\n어떻게 조정할까요? 😊`;
     }
-
-    if (/느리게|천천히|줄여/.test(message)) {
-      return `📉 페이스를 낮췄어요!
-- 일일 학습량: 45분 → 30분
-- 예상 완료일이 조금 늦어질 수 있어요.
-무리하지 않는 게 중요해! 💪`;
-    }
-
-    if (/빠르게|더|늘려/.test(message)) {
-      return `📈 페이스를 높였어요!
-- 일일 학습량: 45분 → 60분
-- 더 빨리 끝날 수 있어요!
-힘들면 언제든 조정할 수 있으니 말해줘!`;
-    }
-
-    return `현재 계획: ${plan.title}
-진행률: ${((plan.completedSessions / plan.totalSessions) * 100).toFixed(0)}%
-
-어떻게 조정할까요?
-- "더 천천히" - 페이스 낮추기
-- "더 빠르게" - 페이스 높이기`;
   }
 
   private generateScheduleSummary(plans: StudyPlan[], reviewDue: TopicMastery[]): string {
