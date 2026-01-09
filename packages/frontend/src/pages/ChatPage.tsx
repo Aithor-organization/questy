@@ -243,7 +243,7 @@ export function ChatPage() {
   if (!isInitialized) {
     return (
       <NotebookLayout>
-        <div className="notebook-page-chat flex items-center justify-center" style={{ minHeight: '75vh' }}>
+        <div className="notebook-page-chat flex items-center justify-center h-[calc(100vh-120px)]">
           <div className="text-[var(--pencil-gray)]">로딩 중...</div>
         </div>
       </NotebookLayout>
@@ -252,9 +252,9 @@ export function ChatPage() {
 
   return (
     <NotebookLayout>
-      <div className="notebook-page-chat p-0 overflow-hidden flex flex-col" style={{ minHeight: '75vh' }}>
-        {/* 채팅 헤더 */}
-        <div className="bg-[var(--sticker-mint)] px-4 py-3 border-b border-[var(--paper-lines)]">
+      <div className="notebook-page-chat p-0 overflow-hidden flex flex-col h-[calc(100vh-120px)]">
+        {/* 채팅 헤더 - 고정 */}
+        <div className="flex-shrink-0 bg-[var(--sticker-mint)] px-4 py-3 border-b border-[var(--paper-lines)]">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center text-xl shadow-sm">
@@ -282,8 +282,8 @@ export function ChatPage() {
           </div>
         </div>
 
-        {/* 메시지 영역 */}
-        <div className="flex-1 p-4 space-y-4 overflow-y-auto bg-[var(--paper-cream)]">
+        {/* 메시지 영역 - 스크롤 가능 */}
+        <div className="flex-1 min-h-0 p-4 space-y-4 overflow-y-auto bg-[var(--paper-cream)]">
           {messages.map(msg => (
             <div
               key={msg.id}
@@ -375,8 +375,8 @@ export function ChatPage() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* 빠른 액션 */}
-        <div className="px-4 py-2 bg-white border-t border-[var(--paper-lines)]">
+        {/* 빠른 액션 - 고정 */}
+        <div className="flex-shrink-0 px-4 py-2 bg-white border-t border-[var(--paper-lines)]">
           <div className="flex gap-2 overflow-x-auto pb-2">
             {QUICK_ACTIONS.map(action => (
               <button
@@ -390,8 +390,8 @@ export function ChatPage() {
           </div>
         </div>
 
-        {/* 입력 영역 */}
-        <div className="border-t border-[var(--paper-lines)] p-4 bg-white">
+        {/* 입력 영역 - 고정 */}
+        <div className="flex-shrink-0 border-t border-[var(--paper-lines)] p-4 bg-white">
           <form onSubmit={handleSubmit} className="flex gap-2">
             <input
               ref={inputRef}
