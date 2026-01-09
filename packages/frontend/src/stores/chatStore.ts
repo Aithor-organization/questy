@@ -21,6 +21,23 @@ export interface RescheduleOption {
   warningMessage?: string;
 }
 
+// 메시지 액션 버튼
+export interface MessageAction {
+  id: string;
+  type: 'POSTPONE_TODAY' | 'RESCHEDULE_QUEST' | 'NAVIGATE' | 'CUSTOM';
+  label: string;
+  icon?: string;
+  // 액션별 데이터
+  data?: {
+    daysToAdd?: number;       // POSTPONE_TODAY용
+    planId?: string;          // RESCHEDULE_QUEST용
+    questDay?: number;        // RESCHEDULE_QUEST용
+    newDate?: string;         // RESCHEDULE_QUEST용
+    navigateTo?: string;      // NAVIGATE용
+    customHandler?: string;   // CUSTOM용
+  };
+}
+
 // 메시지 인터페이스
 export interface ChatMessage {
   id: string;
@@ -30,6 +47,7 @@ export interface ChatMessage {
   agentRole?: string;
   isRead: boolean;
   rescheduleOptions?: RescheduleOption[];
+  actions?: MessageAction[];  // 액션 버튼
 }
 
 // 채팅방 인터페이스

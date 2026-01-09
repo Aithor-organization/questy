@@ -103,6 +103,7 @@ export function useBackgroundChat(roomId: string) {
             content: data.data.message,
             agentRole: data.data.agentRole,
             rescheduleOptions: data.data.rescheduleOptions || undefined,
+            actions: data.data.messageActions || undefined,  // 액션 버튼 (플랜 재설정 등)
           });
 
           // 현재 보고 있는 채팅방이면 읽음 처리

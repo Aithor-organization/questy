@@ -18,15 +18,16 @@ export type AgentRole =
 
 // 의도 분류 결과
 export type IntentCategory =
-  | 'ENROLLMENT'      // 등록 관련
-  | 'STUDY_PLAN'      // 학습 계획
-  | 'QUESTION'        // 질문/학습
-  | 'PROGRESS'        // 진도 확인
-  | 'MOTIVATION'      // 동기부여
-  | 'EMOTIONAL'       // 감정 지원
-  | 'FEEDBACK'        // 피드백
-  | 'ADMIN'           // 관리
-  | 'SCHEDULE_CHANGE'; // 일정 변경
+  | 'ENROLLMENT'        // 등록 관련
+  | 'STUDY_PLAN'        // 학습 계획
+  | 'QUESTION'          // 질문/학습
+  | 'PROGRESS'          // 진도 확인
+  | 'MOTIVATION'        // 동기부여
+  | 'EMOTIONAL'         // 감정 지원
+  | 'FEEDBACK'          // 피드백
+  | 'ADMIN'             // 관리
+  | 'SCHEDULE_CHANGE'   // 일정 변경
+  | 'SCHEDULE_REMINDER'; // 알림 예약 ("내일 2시에 알려줘")
 
 // 라우팅 결정
 export interface RouteDecision {
@@ -136,12 +137,30 @@ export interface AgentResponse {
   suggestedFollowUp?: string[];
   // 일정 변경 옵션 (코치 채팅용)
   rescheduleOptions?: RescheduleOption[];
+  // 메시지 액션 버튼 (프론트엔드 UI용)
+  messageActions?: MessageAction[];
 }
 
-// 에이전트 액션
+// 에이전트 액션 (시스템 액션)
 export interface AgentAction {
   type: 'CREATE_PLAN' | 'UPDATE_PROGRESS' | 'SEND_NOTIFICATION' | 'SCHEDULE_REVIEW';
   payload: Record<string, unknown>;
+}
+
+// 메시지 액션 버튼 (프론트엔드 UI용)
+export interface MessageAction {
+  id: string;
+  type: 'POSTPONE_TODAY' | 'RESCHEDULE_QUEST' | 'NAVIGATE' | 'CUSTOM';
+  label: string;
+  icon?: string;
+  data?: {
+    daysToAdd?: number;
+    planId?: string;
+    questDay?: number;
+    newDate?: string;
+    navigateTo?: string;
+    customHandler?: string;
+  };
 }
 
 // Director 컨텍스트

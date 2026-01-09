@@ -5,6 +5,7 @@
 
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import { useScheduledNotifications } from './hooks/useScheduledNotifications';
 import {
   LoginPage,
   SignUpPage,
@@ -43,6 +44,9 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  // 예약된 알림 백그라운드 체크 (1분마다)
+  useScheduledNotifications();
+
   return (
     <BrowserRouter>
       {/* 전역 토스트 알림 */}

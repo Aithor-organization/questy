@@ -13,14 +13,21 @@ import { z } from 'zod';
 import {
   Supervisor,
   StudentRegistry,
+  AutoRescheduler,
   type AgentRequest,
   type StudentProfile,
   type Subject,
+  type IncompleteQuest,
+  type PlanSettings,
+  type StudentPattern,
 } from '@questy/coach-agent';
 import * as db from '../db/index.js';
 
 // Supervisor 싱글톤 인스턴스
 let supervisorInstance: Supervisor | null = null;
+
+// AutoRescheduler 싱글톤 인스턴스
+let autoReschedulerInstance: AutoRescheduler | null = null;
 
 function getSupervisor(): Supervisor {
   if (!supervisorInstance) {
@@ -32,6 +39,14 @@ function getSupervisor(): Supervisor {
     console.log('[Coach] Supervisor 인스턴스 생성됨');
   }
   return supervisorInstance;
+}
+
+function getAutoRescheduler(): AutoRescheduler {
+  if (!autoReschedulerInstance) {
+    autoReschedulerInstance = new AutoRescheduler();
+    console.log('[Coach] AutoRescheduler 인스턴스 생성됨');
+  }
+  return autoReschedulerInstance;
 }
 
 export const coachRoutes = new Hono();
@@ -264,6 +279,7 @@ coachRoutes.post('/chat', async (c) => {
         memoryExtracted: response.memoryExtracted,
         actions: response.actions || [],
         rescheduleOptions: response.rescheduleOptions || [],  // 일정 변경 옵션
+        messageActions: response.messageActions || [],  // 메시지 액션 버튼 (프론트엔드 UI용)
       },
     });
   } catch (error) {
@@ -1266,6 +1282,204 @@ coachRoutes.post('/students/:studentId/crisis-intervention', async (c) => {
     }, 500);
   }
 });
+
+// ===================== 자동 일정 재조정 (Auto Reschedule) =====================
+
+const AutoRescheduleSchema = z.object({
+  incompleteQuests: z.array(z.object({
+    questId: z.string(),
+    planId: z.string(),
+    planName: z.string(),
+    unitTitle: z.string(),
+    range: z.string(),
+    day: z.number(),
+    originalDate: z.string(),
+    estimatedMinutes: z.number(),
+    excludeWeekends: z.boolean(),
+  })),
+  planSettings: z.object({
+    planId: z.string(),
+    planName: z.string(),
+    excludeWeekends: z.boolean(),
+    totalDays: z.number(),
+    remainingDays: z.number(),
+    targetEndDate: z.string(),
+  }),
+  studentPattern: z.object({
+    preferredStudyDays: z.array(z.enum(['weekday', 'weekend'])),
+    averageQuestsPerDay: z.number(),
+    completionRate: z.number(),
+    weekendAvailability: z.boolean(),
+    consecutiveMissedDays: z.number(),
+  }).optional(),
+  existingQuestsOnNextDay: z.number().default(0),
+});
+
+// AI 기반 자동 일정 재조정
+coachRoutes.post('/students/:studentId/auto-reschedule', async (c) => {
+  const studentId = c.req.param('studentId');
+  const supervisor = getSupervisor();
+  const registry = supervisor.getStudentRegistry();
+  const autoRescheduler = getAutoRescheduler();
+
+  const student = registry.getStudent(studentId);
+  const studentName = student?.name || '학생';
+
+  try {
+    const body = await c.req.json();
+    const parsed = AutoRescheduleSchema.safeParse(body);
+
+    if (!parsed.success) {
+      return c.json({
+        success: false,
+        error: { message: parsed.error.issues[0]?.message || '잘못된 요청입니다' },
+      }, 400);
+    }
+
+    const { incompleteQuests, planSettings, studentPattern, existingQuestsOnNextDay } = parsed.data;
+
+    // 기본 학생 패턴 (제공되지 않은 경우)
+    const pattern: StudentPattern = studentPattern || {
+      preferredStudyDays: ['weekday'],
+      averageQuestsPerDay: 1,
+      completionRate: 0.7,
+      weekendAvailability: true,  // 기본적으로 주말 가능
+      consecutiveMissedDays: 0,
+    };
+
+    console.log(`[AutoReschedule] Processing ${incompleteQuests.length} incomplete quests for ${studentName}`);
+
+    // 여러 미완료 퀘스트 일괄 처리
+    const results = await autoRescheduler.batchReschedule(
+      incompleteQuests as IncompleteQuest[],
+      planSettings as PlanSettings,
+      pattern
+    );
+
+    // 결과 요약
+    const summary = {
+      totalProcessed: results.length,
+      weekendSpillover: results.filter(r => r.strategy === 'WEEKEND_SPILLOVER').length,
+      stackedNextDay: results.filter(r => r.strategy === 'STACK_NEXT_DAY').length,
+      reducedLoad: results.filter(r => r.strategy === 'REDUCE_LOAD').length,
+    };
+
+    console.log(`[AutoReschedule] Results: ${JSON.stringify(summary)}`);
+
+    return c.json({
+      success: true,
+      data: {
+        results,
+        summary,
+        overallMessage: generateOverallRescheduleMessage(studentName, results),
+      },
+    });
+  } catch (error) {
+    console.error('[AutoReschedule] Error:', error);
+    return c.json({
+      success: false,
+      error: { message: '자동 일정 재조정에 실패했습니다' },
+    }, 500);
+  }
+});
+
+// 단일 퀘스트 자동 재조정
+coachRoutes.post('/students/:studentId/quests/:questId/auto-reschedule', async (c) => {
+  const studentId = c.req.param('studentId');
+  const questId = c.req.param('questId');
+  const supervisor = getSupervisor();
+  const registry = supervisor.getStudentRegistry();
+  const autoRescheduler = getAutoRescheduler();
+
+  const student = registry.getStudent(studentId);
+  const studentName = student?.name || '학생';
+
+  try {
+    const body = await c.req.json();
+
+    const incompleteQuest: IncompleteQuest = {
+      questId,
+      planId: body.planId,
+      planName: body.planName,
+      unitTitle: body.unitTitle,
+      range: body.range || '',
+      day: body.day || 0,
+      originalDate: body.originalDate || new Date().toISOString().slice(0, 10),
+      estimatedMinutes: body.estimatedMinutes || 30,
+      excludeWeekends: body.excludeWeekends ?? true,
+    };
+
+    const planSettings: PlanSettings = {
+      planId: body.planId,
+      planName: body.planName,
+      excludeWeekends: body.excludeWeekends ?? true,
+      totalDays: body.totalDays || 30,
+      remainingDays: body.remainingDays || 15,
+      targetEndDate: body.targetEndDate || '',
+    };
+
+    const studentPattern: StudentPattern = {
+      preferredStudyDays: ['weekday'],
+      averageQuestsPerDay: 1,
+      completionRate: body.completionRate || 0.7,
+      weekendAvailability: body.weekendAvailability ?? true,
+      consecutiveMissedDays: body.consecutiveMissedDays || 0,
+    };
+
+    console.log(`[AutoReschedule] Processing single quest ${questId} for ${studentName}`);
+
+    const result = await autoRescheduler.evaluateAndReschedule(
+      incompleteQuest,
+      planSettings,
+      studentPattern,
+      body.existingQuestsOnNextDay || 0
+    );
+
+    console.log(`[AutoReschedule] Strategy: ${result.strategy}, NewDate: ${result.newDate}`);
+
+    return c.json({
+      success: true,
+      data: {
+        result,
+        coachMessage: result.coachMessage,
+        messageActions: result.messageActions,
+      },
+    });
+  } catch (error) {
+    console.error('[AutoReschedule] Error:', error);
+    return c.json({
+      success: false,
+      error: { message: '자동 일정 재조정에 실패했습니다' },
+    }, 500);
+  }
+});
+
+// 전체 재조정 메시지 생성
+function generateOverallRescheduleMessage(studentName: string, results: any[]): string {
+  if (results.length === 0) {
+    return `${studentName}님, 재조정할 퀘스트가 없어요! 👍`;
+  }
+
+  const weekendCount = results.filter(r => r.strategy === 'WEEKEND_SPILLOVER').length;
+  const stackCount = results.filter(r => r.strategy === 'STACK_NEXT_DAY').length;
+  const reduceCount = results.filter(r => r.strategy === 'REDUCE_LOAD').length;
+
+  let message = `📅 ${studentName}님, ${results.length}개의 미완료 퀘스트를 재조정했어요!\n\n`;
+
+  if (weekendCount > 0) {
+    message += `🗓️ ${weekendCount}개는 주말에 배치했어요.\n`;
+  }
+  if (stackCount > 0) {
+    message += `📚 ${stackCount}개는 내일로 추가했어요.\n`;
+  }
+  if (reduceCount > 0) {
+    message += `😊 ${reduceCount}개는 분량을 줄였어요.\n`;
+  }
+
+  message += `\n무리하지 않게 조정했으니 걱정 마세요! 💪`;
+
+  return message;
+}
 
 // ===================== 레벨 테스트 (FR-051) =====================
 

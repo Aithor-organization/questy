@@ -50,6 +50,7 @@ export {
   QuestGenerator,
   QuestTracker,
   ScheduleDelayHandler,
+  AutoRescheduler,
 } from './quest/index.js';
 
 // Student Registry exports
@@ -119,4 +120,9 @@ export type {
   ExpiredQuest,
   RescheduleSuggestion,
   DelayNotification,
+  RescheduleStrategy,
+  AutoRescheduleResult,
+  IncompleteQuest,
+  PlanSettings,
+  StudentPattern,
 } from './quest/index.js';

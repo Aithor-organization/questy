@@ -1,10 +1,14 @@
 /**
  * MessageBubble
  * 개별 메시지 버블 컴포넌트
+ * - 마크다운 렌더링 지원
+ * - 액션 버튼 지원 (플랜 재설정 등)
  */
 
 import type { ChatMessage } from '../../../stores/chatStore';
 import { RescheduleCard } from './RescheduleCard';
+import { ActionButtons } from './ActionButtons';
+import { MarkdownContent } from '../../../components/MarkdownContent';
 
 interface MessageBubbleProps {
   message: ChatMessage;
@@ -70,15 +74,25 @@ export function MessageBubble({ message, roomId }: MessageBubbleProps) {
 
         {/* 메시지 버블 */}
         <div
-          className={`rounded-2xl px-4 py-2 whitespace-pre-wrap ${
+          className={`rounded-2xl px-4 py-2 ${
             isUser
-              ? 'bg-[var(--highlight-yellow)] text-[var(--ink-black)]'
+              ? 'bg-[var(--highlight-yellow)] text-[var(--ink-black)] whitespace-pre-wrap'
               : 'bg-white border border-[var(--paper-lines)] text-[var(--ink-black)]'
           }`}
         >
-          {message.content}
+          {/* 사용자 메시지는 일반 텍스트, AI 메시지는 마크다운 렌더링 */}
+          {isUser ? (
+            message.content
+          ) : (
+            <MarkdownContent content={message.content} />
+          )}
 
-          {/* 일정 재조정 옵션 */}
+          {/* 액션 버튼 (플랜 재설정 등) */}
+          {!isUser && message.actions && message.actions.length > 0 && (
+            <ActionButtons actions={message.actions} roomId={roomId} />
+          )}
+
+          {/* 일정 재조정 옵션 (백엔드 제공) */}
           {message.rescheduleOptions && message.rescheduleOptions.length > 0 && (
             <div className="mt-4 space-y-3">
               {message.rescheduleOptions.map(option => (

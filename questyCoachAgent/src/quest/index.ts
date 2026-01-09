@@ -22,3 +22,12 @@ export type {
   RescheduleOption,
   ScheduleModificationResult,
 } from './schedule-modifier.js';
+
+export { AutoRescheduler } from './auto-rescheduler.js';
+export type {
+  RescheduleStrategy,
+  AutoRescheduleResult,
+  IncompleteQuest,
+  PlanSettings,
+  StudentPattern,
+} from './auto-rescheduler.js';

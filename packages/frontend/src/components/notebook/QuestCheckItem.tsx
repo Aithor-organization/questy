@@ -8,6 +8,7 @@
 
 import { useState } from 'react';
 import type { QuestWithPlan } from '../../stores/questStore';
+import { getTodayDateString } from '../../stores/questStore';
 import { QuestTimer } from './QuestTimer';
 
 interface QuestCheckItemProps {
@@ -17,8 +18,13 @@ interface QuestCheckItemProps {
 
 export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
   const [isAnimating, setIsAnimating] = useState(false);
+  const isToday = quest.date === getTodayDateString();
 
   const handleToggle = () => {
+    if (!isToday) {
+      // 오늘 퀘스트가 아니면 무시
+      return;
+    }
     setIsAnimating(true);
     onToggle();
     setTimeout(() => setIsAnimating(false), 500);
@@ -44,7 +50,9 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
       <div className="flex items-start gap-3">
         <button
           onClick={handleToggle}
-          className={`checkbox-notebook flex-shrink-0 mt-1 ${quest.completed ? 'checked' : ''}`}
+          disabled={!isToday}
+          className={`checkbox-notebook flex-shrink-0 mt-1 ${quest.completed ? 'checked' : ''} ${!isToday ? 'opacity-50 cursor-not-allowed' : ''}`}
+          title={!isToday ? '오늘 퀘스트만 완료할 수 있어요' : ''}
         >
           {quest.completed && <span className="checkmark">✓</span>}
         </button>
