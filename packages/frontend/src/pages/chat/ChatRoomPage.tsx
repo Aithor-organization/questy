@@ -5,7 +5,7 @@
  * - AI 응답은 백그라운드에서 계속 진행
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useLayoutEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { NotebookLayout } from '../../components/notebook/NotebookLayout';
 import { useChatStore, DEFAULT_ROOM_ID } from '../../stores/chatStore';
@@ -81,19 +81,20 @@ export function ChatRoomPage() {
     setIsInitialized(true);
   }, [targetRoomId, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
 
-  // 스크롤 자동 이동
-  // - 첫 진입 시: 즉시 맨 아래로 이동 (애니메이션 없음)
-  // - 이후 메시지 추가 시: 부드럽게 스크롤
-  useEffect(() => {
-    if (isFirstScrollRef.current) {
-      // 첫 스크롤은 즉시 이동
-      messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+  // 첫 진입 시 스크롤: useLayoutEffect로 paint 전에 실행
+  useLayoutEffect(() => {
+    if (isFirstScrollRef.current && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
       isFirstScrollRef.current = false;
-    } else {
-      // 이후에는 부드럽게 스크롤
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [room?.messages]);
+
+  // 이후 메시지 추가 시: 부드럽게 스크롤
+  useEffect(() => {
+    if (!isFirstScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [room?.messages.length]);
 
   // 포커스 시 읽음 처리
   useEffect(() => {
