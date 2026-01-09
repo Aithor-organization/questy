@@ -317,7 +317,8 @@ export class PlannerAgent extends BaseAgent {
           activePlans[0],
           message,
           memoryContext,
-          context.todayQuests
+          context.todayQuests,
+          fullScheduleContext  // fullScheduleContext 전달
         );
         response = adjustResult.message;
         messageActions = adjustResult.messageActions;
@@ -1068,17 +1069,64 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
     plan: StudyPlan | undefined,
     message: string,
     memoryContext: DirectorContext['memoryContext'],
-    todayQuests?: DirectorContext['todayQuests']
+    todayQuests?: DirectorContext['todayQuests'],
+    fullScheduleContext?: DirectorContext['fullScheduleContext']
   ): Promise<{ message: string; messageActions: MessageAction[] }> {
     console.log(`[PlannerAgent] adjustPlanWithActions called with message: "${message}"`);
     console.log(`[PlannerAgent] Active plan: ${plan ? plan.title : 'none'}`);
+    console.log(`[PlannerAgent] fullScheduleContext plans: ${fullScheduleContext?.activePlans?.length ?? 0}`);
 
     // 모든 퀘스트 결합 (mainQuests + bonusQuests + reviewQuests)
-    const allQuests = [
+    let allQuests = [
       ...(todayQuests?.mainQuests ?? []),
       ...(todayQuests?.bonusQuests ?? []),
       ...(todayQuests?.reviewQuests ?? []),
     ];
+
+    // todayQuests가 비어있고 fullScheduleContext가 있으면 퀘스트 추출
+    if (allQuests.length === 0 && fullScheduleContext?.activePlans?.length) {
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      // 1. 메시지에서 원본 날짜 파싱 시도 ("일요일에 있는", "내일 것을" 등)
+      const sourceDate = parseKoreanDate(message);
+      const sourceDateStr = sourceDate ? formatDateString(sourceDate) : null;
+
+      for (const fsPlan of fullScheduleContext.activePlans) {
+        // 원본 날짜가 있으면 해당 날짜 퀘스트, 없으면 오늘 퀘스트
+        const targetDateForSearch = sourceDateStr ?? todayStr;
+        const matchingQuests = fsPlan.dailyQuests?.filter(q => q.date === targetDateForSearch) ?? [];
+
+        for (const dq of matchingQuests) {
+          allQuests.push({
+            id: `fs-quest-${fsPlan.id}-${dq.day}`,
+            planId: fsPlan.id,
+            title: dq.unitTitle,
+            date: dq.date,
+            status: dq.completed ? 'COMPLETED' : 'PENDING',
+            estimatedMinutes: dq.estimatedMinutes ?? 30,
+          } as any);
+        }
+
+        // 오늘 퀘스트도 없으면 다가오는 미완료 퀘스트 중 첫 번째 추출
+        if (allQuests.length === 0) {
+          const upcomingQuests = fsPlan.dailyQuests?.filter(q => !q.completed && q.date >= todayStr)?.slice(0, 3) ?? [];
+          for (const dq of upcomingQuests) {
+            allQuests.push({
+              id: `fs-quest-${fsPlan.id}-${dq.day}`,
+              planId: fsPlan.id,
+              title: dq.unitTitle,
+              date: dq.date,
+              status: 'PENDING',
+              estimatedMinutes: dq.estimatedMinutes ?? 30,
+            } as any);
+          }
+        }
+      }
+      console.log(`[PlannerAgent] Extracted ${allQuests.length} quests from fullScheduleContext (source: ${sourceDateStr ?? 'upcoming'})`);
+    }
+
+    // fullScheduleContext에서 plan 정보 가져오기 (plan이 없는 경우)
+    const hasFullSchedulePlan = fullScheduleContext?.activePlans?.length ?? 0 > 0;
     console.log(`[PlannerAgent] Today quests count: ${allQuests.length}`);
 
     const messageActions: MessageAction[] = [];
@@ -1148,7 +1196,8 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
     // 5. 응답 메시지 생성
     let responseMessage: string;
 
-    if (!plan && !hasQuests) {
+    // plan, hasQuests, fullScheduleContext 모두 없을 때만 "활성 플랜 없음"
+    if (!plan && !hasQuests && !hasFullSchedulePlan) {
       responseMessage = '아직 활성 플랜이 없어요! 📚\n먼저 학습 계획을 만들어볼까요?';
       messageActions.push({
         id: `navigate-new-plan-${Date.now()}`,
@@ -1161,6 +1210,10 @@ ${plan.sessions.slice(0, 7).map((s, i) =>
       // 액션 버튼이 있으면 짧은 확인 메시지
       const dateStr = targetDate ? this.formatDateKorean(targetDate) : `${postponeDays}일 뒤`;
       responseMessage = `네, ${dateStr}로 옮겨드릴게요! 📅\n아래 버튼을 눌러 확정해주세요 👇`;
+    } else if (hasFullSchedulePlan) {
+      // fullScheduleContext에 플랜이 있지만 특정 퀘스트를 찾지 못한 경우
+      const scheduleSummary = this.generateScheduleSummary([], memoryContext.reviewDue, fullScheduleContext);
+      responseMessage = `일정 조정을 도와드릴게요! 📅\n\n${scheduleSummary}\n\n어떤 퀘스트를 어디로 옮기고 싶으신가요?`;
     } else {
       // LLM으로 응답 생성 (폴백)
       responseMessage = await this.generateAdjustResponse(message, plan, memoryContext);
