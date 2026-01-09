@@ -43,16 +43,32 @@ export function ChatRoomPage() {
 
   const [inputValue, setInputValue] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
+  const initRef = useRef(false);
+  const prevRoomIdRef = useRef(targetRoomId);
 
-  // 초기화: 환영 메시지 및 읽음 처리
+  // roomId 변경 시 초기화 상태 리셋
   useEffect(() => {
-    if (!room) return;
+    if (prevRoomIdRef.current !== targetRoomId) {
+      initRef.current = false;
+      setIsInitialized(false);
+      prevRoomIdRef.current = targetRoomId;
+    }
+  }, [targetRoomId]);
+
+  // 초기화: 환영 메시지 및 읽음 처리 (최초 1회만)
+  useEffect(() => {
+    if (initRef.current) return;
+
+    const currentRoom = getRoomById(targetRoomId) || getDefaultRoom();
+    if (!currentRoom) return;
+
+    initRef.current = true;
 
     // 페이지 진입 시 읽음 처리
     markRoomAsRead(targetRoomId);
 
     // 기본 채팅방이고 메시지가 없으면 환영 메시지
-    if (room.isDefault && room.messages.length === 0) {
+    if (currentRoom.isDefault && currentRoom.messages.length === 0) {
       addMessage(targetRoomId, {
         role: 'assistant',
         content: `안녕하세요! 저는 AI 학습 코치예요! 🌟\n\n무엇을 도와드릴까요? 학습 질문, 계획 상담, 아니면 그냥 수다도 좋아요! 😊`,
@@ -61,7 +77,7 @@ export function ChatRoomPage() {
     }
 
     setIsInitialized(true);
-  }, [room, targetRoomId, addMessage, markRoomAsRead]);
+  }, [targetRoomId, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
 
   // 스크롤 자동 이동
   useEffect(() => {
