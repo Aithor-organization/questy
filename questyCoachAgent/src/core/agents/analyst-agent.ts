@@ -183,6 +183,26 @@ export class AnalystAgent extends BaseAgent {
       });
     }
 
+    // 플랜 생성 요청 감지
+    if (QuestActions.isPlanCreationRequest(message)) {
+      console.log('[AnalystAgent] Plan creation request detected');
+      const messageActions: MessageAction[] = [{
+        id: `navigate-new-plan-${Date.now()}`,
+        type: 'NAVIGATE',
+        label: '새 플랜 만들기',
+        icon: '➕',
+        data: { navigateTo: '/new-plan' },
+      }];
+
+      return this.createResponse(
+        '새로운 학습 계획을 세우고 싶으시군요! 📊\n\n분석 결과를 바탕으로 최적의 계획을 세워드릴게요.\n아래 버튼을 눌러 플랜을 만들어보세요.',
+        {
+          suggestedFollowUp: ['어떤 과목을 공부하고 싶으세요?'],
+          messageActions,
+        }
+      );
+    }
+
     // 분석 유형 파악
     const analysisType = this.classifyAnalysisRequest(message);
 

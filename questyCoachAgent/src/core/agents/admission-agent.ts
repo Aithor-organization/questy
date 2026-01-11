@@ -102,6 +102,26 @@ export class AdmissionAgent extends BaseAgent {
       );
     }
 
+    // 플랜 생성 요청 감지
+    if (QuestActions.isPlanCreationRequest(message)) {
+      console.log('[AdmissionAgent] Plan creation request detected');
+      messageActions.push({
+        id: `navigate-new-plan-${Date.now()}`,
+        type: 'NAVIGATE',
+        label: '새 플랜 만들기',
+        icon: '➕',
+        data: { navigateTo: '/new-plan' },
+      });
+
+      return this.createResponse(
+        '좋아요! 새로운 학습 계획을 세워볼까요? 🎯\n\n아래 버튼을 눌러 플랜을 만들어보세요.',
+        {
+          suggestedFollowUp: ['어떤 과목을 공부하고 싶으세요?'],
+          messageActions,
+        }
+      );
+    }
+
     // 프론트엔드에서 전달한 stage 우선 사용, 없으면 자동 결정
     const providedStage = metadata?.stage as string | undefined;
     const stage = this.mapFrontendStageToOnboardingStage(providedStage)
