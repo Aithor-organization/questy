@@ -269,12 +269,6 @@ export class AdmissionAgent extends BaseAgent {
 - 학습 관련 조언 제공
 - 필요시 다른 기능 안내`,
 
-      'LEVEL_TEST': `
-## 현재 단계: 레벨 테스트
-- 레벨 테스트 목적과 진행 방법 설명
-- 테스트 준비 안내
-- 긴장하지 말라고 격려`,
-
       'CLASS_ASSIGN': `
 ## 현재 단계: 반 배정
 - 반 배정 과정 안내
@@ -310,7 +304,6 @@ ${stageInstructions[stage]}
       'grade': 'COLLECT_BASIC',
       'subjects': 'COLLECT_GOALS',
       'goals': 'COLLECT_GOALS',
-      'levelTest': 'LEVEL_TEST',
       'classAssignment': 'CLASS_ASSIGN',
       'orientation': 'ORIENTATION',
       'complete': 'COMPLETE',
@@ -552,203 +545,11 @@ ${style.prefersChallenges ? '- 도전적인 문제 좋아함 💪' : '- 기초�
       COLLECT_STYLE: ['시작할 준비됐어요?', '더 알려줄 게 있어요?'],
       COMPLETE: ['바로 공부 시작할까요?', '계획부터 세울까요?'],
       GENERAL: ['무엇을 도와드릴까요?', '다른 질문 있으세요?'],
-      LEVEL_TEST: ['레벨 테스트 시작할까요?', '어떤 과목으로 할까요?'],
       CLASS_ASSIGN: ['반 선택 도움이 필요해요?', '추천 반으로 할까요?'],
       ORIENTATION: ['다음 단계로 넘어갈까요?', '다시 설명해 드릴까요?'],
     };
 
     return followUps[stage] ?? [];
-  }
-
-  // ==================== FR-051: 레벨 테스트 메서드 ====================
-
-  /**
-   * 레벨 테스트 생성
-   */
-  generateLevelTest(subject: Subject, questionCount: number = 5): LevelTestQuestion[] {
-    const questions: LevelTestQuestion[] = [];
-    const difficulties: Array<'EASY' | 'MEDIUM' | 'HARD'> = ['EASY', 'MEDIUM', 'HARD'];
-
-    // 과목별 샘플 문제 (실제로는 DB에서 가져와야 함)
-    const questionBank = this.getQuestionBank(subject);
-
-    for (let i = 0; i < questionCount; i++) {
-      const difficulty = difficulties[i % 3] ?? 'MEDIUM';
-      const availableQuestions = questionBank.filter(q => q.difficulty === difficulty);
-      const randomQuestion = availableQuestions[Math.floor(Math.random() * availableQuestions.length)];
-
-      if (randomQuestion) {
-        questions.push({
-          ...randomQuestion,
-          id: `q-${Date.now()}-${i}`,
-        });
-      }
-    }
-
-    return questions;
-  }
-
-  /**
-   * 레벨 테스트 채점
-   */
-  evaluateLevelTest(
-    studentId: string,
-    subject: Subject,
-    questions: LevelTestQuestion[],
-    answers: number[]
-  ): LevelTestResult {
-    let correctAnswers = 0;
-    const weakTopics: string[] = [];
-    const strongTopics: string[] = [];
-    const topicScores = new Map<string, { correct: number; total: number }>();
-
-    questions.forEach((q, i) => {
-      const isCorrect = answers[i] === q.correctAnswer;
-      if (isCorrect) correctAnswers++;
-
-      // 토픽별 점수 추적
-      const topicScore = topicScores.get(q.topic) ?? { correct: 0, total: 0 };
-      topicScore.total++;
-      if (isCorrect) topicScore.correct++;
-      topicScores.set(q.topic, topicScore);
-    });
-
-    // 토픽별 강점/약점 분류
-    topicScores.forEach((score, topic) => {
-      const rate = score.correct / score.total;
-      if (rate >= 0.7) {
-        strongTopics.push(topic);
-      } else if (rate < 0.5) {
-        weakTopics.push(topic);
-      }
-    });
-
-    const score = Math.round((correctAnswers / questions.length) * 100);
-    const level: LevelTestResult['level'] =
-      score >= 80 ? 'ADVANCED' :
-      score >= 50 ? 'INTERMEDIATE' : 'BEGINNER';
-
-    return {
-      studentId,
-      subject,
-      totalQuestions: questions.length,
-      correctAnswers,
-      score,
-      level,
-      weakTopics,
-      strongTopics,
-      recommendedClass: this.recommendClassFromLevel(level, subject),
-      completedAt: new Date(),
-    };
-  }
-
-  /**
-   * 레벨 테스트 결과 메시지 생성 (LLM 사용)
-   */
-  async generateLevelTestResultMessage(result: LevelTestResult): Promise<string> {
-    const levelEmoji = {
-      BEGINNER: '🌱',
-      INTERMEDIATE: '🌿',
-      ADVANCED: '🌳',
-    };
-
-    const levelName = {
-      BEGINNER: '기초',
-      INTERMEDIATE: '중급',
-      ADVANCED: '심화',
-    };
-
-    // LLM으로 개인화된 피드백 생성
-    try {
-      const prompt = `당신은 학습 상담 전문가 AI입니다.
-
-## 레벨 테스트 결과
-- 레벨: ${levelName[result.level]} (${result.level})
-- 점수: ${result.score}점 (${result.correctAnswers}/${result.totalQuestions} 정답)
-- 강점 영역: ${result.strongTopics.length > 0 ? result.strongTopics.join(', ') : '없음'}
-- 보완 영역: ${result.weakTopics.length > 0 ? result.weakTopics.join(', ') : '없음'}
-- 추천 반: ${result.recommendedClass}
-
-## 응답 지침
-1. 테스트 결과를 격려하며 전달
-2. 강점을 칭찬하고 보완점에 대한 긍정적인 조언
-3. 추천 반에 대한 설명과 동기부여
-4. 마크다운 형식, 이모지 사용
-5. 3-4문단으로 간결하게`;
-
-      const response = await this.generateResponse(prompt, '레벨 테스트 결과를 알려주세요');
-      return response;
-    } catch (error) {
-      console.warn('[ADMISSION] LLM failed for level test result, using template:', error);
-      // 템플릿 폴백
-      return `📋 **레벨 테스트 결과**
-
-${levelEmoji[result.level]} **${levelName[result.level]} 레벨**이에요!
-
-📊 **점수**: ${result.score}점 (${result.correctAnswers}/${result.totalQuestions} 정답)
-
-${result.strongTopics.length > 0 ? `💪 **강점 영역**: ${result.strongTopics.join(', ')}\n` : ''}
-${result.weakTopics.length > 0 ? `📚 **보완 영역**: ${result.weakTopics.join(', ')}\n` : ''}
-
-🎯 **추천 반**: ${result.recommendedClass}
-
-${result.level === 'BEGINNER'
-  ? '기초부터 탄탄하게 다져볼까요? 차근차근 함께 해요! 💪'
-  : result.level === 'INTERMEDIATE'
-    ? '좋은 실력이에요! 조금만 더 노력하면 심화까지 갈 수 있어요! 🔥'
-    : '와, 대단해요! 심화 과정으로 더 높이 도전해봐요! 🏆'}`;
-    }
-  }
-
-  /**
-   * 문제 은행 (샘플)
-   */
-  private getQuestionBank(subject: Subject): Omit<LevelTestQuestion, 'id'>[] {
-    // 실제로는 DB에서 가져와야 함
-    const banks: Record<Subject, Omit<LevelTestQuestion, 'id'>[]> = {
-      MATH: [
-        { subject: 'MATH', difficulty: 'EASY', question: '2 + 3 × 4 = ?', options: ['20', '14', '11', '24'], correctAnswer: 1, topic: '사칙연산' },
-        { subject: 'MATH', difficulty: 'EASY', question: '1/2 + 1/3 = ?', options: ['2/5', '5/6', '1/6', '2/6'], correctAnswer: 1, topic: '분수' },
-        { subject: 'MATH', difficulty: 'MEDIUM', question: 'x² - 5x + 6 = 0 의 해는?', options: ['1, 6', '2, 3', '-2, -3', '1, -6'], correctAnswer: 1, topic: '이차방정식' },
-        { subject: 'MATH', difficulty: 'MEDIUM', question: 'sin²θ + cos²θ = ?', options: ['0', '1', '2', 'sinθ'], correctAnswer: 1, topic: '삼각함수' },
-        { subject: 'MATH', difficulty: 'HARD', question: '∫x²dx = ?', options: ['x³', 'x³/3 + C', '2x', 'x³/3'], correctAnswer: 1, topic: '적분' },
-      ],
-      KOREAN: [
-        { subject: 'KOREAN', difficulty: 'EASY', question: '"맞춤법"의 올바른 표기는?', options: ['맛춤법', '맞춤법', '맛츰법', '맞츰법'], correctAnswer: 1, topic: '맞춤법' },
-        { subject: 'KOREAN', difficulty: 'MEDIUM', question: '"은유"의 예시는?', options: ['내 마음은 호수', '바람이 살랑살랑', '쿵쾅쿵쾅', '하늘이 파랗다'], correctAnswer: 0, topic: '비유법' },
-        { subject: 'KOREAN', difficulty: 'HARD', question: '다음 중 문학 작품 분석 요소가 아닌 것은?', options: ['시점', '구성', '문법', '주제'], correctAnswer: 2, topic: '문학' },
-      ],
-      ENGLISH: [
-        { subject: 'ENGLISH', difficulty: 'EASY', question: 'She ___ to school every day.', options: ['go', 'goes', 'going', 'went'], correctAnswer: 1, topic: '동사' },
-        { subject: 'ENGLISH', difficulty: 'MEDIUM', question: 'I wish I ___ fly.', options: ['can', 'could', 'will', 'would'], correctAnswer: 1, topic: '가정법' },
-        { subject: 'ENGLISH', difficulty: 'HARD', question: 'The book ___ on the table is mine.', options: ['lies', 'lying', 'lay', 'lied'], correctAnswer: 1, topic: '분사' },
-      ],
-      SCIENCE: [
-        { subject: 'SCIENCE', difficulty: 'EASY', question: '물의 화학식은?', options: ['H2O', 'CO2', 'O2', 'NaCl'], correctAnswer: 0, topic: '화학' },
-        { subject: 'SCIENCE', difficulty: 'MEDIUM', question: 'F = ma 는 무슨 법칙?', options: ['관성의 법칙', '가속도의 법칙', '작용반작용', '만유인력'], correctAnswer: 1, topic: '물리' },
-      ],
-      SOCIAL: [
-        { subject: 'SOCIAL', difficulty: 'EASY', question: '대한민국의 수도는?', options: ['부산', '서울', '대전', '인천'], correctAnswer: 1, topic: '지리' },
-        { subject: 'SOCIAL', difficulty: 'MEDIUM', question: '3.1 운동이 일어난 해는?', options: ['1910년', '1919년', '1945년', '1950년'], correctAnswer: 1, topic: '역사' },
-      ],
-      GENERAL: [
-        { subject: 'GENERAL', difficulty: 'EASY', question: '1년은 몇 개월?', options: ['10개월', '11개월', '12개월', '13개월'], correctAnswer: 2, topic: '일반상식' },
-      ],
-    };
-
-    return banks[subject] ?? banks.GENERAL;
-  }
-
-  /**
-   * 레벨에서 반 추천
-   */
-  private recommendClassFromLevel(level: LevelTestResult['level'], subject: Subject): string {
-    const classMap = {
-      BEGINNER: '기초반',
-      INTERMEDIATE: '정규반',
-      ADVANCED: '심화반',
-    };
-    return `${subject === 'GENERAL' ? '' : subject + ' '}${classMap[level]}`;
   }
 
   // ==================== FR-052: 반 배정 메서드 ====================
@@ -793,8 +594,7 @@ ${result.level === 'BEGINNER'
    */
   assignClass(
     studentId: string,
-    classId: string,
-    levelTestResult?: LevelTestResult
+    classId: string
   ): ClassAssignment {
     const classOptions = this.getClassOptions('GENERAL');
     const selectedClass = classOptions.find(c => c.id === classId);
@@ -803,16 +603,12 @@ ${result.level === 'BEGINNER'
       throw new Error('존재하지 않는 반입니다');
     }
 
-    const reason = levelTestResult
-      ? `레벨 테스트 결과(${levelTestResult.level})에 따른 자동 배정`
-      : '학생 선택에 의한 배정';
-
     return {
       studentId,
       classId,
       className: selectedClass.name,
       assignedAt: new Date(),
-      reason,
+      reason: '학생 선택에 의한 배정',
     };
   }
 
@@ -1064,34 +860,8 @@ type OnboardingStage =
   | 'COLLECT_STYLE'
   | 'COMPLETE'
   | 'GENERAL'
-  | 'LEVEL_TEST'
   | 'CLASS_ASSIGN'
   | 'ORIENTATION';
-
-// ==================== FR-051: 레벨 테스트 ====================
-
-export interface LevelTestQuestion {
-  id: string;
-  subject: Subject;
-  difficulty: 'EASY' | 'MEDIUM' | 'HARD';
-  question: string;
-  options: string[];
-  correctAnswer: number;
-  topic: string;
-}
-
-export interface LevelTestResult {
-  studentId: string;
-  subject: Subject;
-  totalQuestions: number;
-  correctAnswers: number;
-  score: number; // 0-100
-  level: 'BEGINNER' | 'INTERMEDIATE' | 'ADVANCED';
-  weakTopics: string[];
-  strongTopics: string[];
-  recommendedClass: string;
-  completedAt: Date;
-}
 
 // ==================== FR-052: 반 배정 ====================
 
