@@ -46,9 +46,9 @@ export function ActionButtons({ actions, roomId }: ActionButtonsProps) {
         }
 
         case 'RESCHEDULE_QUEST': {
-          const { planId, questDay, newDate } = action.data ?? {};
-          if (planId && questDay !== undefined && newDate) {
-            const success = rescheduleQuest(planId, questDay, newDate);
+          const { planId, questId, newDate } = action.data ?? {};
+          if (planId && questId && newDate) {
+            const success = rescheduleQuest(planId, questId, newDate);
 
             if (success) {
               addMessage(roomId, {

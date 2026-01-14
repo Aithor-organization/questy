@@ -105,6 +105,13 @@ export function useBackgroundChat(roomId: string) {
       try {
         updatePendingResponse(userMessageId, 'processing');
 
+        // conversationId 가져오기/생성 (대화 기록 유지를 위해 필수)
+        let conversationId = localStorage.getItem(`questybook_conv_${roomId}`);
+        if (!conversationId) {
+          conversationId = `conv-${roomId}-${Date.now()}`;
+          localStorage.setItem(`questybook_conv_${roomId}`, conversationId);
+        }
+
         const response = await fetch(`${API_BASE_URL}/api/coach/chat`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -113,6 +120,7 @@ export function useBackgroundChat(roomId: string) {
             message,
             userName,
             questContext,
+            conversationId,  // 대화 기록 유지를 위해 추가
           }),
           signal: abortController.signal,
         });

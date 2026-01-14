@@ -151,9 +151,15 @@ export function useGeneratePage() {
     const totalMinutes = plan.dailyQuests.reduce((sum, q) => sum + q.estimatedMinutes, 0);
     const questUnits = new Set(plan.dailyQuests.map(q => q.unitNumber));
 
+    // 각 퀘스트에 고유 ID 부여 (백엔드에서 ID를 제공하지 않을 경우)
+    const questsWithIds = plan.dailyQuests.map(quest => ({
+      ...quest,
+      id: quest.id || crypto.randomUUID(),
+    }));
+
     addPlan({
       materialName: result.materialName,
-      dailyQuests: plan.dailyQuests,
+      dailyQuests: questsWithIds,
       summary: {
         totalDays: plan.totalDays,
         totalUnits: questUnits.size,

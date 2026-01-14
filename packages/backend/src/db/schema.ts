@@ -30,6 +30,26 @@ export const students = sqliteTable('students', {
   updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 
+// ===================== 강좌 테이블 (인강) =====================
+
+export const courses = sqliteTable('courses', {
+  id: text('id').primaryKey(),  // 강좌 코드
+  name: text('name').notNull(),
+  teacher: text('teacher').notNull(),
+  subject: text('subject'),  // 수학, 국어, 영어 등
+  platform: text('platform').default('megastudy'),  // megastudy, etoos 등
+  url: text('url'),
+  lectures: text('lectures'),  // JSON 배열 [{num, title, duration}]
+  lectureCount: integer('lecture_count').default(0),
+  totalDuration: text('total_duration'),  // 총 강의 시간
+  category: text('category'),  // 개념완성, 기출분석 등
+  year: integer('year'),
+  isCompleted: integer('is_completed', { mode: 'boolean' }).default(false),  // 완강 여부
+  lastCrawledAt: integer('last_crawled_at', { mode: 'timestamp' }),  // 마지막 크롤링 시간
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
 // ===================== 학습 계획 테이블 =====================
 
 export const plans = sqliteTable('plans', {
@@ -111,6 +131,9 @@ export type NewUser = typeof users.$inferInsert;
 
 export type Student = typeof students.$inferSelect;
 export type NewStudent = typeof students.$inferInsert;
+
+export type Course = typeof courses.$inferSelect;
+export type NewCourse = typeof courses.$inferInsert;
 
 export type Plan = typeof plans.$inferSelect;
 export type NewPlan = typeof plans.$inferInsert;

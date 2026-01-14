@@ -17,6 +17,7 @@ interface FormData {
 }
 
 export interface DailyQuest {
+  id?: string;        // 고유 식별자 (백엔드에서 제공되지 않을 수 있음)
   day: number;
   date: string;
   unitNumber: number;

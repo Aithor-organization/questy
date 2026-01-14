@@ -15,8 +15,8 @@ import {
   NotebookLayout,
   NotebookPage,
   DailyHeader,
-  QuestCheckItem,
   PlanCard,
+  SubjectAccordion,
 } from '../components/notebook';
 import { API_BASE_URL } from '../config';
 
@@ -518,15 +518,11 @@ export function TodayPage() {
             )}
           </div>
         ) : (
-          <div className="space-y-0">
-            {quests.map((quest) => (
-              <QuestCheckItem
-                key={`${quest.planId}-${quest.day}`}
-                quest={quest}
-                onToggle={() => toggleQuestComplete(quest.planId, quest.day)}
-              />
-            ))}
-          </div>
+          <SubjectAccordion
+            quests={quests}
+            onToggle={toggleQuestComplete}
+            groupBy="planName"
+          />
         )}
       </NotebookPage>
 

@@ -1,0 +1,30 @@
+# Curriculum RAG Agent - Dependencies
+# ACE Framework V5.2 with Memory Lane Architecture
+
+# Core
+python-dotenv>=1.0.0
+pyyaml>=6.0.1
+aiohttp>=3.9.0
+
+# LLM
+openai>=1.10.0
+
+# RAG (Pinecone)
+pinecone-client>=3.0.0
+
+# Memory (ChromaDB)
+chromadb>=0.4.22
+
+# Utilities
+uuid>=1.30
+dataclasses-json>=0.6.3
+
+# Testing
+pytest>=8.0.0
+pytest-asyncio>=0.23.0
+pytest-cov>=4.1.0
+
+# Development
+black>=24.1.0
+isort>=5.13.0
+mypy>=1.8.0

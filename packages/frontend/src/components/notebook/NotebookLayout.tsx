@@ -31,7 +31,7 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
           </Link>
 
           {/* 탭 */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto scrollbar-hide">
             <NavTab to="/" active={location.pathname === '/'}>
               📅 오늘
             </NavTab>
@@ -39,7 +39,13 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
               📋 플래너
             </NavTab>
             <NavTab to="/generate" active={location.pathname === '/generate'}>
-              ✨ 새 플랜
+              ✨ 새플랜
+            </NavTab>
+            <NavTab to="/curriculum" active={location.pathname === '/curriculum'}>
+              📚 커리큘럼
+            </NavTab>
+            <NavTab to="/tips" active={location.pathname === '/tips'}>
+              💡 꿀팁
             </NavTab>
             <NavTab to="/chat" active={location.pathname === '/chat'} badge={unreadCount}>
               💬 코치

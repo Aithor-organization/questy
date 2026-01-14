@@ -11,7 +11,16 @@ interface StudyTips {
   relatedUnits?: string; // 연계 단원
 }
 
+// 타이머 기록
+interface TimerRecord {
+  startedAt: string;      // 시작 시간 (ISO)
+  endedAt?: string;       // 종료 시간 (ISO)
+  elapsedSeconds: number; // 경과 시간 (초)
+  completed: boolean;     // 완료 여부
+}
+
 interface DailyQuest {
+  id: string;  // 고유 식별자
   day: number;
   date: string;
   unitNumber: number;
@@ -26,6 +35,11 @@ interface DailyQuest {
   objectives?: string[];
   // AI 학습 팁 (수능 맞춤)
   studyTips?: StudyTips;
+  // 문제풀이(자습) 메모
+  practiceNote?: string;
+  isPractice?: boolean;  // 문제풀이 퀘스트 여부
+  // 타이머 기록
+  timerRecord?: TimerRecord;
 }
 
 interface Recommendation {
@@ -50,8 +64,12 @@ export interface QuestPlan {
   createdAt: string;
 }
 
+// 타이머 기록 타입 export
+export type { TimerRecord };
+
 // 날짜별 퀘스트 (플랜 정보 포함)
 export interface QuestWithPlan {
+  id: string;  // 고유 식별자
   day: number;
   date: string;
   unitNumber: number;
@@ -66,6 +84,11 @@ export interface QuestWithPlan {
   objectives?: string[];
   // AI 학습 팁 (수능 맞춤)
   studyTips?: StudyTips;
+  // 문제풀이(자습) 메모
+  practiceNote?: string;
+  isPractice?: boolean;  // 문제풀이 퀘스트 여부
+  // 타이머 기록
+  timerRecord?: TimerRecord;
   // 플랜 정보
   planId: string;
   planName: string;
@@ -85,18 +108,23 @@ interface QuestStore {
   plans: QuestPlan[];
   addPlan: (plan: Omit<QuestPlan, 'id' | 'createdAt'>) => void;
   removePlan: (planId: string) => void;
-  toggleQuestComplete: (planId: string, day: number) => void;
+  toggleQuestComplete: (planId: string, questId: string) => void;
   getQuestsByDate: (date: string) => QuestWithPlan[];
   getTodayQuests: () => QuestWithPlan[];
   getPlanById: (planId: string) => QuestPlan | undefined;
   // 일정 조정 기능
-  rescheduleQuest: (planId: string, day: number, newDate: string) => boolean;
+  rescheduleQuest: (planId: string, questId: string, newDate: string) => boolean;
   postponeQuestsByDays: (planId: string, fromDate: string, daysToAdd: number) => void;
   postponeTodayQuests: (daysToAdd: number) => void;
   // AI 자동 재조정
   getIncompleteQuests: (date: string) => QuestWithPlan[];
   autoRescheduleQuest: (quest: QuestWithPlan, excludeWeekends?: boolean) => Promise<AutoRescheduleResult | null>;
-  applyAutoReschedule: (planId: string, day: number, result: AutoRescheduleResult) => void;
+  applyAutoReschedule: (planId: string, questId: string, result: AutoRescheduleResult) => void;
+  // 문제풀이(자습) 메모
+  updatePracticeNote: (planId: string, questId: string, note: string) => void;
+  // 타이머 기록
+  updateTimerRecord: (planId: string, questId: string, record: TimerRecord) => void;
+  getQuestById: (planId: string, questId: string) => QuestWithPlan | undefined;
 }
 
 // 오늘 날짜를 YYYY-MM-DD 형식으로 반환
@@ -128,10 +156,10 @@ export const useQuestStore = create<QuestStore>()(
         }));
       },
 
-      toggleQuestComplete: (planId: string, day: number) => {
+      toggleQuestComplete: (planId: string, questId: string) => {
         const today = getTodayDateString();
         const plan = get().plans.find(p => p.id === planId);
-        const quest = plan?.dailyQuests.find(q => q.day === day);
+        const quest = plan?.dailyQuests.find(q => q.id === questId);
 
         // 오늘 날짜의 퀘스트만 완료 가능
         if (quest && quest.date !== today) {
@@ -145,7 +173,7 @@ export const useQuestStore = create<QuestStore>()(
               ? {
                   ...plan,
                   dailyQuests: plan.dailyQuests.map((quest) =>
-                    quest.day === day
+                    quest.id === questId
                       ? { ...quest, completed: !quest.completed }
                       : quest
                   ),
@@ -160,8 +188,9 @@ export const useQuestStore = create<QuestStore>()(
         const quests: QuestWithPlan[] = [];
 
         for (const plan of plans) {
-          const quest = plan.dailyQuests.find((q) => q.date === date);
-          if (quest) {
+          // 같은 날짜에 여러 퀘스트가 있을 수 있음 (강의 + 복습)
+          const questsOnDate = plan.dailyQuests.filter((q) => q.date === date);
+          for (const quest of questsOnDate) {
             quests.push({
               ...quest,
               planId: plan.id,
@@ -183,9 +212,9 @@ export const useQuestStore = create<QuestStore>()(
       },
 
       // 특정 퀘스트의 날짜를 변경
-      rescheduleQuest: (planId: string, day: number, newDate: string) => {
+      rescheduleQuest: (planId: string, questId: string, newDate: string) => {
         const plan = get().plans.find((p) => p.id === planId);
-        const quest = plan?.dailyQuests.find((q) => q.day === day);
+        const quest = plan?.dailyQuests.find((q) => q.id === questId);
 
         if (!quest) {
           console.warn('[QuestStore] 퀘스트를 찾을 수 없습니다.');
@@ -204,7 +233,7 @@ export const useQuestStore = create<QuestStore>()(
               ? {
                   ...plan,
                   dailyQuests: plan.dailyQuests.map((q) =>
-                    q.day === day ? { ...q, date: newDate } : q
+                    q.id === questId ? { ...q, date: newDate } : q
                   ),
                 }
               : plan
@@ -339,8 +368,8 @@ export const useQuestStore = create<QuestStore>()(
       },
 
       // 자동 재조정 결과 적용
-      applyAutoReschedule: (planId: string, day: number, result: AutoRescheduleResult) => {
-        const success = get().rescheduleQuest(planId, day, result.newDate);
+      applyAutoReschedule: (planId: string, questId: string, result: AutoRescheduleResult) => {
+        const success = get().rescheduleQuest(planId, questId, result.newDate);
 
         if (success) {
           console.log(`[QuestStore] 자동 재조정 적용: ${result.strategy} → ${result.newDate}`);
@@ -348,9 +377,76 @@ export const useQuestStore = create<QuestStore>()(
           console.error('[QuestStore] 자동 재조정 적용 실패');
         }
       },
+
+      // 문제풀이(자습) 메모 업데이트
+      updatePracticeNote: (planId: string, questId: string, note: string) => {
+        set((state) => ({
+          plans: state.plans.map((plan) =>
+            plan.id === planId
+              ? {
+                  ...plan,
+                  dailyQuests: plan.dailyQuests.map((quest) =>
+                    quest.id === questId
+                      ? { ...quest, practiceNote: note }
+                      : quest
+                  ),
+                }
+              : plan
+          ),
+        }));
+        console.log(`[QuestStore] 메모 업데이트: planId=${planId}, questId=${questId}`);
+      },
+
+      updateTimerRecord: (planId: string, questId: string, record: TimerRecord) => {
+        set((state) => ({
+          plans: state.plans.map((plan) =>
+            plan.id === planId
+              ? {
+                  ...plan,
+                  dailyQuests: plan.dailyQuests.map((quest) =>
+                    quest.id === questId
+                      ? { ...quest, timerRecord: record }
+                      : quest
+                  ),
+                }
+              : plan
+          ),
+        }));
+        console.log(`[QuestStore] 타이머 기록 업데이트: planId=${planId}, questId=${questId}, elapsed=${record.elapsedSeconds}s`);
+      },
+
+      getQuestById: (planId: string, questId: string) => {
+        const plan = get().plans.find(p => p.id === planId);
+        if (!plan) return undefined;
+        const quest = plan.dailyQuests.find(q => q.id === questId);
+        if (!quest) return undefined;
+        return {
+          ...quest,
+          planId: plan.id,
+          planName: plan.materialName,
+        };
+      },
     }),
     {
       name: 'questybook-storage',
+      version: 2, // id 필드 추가 마이그레이션
+      migrate: (persistedState: unknown, version: number) => {
+        const state = persistedState as { plans?: QuestPlan[] };
+
+        // v1 → v2: 기존 퀘스트에 id 필드가 없으면 자동 생성
+        if (version < 2 && state.plans) {
+          console.log('[QuestStore] 마이그레이션: 퀘스트에 고유 ID 부여');
+          state.plans = state.plans.map(plan => ({
+            ...plan,
+            dailyQuests: plan.dailyQuests.map(quest => ({
+              ...quest,
+              id: quest.id || crypto.randomUUID(),
+            })),
+          }));
+        }
+
+        return state;
+      },
     }
   )
 );

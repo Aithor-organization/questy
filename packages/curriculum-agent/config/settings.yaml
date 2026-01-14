@@ -1,0 +1,200 @@
+# Curriculum RAG Agent - ACE Framework V5.2 설정
+# 인강 강사 데이터 기반 커리큘럼 생성 에이전트
+
+# ============================================
+# 모델 설정 (OpenRouter)
+# ============================================
+models:
+  teacher: "openai/gpt-5.2"              # 복잡한 추론, 평가, 메모리 분류
+  student_medium: "openai/gpt-5-mini"    # 중간 복잡도 (RAG 기반 답변)
+  student_fast: "openai/gpt-5-nano"      # 라우팅, 단순 작업
+  vision: "google/gemini-3-flash-preview" # 이미지/PDF 분석
+
+# ============================================
+# RAG 설정 (Pinecone)
+# ============================================
+rag:
+  pinecone:
+    index_name: "questy-curriculum"
+    namespaces:
+      lecturers: "lecturers"           # 강사 정보
+      courses: "courses"               # 강좌 정보
+      success_patterns: "success_patterns"  # 성공 패턴
+      exam_trends: "exam_trends"       # 시험 트렌드
+
+  # 검색 설정
+  search:
+    top_k: 10
+    min_score: 0.5
+    semantic_weight: 0.7
+    keyword_weight: 0.3
+    enable_hybrid: true
+
+  # 최적화 설정
+  optimization:
+    max_lecturers: 5
+    max_courses: 8
+    max_patterns: 3
+    max_trends: 4
+    min_relevance_score: 0.3
+    max_token_budget: 1500
+
+# ============================================
+# Memory Lane 설정
+# ============================================
+memory:
+  # 저장소 설정
+  storage:
+    type: "chromadb"                   # chromadb 또는 sqlite
+    path: "./memory_store"
+    collection_name: "curriculum_memory"
+
+  # 메모리 유형 (Teacher가 분류)
+  types:
+    - correction   # 사용자 수정 요청
+    - decision     # 명시적 결정
+    - insight      # 새로운 깨달음
+    - pattern      # 반복되는 선호
+    - gap          # 실패/누락
+    - learning     # 일반 학습
+
+  # Query-Aware Boosting
+  query_boost:
+    enabled: true
+    boost_amount: 0.15
+    keywords:
+      correction: ["실수", "잘못", "수정", "아니", "error"]
+      decision: ["결정", "선택", "쓰기로", "decide"]
+      pattern: ["패턴", "방법", "how", "항상"]
+      insight: ["배움", "깨달음", "insight", "발견"]
+      gap: ["실패", "안됨", "못함", "fail"]
+
+  # Re-Ranking 가중치
+  reranking:
+    vector_similarity: 0.55
+    recency: 0.15
+    confidence: 0.15
+    type_boost: 0.15
+
+# ============================================
+# 라우터 설정 (복잡도 기반)
+# ============================================
+router:
+  # 복잡도 임계값
+  thresholds:
+    simple: 0.3      # 0-0.3: student_fast
+    medium: 0.7      # 0.3-0.7: student_medium
+    complex: 1.0     # 0.7-1.0: teacher
+
+  # 복잡도 키워드 가중치
+  complexity_keywords:
+    high:
+      keywords:
+        - "분석해줘"
+        - "커리큘럼 생성"
+        - "종합적으로"
+        - "비교해줘"
+        - "전략 수립"
+      weight: 0.4
+    medium:
+      keywords:
+        - "추천해줘"
+        - "알려줘"
+        - "검색해줘"
+        - "찾아줘"
+      weight: 0.2
+    low:
+      keywords:
+        - "확인"
+        - "보여줘"
+        - "어때"
+      weight: 0.1
+
+# ============================================
+# 커리큘럼 생성 설정
+# ============================================
+curriculum:
+  # 생성 모드
+  mode: "two_stage"      # single | two_stage | council
+
+  # Two-Stage 설정
+  two_stage:
+    stage1_model: "teacher"
+    stage2_model: "teacher"
+
+  # Council 설정 (선택적)
+  council:
+    enabled: false
+    models:
+      - "openai/gpt-4o"
+      - "google/gemini-2.0-flash-exp:free"
+      - "anthropic/claude-sonnet-4"
+    chairman: "anthropic/claude-sonnet-4"
+
+  # 출력 형식
+  output:
+    format: "json"
+    include_reasoning: true
+    include_alternatives: true
+
+# ============================================
+# 프롬프트 설정
+# ============================================
+prompts:
+  system_prefix: |
+    당신은 수능/입시 전문 커리큘럼 설계 에이전트입니다.
+    인강 강사 데이터(목차, 커리큘럼, 강사 특징, 교재 목차)를 활용하여
+    학생 맞춤형 학습 계획을 생성합니다.
+
+  rag_context_template: |
+    ## 📚 관련 강사 정보
+    {lecturers}
+
+    ## 📖 관련 강좌 정보
+    {courses}
+
+    ## ✅ 성공 패턴
+    {success_patterns}
+
+    ## 📊 시험 트렌드
+    {exam_trends}
+
+# ============================================
+# 스킬 설정
+# ============================================
+skills:
+  directory: "./skills"
+  auto_match: true
+  keywords_file: "skill_keywords.yaml"
+
+# ============================================
+# 로깅 및 관찰성
+# ============================================
+observability:
+  logging:
+    level: "INFO"
+    format: "json"
+    file: "./logs/agent.log"
+
+  metrics:
+    enabled: true
+    track_costs: true
+    track_latency: true
+
+  # API 비용 추적
+  cost_tracking:
+    enabled: true
+    budget_warning_threshold: 1.0  # USD
+    budget_limit: 10.0             # USD
+
+# ============================================
+# API 설정
+# ============================================
+api:
+  timeout:
+    default: 30000     # 30초
+    complex: 120000    # 2분 (커리큘럼 생성)
+
+  retry:
+    max_attempts: 3
+    backoff_multiplier: 1.5

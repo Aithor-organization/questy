@@ -224,11 +224,12 @@
   border: 1px solid var(--paper-lines);
   border-bottom: none;
   border-radius: 8px 8px 0 0;
-  padding: 0.5rem 1rem;
+  padding: 0.375rem 0.625rem;
   font-family: var(--font-handwrite);
-  font-size: 1.125rem;
+  font-size: 0.875rem;
   cursor: pointer;
   transition: all 0.2s;
+  white-space: nowrap;
 }
 
 .date-tab.active {
@@ -290,7 +291,7 @@
 /* 퀘스트 카드 - 인덱스 카드 스타일 */
 .quest-card {
   background: var(--paper-white);
-  border: 1px solid var(--paper-lines);
+  border: none;
   border-radius: 2px;
   padding: 1rem;
   position: relative;
@@ -349,4 +350,13 @@
   .handwrite-xl {
     font-size: 1.75rem;
   }
+}
+
+/* 스크롤바 숨기기 */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }

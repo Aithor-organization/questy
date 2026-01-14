@@ -16,9 +16,9 @@ const registerSchema = z.object({
   name: z.string().min(1, '이름을 입력해주세요'),
 });
 
-// 로그인 스키마
+// 로그인 스키마 (관리자 로그인은 이메일 형식이 아닐 수 있음)
 const loginSchema = z.object({
-  email: z.string().email('올바른 이메일 형식이 아닙니다'),
+  email: z.string().min(1, '아이디 또는 이메일을 입력해주세요'),
   password: z.string().min(1, '비밀번호를 입력해주세요'),
 });
 
@@ -123,6 +123,26 @@ authRoutes.post('/login', async (c) => {
     }
 
     const { email, password } = validation.data;
+
+    // 관리자 계정 체크 (.env에서 설정)
+    const adminId = process.env.ADMIN_ID;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+
+    if (adminId && adminPassword && email === adminId && password === adminPassword) {
+      console.log(`[Auth] 관리자 로그인 성공`);
+      return c.json({
+        success: true,
+        data: {
+          user: {
+            id: 'admin',
+            email: adminId,
+            name: '관리자',
+            studentId: null,
+            isAdmin: true,
+          },
+        },
+      });
+    }
 
     // 사용자 조회
     const user = db.getUserByEmail(email);

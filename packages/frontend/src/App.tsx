@@ -6,6 +6,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useScheduledNotifications } from './hooks/useScheduledNotifications';
+import { useCoachScheduler } from './hooks/useCoachScheduler';
 import {
   LoginPage,
   SignUpPage,
@@ -18,6 +19,10 @@ import {
   ChatListPage,
   ChatRoomPage,
   ReportPage,
+  CurriculumPage,
+  TipsPage,
+  AdminPage,
+  TimerPage,
 } from './pages';
 import { ToastNotification } from './components/ToastNotification';
 
@@ -47,6 +52,9 @@ function App() {
   // 예약된 알림 백그라운드 체크 (1분마다)
   useScheduledNotifications();
 
+  // 자동 코치 메시지 스케줄러 (10시 리마인더, 자정 요약)
+  useCoachScheduler();
+
   return (
     <BrowserRouter>
       {/* 전역 토스트 알림 */}
@@ -69,7 +77,11 @@ function App() {
         <Route path="/mypage" element={<ProtectedRoute><MyPage /></ProtectedRoute>} />
         <Route path="/planner" element={<ProtectedRoute><PlannerPage /></ProtectedRoute>} />
         <Route path="/generate" element={<ProtectedRoute><GeneratePage /></ProtectedRoute>} />
+        <Route path="/curriculum" element={<ProtectedRoute><CurriculumPage /></ProtectedRoute>} />
+        <Route path="/tips" element={<ProtectedRoute><TipsPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
         <Route path="/plan/:planId" element={<ProtectedRoute><PlanDetailPage /></ProtectedRoute>} />
+        <Route path="/timer/:planId/:questId" element={<ProtectedRoute><TimerPage /></ProtectedRoute>} />
 
         {/* 기타 경로는 로그인으로 리다이렉트 */}
         <Route path="*" element={<Navigate to="/login" replace />} />

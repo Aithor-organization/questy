@@ -31,7 +31,7 @@ export interface MessageAction {
   data?: {
     daysToAdd?: number;       // POSTPONE_TODAY용
     planId?: string;          // RESCHEDULE_QUEST용
-    questDay?: number;        // RESCHEDULE_QUEST용
+    questId?: string;         // RESCHEDULE_QUEST용 (고유 식별자)
     newDate?: string;         // RESCHEDULE_QUEST용
     navigateTo?: string;      // NAVIGATE용
     customHandler?: string;   // CUSTOM용

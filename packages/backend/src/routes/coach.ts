@@ -268,6 +268,7 @@ coachRoutes.post('/chat', async (c) => {
 
     // 대화 ID 생성 (없으면 새로 생성)
     const convId = conversationId || `conv-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    console.log(`[Coach/Chat] conversationId received: ${conversationId}, using: ${convId}`);
 
     // 사용자 메시지 DB에 저장
     db.addConversation({

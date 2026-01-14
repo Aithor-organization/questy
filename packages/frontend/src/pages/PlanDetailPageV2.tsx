@@ -107,13 +107,13 @@ export function PlanDetailPageV2() {
         <div className="space-y-0">
           {plan.dailyQuests.map((quest) => (
             <QuestCheckItem
-              key={quest.day}
+              key={quest.id}
               quest={{
                 ...quest,
                 planId: plan.id,
                 planName: plan.materialName,
               }}
-              onToggle={() => toggleQuestComplete(plan.id, quest.day)}
+              onToggle={() => toggleQuestComplete(plan.id, quest.id)}
             />
           ))}
         </div>

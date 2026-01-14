@@ -11,6 +11,8 @@ import booksRoutes from './routes/books';
 import { coachRoutes } from './routes/coach';
 import { progressRoutes } from './routes/progress';
 import { authRoutes } from './routes/auth';
+import { curriculumRoutes } from './routes/curriculum';
+import { adminRoutes } from './routes/admin';
 
 const app = new Hono();
 
@@ -37,6 +39,8 @@ app.route('/api/generate', generateRoutes);
 app.route('/api/books', booksRoutes);
 app.route('/api/coach', coachRoutes);
 app.route('/api/progress', progressRoutes);
+app.route('/api/curriculum', curriculumRoutes);
+app.route('/api/admin', adminRoutes);
 
 // 서버 시작
 const port = Number(process.env.PORT) || 3001;

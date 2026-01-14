@@ -22,3 +22,15 @@ export { ReportPage } from './ReportPage';
 export { ChatListPage, ChatRoomPage } from './chat';
 // 하위호환성 유지
 export { ChatPage } from './ChatPage';
+
+// 인강 커리큘럼 시스템
+export { CurriculumPage } from './CurriculumPage';
+
+// 학습 꿀팁
+export { TipsPage } from './TipsPage';
+
+// 관리자 페이지
+export { AdminPage } from './AdminPage';
+
+// 학습 타이머 페이지
+export { TimerPage } from './TimerPage';

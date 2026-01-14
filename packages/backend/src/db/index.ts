@@ -21,6 +21,14 @@ export const db = drizzle(sqlite, { schema });
 // ===================== 테이블 생성 (수동) =====================
 
 function createTables() {
+  // 기존 테이블에 새 컬럼 추가 (이미 있으면 무시)
+  try {
+    sqlite.exec(`ALTER TABLE courses ADD COLUMN is_completed INTEGER DEFAULT 0`);
+  } catch {}
+  try {
+    sqlite.exec(`ALTER TABLE courses ADD COLUMN last_crawled_at INTEGER`);
+  } catch {}
+
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
@@ -44,6 +52,27 @@ function createTables() {
       created_at INTEGER DEFAULT (unixepoch()),
       updated_at INTEGER DEFAULT (unixepoch())
     );
+
+    CREATE TABLE IF NOT EXISTS courses (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      teacher TEXT NOT NULL,
+      subject TEXT,
+      platform TEXT DEFAULT 'megastudy',
+      url TEXT,
+      lectures TEXT,
+      lecture_count INTEGER DEFAULT 0,
+      total_duration TEXT,
+      category TEXT,
+      year INTEGER,
+      is_completed INTEGER DEFAULT 0,
+      last_crawled_at INTEGER,
+      created_at INTEGER DEFAULT (unixepoch()),
+      updated_at INTEGER DEFAULT (unixepoch())
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_courses_teacher ON courses(teacher);
+    CREATE INDEX IF NOT EXISTS idx_courses_subject ON courses(subject);
 
     CREATE TABLE IF NOT EXISTS plans (
       id TEXT PRIMARY KEY,
@@ -365,6 +394,274 @@ export function getConversations(studentId: string, limit = 50) {
 export function addConversation(data: schema.NewConversation) {
   const result = db.insert(schema.conversations).values(data).returning().all();
   return result[0];
+}
+
+// ===================== 강좌 관련 함수 =====================
+
+export function searchCourses(options: {
+  query?: string;
+  subject?: string;
+  teacher?: string;
+  limit?: number;
+}) {
+  const { query, subject, teacher, limit = 20 } = options;
+
+  let whereClause = '1=1';
+  const params: string[] = [];
+
+  if (teacher) {
+    whereClause += ' AND teacher LIKE ?';
+    params.push(`%${teacher}%`);
+  }
+
+  if (subject) {
+    whereClause += ' AND subject = ?';
+    params.push(subject);
+  }
+
+  if (query && !teacher) {
+    whereClause += ' AND (name LIKE ? OR teacher LIKE ?)';
+    params.push(`%${query}%`, `%${query}%`);
+  }
+
+  const stmt = sqlite.prepare(`
+    SELECT * FROM courses
+    WHERE ${whereClause}
+    ORDER BY teacher, name
+    LIMIT ?
+  `);
+
+  return stmt.all(...params, limit) as schema.Course[];
+}
+
+export function getCourse(id: string) {
+  const result = db.select().from(schema.courses).where(eq(schema.courses.id, id)).limit(1).all();
+  return result[0] || null;
+}
+
+export function getCoursesByTeacher(teacher: string) {
+  return db.select().from(schema.courses)
+    .where(sql`teacher LIKE ${'%' + teacher + '%'}`)
+    .all();
+}
+
+export function getAllCourses() {
+  return db.select().from(schema.courses).all();
+}
+
+export function getCoursesCount() {
+  const result = db.select({
+    count: sql<number>`COUNT(*)`,
+  }).from(schema.courses).all();
+  return result[0]?.count || 0;
+}
+
+// 미완강 강좌 목록 (업데이트 대상)
+export function getIncompleteCourses() {
+  const stmt = sqlite.prepare(`
+    SELECT * FROM courses
+    WHERE is_completed = 0 OR is_completed IS NULL
+    ORDER BY updated_at ASC
+  `);
+  return stmt.all() as schema.Course[];
+}
+
+// 강좌 커리큘럼 업데이트
+export function updateCourseCurriculum(
+  id: string,
+  data: {
+    lectures: string;
+    lectureCount: number;
+    totalDuration?: string;
+    isCompleted: boolean;
+  }
+) {
+  const stmt = sqlite.prepare(`
+    UPDATE courses
+    SET lectures = ?,
+        lecture_count = ?,
+        total_duration = ?,
+        is_completed = ?,
+        last_crawled_at = unixepoch(),
+        updated_at = unixepoch()
+    WHERE id = ?
+  `);
+  stmt.run(
+    data.lectures,
+    data.lectureCount,
+    data.totalDuration || null,
+    data.isCompleted ? 1 : 0,
+    id
+  );
+  return getCourse(id);
+}
+
+// 강좌 생성 또는 업데이트 (upsert)
+export function upsertCourse(data: {
+  id: string;
+  name: string;
+  teacher: string;
+  subject?: string;
+  platform?: string;
+  url?: string;
+  lectures?: string;
+  lectureCount?: number;
+  totalDuration?: string;
+  category?: string;
+  year?: number;
+  isCompleted?: boolean;
+}) {
+  const existing = getCourse(data.id);
+
+  if (existing) {
+    const stmt = sqlite.prepare(`
+      UPDATE courses
+      SET name = ?,
+          teacher = ?,
+          subject = COALESCE(?, subject),
+          platform = COALESCE(?, platform),
+          url = COALESCE(?, url),
+          lectures = COALESCE(?, lectures),
+          lecture_count = COALESCE(?, lecture_count),
+          total_duration = COALESCE(?, total_duration),
+          category = COALESCE(?, category),
+          year = COALESCE(?, year),
+          is_completed = COALESCE(?, is_completed),
+          updated_at = unixepoch()
+      WHERE id = ?
+    `);
+    stmt.run(
+      data.name,
+      data.teacher,
+      data.subject || null,
+      data.platform || null,
+      data.url || null,
+      data.lectures || null,
+      data.lectureCount ?? null,
+      data.totalDuration || null,
+      data.category || null,
+      data.year ?? null,
+      data.isCompleted !== undefined ? (data.isCompleted ? 1 : 0) : null,
+      data.id
+    );
+  } else {
+    const stmt = sqlite.prepare(`
+      INSERT INTO courses (id, name, teacher, subject, platform, url, lectures, lecture_count, total_duration, category, year, is_completed, last_crawled_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, unixepoch())
+    `);
+    stmt.run(
+      data.id,
+      data.name,
+      data.teacher,
+      data.subject || null,
+      data.platform || 'megastudy',
+      data.url || null,
+      data.lectures || null,
+      data.lectureCount ?? 0,
+      data.totalDuration || null,
+      data.category || null,
+      data.year ?? null,
+      data.isCompleted ? 1 : 0
+    );
+  }
+
+  return getCourse(data.id);
+}
+
+// 강사 정보 업데이트 (해당 강사의 모든 강좌 업데이트)
+export function updateTeacherInfo(
+  oldName: string,
+  newData: {
+    name?: string;
+    subject?: string;
+    platform?: string;
+  }
+) {
+  const updates: string[] = [];
+  const params: (string | null)[] = [];
+
+  if (newData.name && newData.name !== oldName) {
+    updates.push('teacher = ?');
+    params.push(newData.name);
+  }
+  if (newData.subject !== undefined) {
+    updates.push('subject = ?');
+    params.push(newData.subject || null);
+  }
+  if (newData.platform) {
+    updates.push('platform = ?');
+    params.push(newData.platform);
+  }
+
+  if (updates.length === 0) {
+    return getCoursesByTeacher(oldName);
+  }
+
+  updates.push('updated_at = unixepoch()');
+  params.push(oldName);
+
+  const stmt = sqlite.prepare(`
+    UPDATE courses
+    SET ${updates.join(', ')}
+    WHERE teacher = ?
+  `);
+  stmt.run(...params);
+
+  // 업데이트된 강좌 반환
+  const teacherName = newData.name || oldName;
+  return getCoursesByTeacher(teacherName);
+}
+
+// 강좌 메타데이터 수정 (크롤링 없이)
+export function updateCourseMetadata(
+  id: string,
+  data: {
+    name?: string;
+    teacher?: string;
+    subject?: string;
+    platform?: string;
+    isCompleted?: boolean;
+  }
+) {
+  const updates: string[] = [];
+  const params: (string | number | null)[] = [];
+
+  if (data.name !== undefined) {
+    updates.push('name = ?');
+    params.push(data.name);
+  }
+  if (data.teacher !== undefined) {
+    updates.push('teacher = ?');
+    params.push(data.teacher);
+  }
+  if (data.subject !== undefined) {
+    updates.push('subject = ?');
+    params.push(data.subject || null);
+  }
+  if (data.platform !== undefined) {
+    updates.push('platform = ?');
+    params.push(data.platform);
+  }
+  if (data.isCompleted !== undefined) {
+    updates.push('is_completed = ?');
+    params.push(data.isCompleted ? 1 : 0);
+  }
+
+  if (updates.length === 0) {
+    return getCourse(id);
+  }
+
+  updates.push('updated_at = unixepoch()');
+  params.push(id);
+
+  const stmt = sqlite.prepare(`
+    UPDATE courses
+    SET ${updates.join(', ')}
+    WHERE id = ?
+  `);
+  stmt.run(...params);
+
+  return getCourse(id);
 }
 
 // ===================== 통계 함수 =====================

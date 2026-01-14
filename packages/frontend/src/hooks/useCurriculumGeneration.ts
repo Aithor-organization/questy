@@ -1,0 +1,394 @@
+// Curriculum Generation Hook
+// 인강 강좌 검색 및 퀘스트 생성 (questStore 통합)
+
+import { useState, useCallback } from 'react';
+import { useMutation } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
+import { useQuestStore, type QuestPlan } from '../stores/questStore';
+import { API_BASE_URL } from '../config';
+import type {
+  Course,
+  SelectedCourse,
+  SubjectRatio,
+  SubjectHours,
+  CurriculumOptions,
+  CurriculumQuest,
+  GenerateQuestsResponse
+} from '../types/curriculum';
+
+const DEFAULT_SUBJECT_RATIO: SubjectRatio = {
+  국어: 20,
+  영어: 25,
+  수학: 35,
+  한국사: 5,
+  탐구: 15,
+};
+
+const DEFAULT_SUBJECT_HOURS: SubjectHours = {
+  국어: null,
+  영어: null,
+  수학: null,
+  한국사: null,
+  탐구: null,
+};
+
+const DEFAULT_CURRICULUM_OPTIONS: CurriculumOptions = {
+  includeOT: false,
+  reviewSettings: {
+    enabled: true,
+    sameDayReview: true,
+    reviewDuration: 15,
+  },
+  customSchedule: [],
+};
+
+export function useCurriculumGeneration() {
+  const navigate = useNavigate();
+  const addPlan = useQuestStore((state) => state.addPlan);
+
+  // 임시 상태 (Hook 내부에서 관리)
+  const [searchResults, setSearchResults] = useState<Course[]>([]);
+  const [selectedCourses, setSelectedCourses] = useState<SelectedCourse[]>([]);
+  const [subjectRatio, setSubjectRatio] = useState<SubjectRatio>(DEFAULT_SUBJECT_RATIO);
+  const [subjectHours, setSubjectHours] = useState<SubjectHours>(DEFAULT_SUBJECT_HOURS);
+  const [curriculumOptions, setCurriculumOptions] = useState<CurriculumOptions>(DEFAULT_CURRICULUM_OPTIONS);
+  const [targetDate, setTargetDate] = useState<string>('');
+  const [dailyStudyHours, setDailyStudyHours] = useState<number>(6);
+  const [generatedQuests, setGeneratedQuests] = useState<CurriculumQuest[]>([]);
+  const [questSummary, setQuestSummary] = useState<GenerateQuestsResponse['summary'] | null>(null);
+
+  // 강좌 검색 (직접 fetch 사용)
+  const [isSearchingCourses, setIsSearchingCourses] = useState(false);
+  const [searchErrorState, setSearchErrorState] = useState<Error | null>(null);
+
+  const searchCoursesDirectly = useCallback(async (params: { query?: string; subject?: string }) => {
+    setIsSearchingCourses(true);
+    setSearchErrorState(null);
+    try {
+      console.log('[useCurriculumGeneration] Searching courses:', params);
+      const res = await fetch(`${API_BASE_URL}/api/curriculum/search-courses`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+      });
+      if (!res.ok) throw new Error('강좌 검색 실패');
+      const data = await res.json();
+      console.log('[useCurriculumGeneration] Search response:', data);
+      if (!data.success) throw new Error(data.error);
+      setSearchResults(data.data.courses as Course[]);
+    } catch (error) {
+      console.error('[useCurriculumGeneration] Search error:', error);
+      setSearchErrorState(error instanceof Error ? error : new Error('Unknown error'));
+    } finally {
+      setIsSearchingCourses(false);
+    }
+  }, []);
+
+  // 퀘스트 생성
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await fetch(`${API_BASE_URL}/api/curriculum/generate-quests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedCourseIds: selectedCourses.map(c => c.id),
+          courseContents: selectedCourses, // 강좌 정보 직접 전달
+          targetDate,
+          dailyStudyHours,
+          subjectRatio,
+          // 새로운 옵션들
+          subjectHours,
+          options: curriculumOptions,
+        }),
+      });
+      if (!res.ok) throw new Error('퀘스트 생성 실패');
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      return data.data as GenerateQuestsResponse;
+    },
+    onSuccess: (data) => {
+      setGeneratedQuests(data.quests);
+      setQuestSummary(data.summary);
+    },
+  });
+
+  // 강좌 선택/해제
+  const selectCourse = useCallback((course: Course) => {
+    setSelectedCourses(prev => {
+      if (prev.find(c => c.id === course.id)) return prev;
+      return [...prev, course];
+    });
+  }, []);
+
+  const deselectCourse = useCallback((courseId: string) => {
+    setSelectedCourses(prev => prev.filter(c => c.id !== courseId));
+  }, []);
+
+  // 이어듣기: 시작 챕터 설정
+  const updateCourseStartChapter = useCallback((courseId: string, chapterIndex: number | undefined) => {
+    setSelectedCourses(prev =>
+      prev.map(course =>
+        course.id === courseId
+          ? { ...course, startFromChapter: chapterIndex }
+          : course
+      )
+    );
+  }, []);
+
+  // 강좌(lecture)와 복습(review) 퀘스트를 하나로 병합
+  const mergeRelatedQuests = useCallback((quests: CurriculumQuest[]): CurriculumQuest[] => {
+    const merged: CurriculumQuest[] = [];
+    const processedIds = new Set<string>();
+
+    for (const quest of quests) {
+      if (processedIds.has(quest.id)) continue;
+
+      // lecture 퀘스트인 경우, 같은 날짜/챕터의 review 퀘스트 찾기
+      if (quest.questType === 'lecture') {
+        const relatedReview = quests.find(q =>
+          q.questType === 'review' &&
+          q.scheduledDate === quest.scheduledDate &&
+          q.chapter === quest.chapter &&
+          q.courseId === quest.courseId &&
+          !processedIds.has(q.id)
+        );
+
+        if (relatedReview) {
+          // 강좌 + 복습 병합
+          processedIds.add(quest.id);
+          processedIds.add(relatedReview.id);
+
+          merged.push({
+            ...quest,
+            id: quest.id, // 원본 강좌 ID 유지
+            title: `${quest.title} + 복습`,
+            description: `${quest.description} | 복습: ${relatedReview.description}`,
+            estimatedMinutes: quest.estimatedMinutes + relatedReview.estimatedMinutes,
+            questType: 'lecture', // 타입은 lecture로 유지
+            studyTips: quest.studyTips ? {
+              ...quest.studyTips,
+              studyMethod: '인강 시청 + 복습',
+            } : undefined,
+          });
+        } else {
+          // 복습이 없는 강좌는 그대로
+          processedIds.add(quest.id);
+          merged.push(quest);
+        }
+      } else if (quest.questType === 'review') {
+        // 단독 review (이미 병합되지 않은 경우)
+        if (!processedIds.has(quest.id)) {
+          processedIds.add(quest.id);
+          merged.push(quest);
+        }
+      } else {
+        // 다른 타입(problem_set, practice 등)은 그대로
+        processedIds.add(quest.id);
+        merged.push(quest);
+      }
+    }
+
+    return merged;
+  }, []);
+
+  // 매일 문제풀이(자습) 퀘스트가 있는지 확인하고, 없으면 추가
+  const ensureDailyPractice = useCallback((
+    quests: CurriculumQuest[],
+    subject: string
+  ): CurriculumQuest[] => {
+    // 날짜별로 그룹화
+    const questsByDate = new Map<string, CurriculumQuest[]>();
+    for (const quest of quests) {
+      const existing = questsByDate.get(quest.scheduledDate) || [];
+      questsByDate.set(quest.scheduledDate, [...existing, quest]);
+    }
+
+    const result: CurriculumQuest[] = [...quests];
+
+    // 각 날짜에 문제풀이 퀘스트가 있는지 확인
+    for (const [date, dayQuests] of questsByDate) {
+      const hasPractice = dayQuests.some(q =>
+        q.questType === 'practice' || q.questType === 'problem_set'
+      );
+
+      if (!hasPractice) {
+        // 해당 날짜의 강의 정보를 기반으로 문제풀이 퀘스트 생성
+        const lectureQuest = dayQuests.find(q => q.questType === 'lecture');
+
+        result.push({
+          id: crypto.randomUUID(),
+          title: `📝 ${subject} 자습`,
+          description: lectureQuest
+            ? `${lectureQuest.chapter} 관련 문제 풀이 및 복습`
+            : `${subject} 개념 정리 및 문제 풀이`,
+          questType: 'practice',
+          subject,
+          courseId: lectureQuest?.courseId || '',
+          courseName: lectureQuest?.courseName || subject,
+          lecturer: lectureQuest?.lecturer || '',
+          chapter: lectureQuest?.chapter || '자습',
+          section: null,
+          scheduledDate: date,
+          estimatedMinutes: 0, // 자습은 시간 지정 안함
+          status: 'pending',
+          priority: 'medium',
+          editable: true,
+          practiceNote: '', // 사용자가 메모 작성 가능
+        });
+      }
+    }
+
+    // 날짜순 정렬
+    return result.sort((a, b) => a.scheduledDate.localeCompare(b.scheduledDate));
+  }, []);
+
+  // 과목별 퀘스트를 플랜으로 변환
+  const convertToQuestPlanForSubject = useCallback((
+    subject: string,
+    quests: CurriculumQuest[]
+  ): Omit<QuestPlan, 'id' | 'createdAt'> => {
+    // 해당 과목의 강좌 이름
+    const subjectCourses = selectedCourses.filter(c => c.subject === subject);
+    const courseNames = subjectCourses.map(c => c.courseName).join(', ');
+    const lecturers = [...new Set(subjectCourses.map(c => c.lecturer))].join(', ');
+
+    // 강좌+복습 병합
+    const mergedQuests = mergeRelatedQuests(quests);
+
+    // 매일 문제풀이(자습) 퀘스트 보장
+    const questsWithPractice = ensureDailyPractice(mergedQuests, subject);
+
+    // 날짜별로 그룹화하여 day 번호 계산
+    const dateSet = [...new Set(questsWithPractice.map(q => q.scheduledDate))].sort();
+    const dateToDay = new Map(dateSet.map((date, idx) => [date, idx + 1]));
+
+    // questStore의 DailyQuest 형식으로 변환
+    const dailyQuests = questsWithPractice.map((quest, idx) => ({
+      id: quest.id || crypto.randomUUID(),  // 백엔드 ID 사용 또는 새로 생성
+      day: dateToDay.get(quest.scheduledDate) || idx + 1,
+      date: quest.scheduledDate,
+      unitNumber: idx + 1,
+      unitTitle: quest.title,
+      range: quest.section || quest.chapter,
+      estimatedMinutes: quest.estimatedMinutes,
+      completed: false,
+      topics: [quest.chapter, quest.section].filter(Boolean) as string[],
+      objectives: [quest.description],
+      // 백엔드에서 생성한 학습 팁 사용 (없으면 기본값)
+      studyTips: quest.studyTips || {
+        importance: quest.priority === 'high' ? '중요도 높음' : '일반',
+        keyPoints: [`${quest.subject} - ${quest.chapter}`],
+        studyMethod: quest.questType === 'lecture' ? '인강 시청' :
+                     quest.questType === 'review' ? '복습' : '문제 풀이',
+      },
+    }));
+
+    const totalMinutes = questsWithPractice.reduce((sum, q) => sum + q.estimatedMinutes, 0);
+
+    return {
+      materialName: `📚 ${subject}: ${courseNames.length > 25 ? courseNames.slice(0, 25) + '...' : courseNames}`,
+      dailyQuests,
+      summary: {
+        totalDays: dateSet.length,
+        totalUnits: questsWithPractice.length,
+        averageMinutesPerDay: Math.round(totalMinutes / Math.max(dateSet.length, 1)),
+        totalEstimatedHours: Math.round(totalMinutes / 60),
+      },
+      aiMessage: `${lecturers || subject} - ${dateSet.length}일간의 학습 계획이 생성되었습니다.`,
+    };
+  }, [selectedCourses, mergeRelatedQuests, ensureDailyPractice]);
+
+  // 플래너에 추가 (과목별로 분리하여 각각 저장)
+  const addToPlannerAndNavigate = useCallback(() => {
+    if (generatedQuests.length === 0) {
+      console.warn('[useCurriculumGeneration] No quests to add');
+      return;
+    }
+
+    // 과목별로 퀘스트 그룹화
+    const questsBySubject = generatedQuests.reduce((acc, quest) => {
+      const subject = quest.subject;
+      if (!acc[subject]) acc[subject] = [];
+      acc[subject].push(quest);
+      return acc;
+    }, {} as Record<string, CurriculumQuest[]>);
+
+    console.log('[useCurriculumGeneration] Grouped quests by subject:',
+      Object.keys(questsBySubject).map(s => `${s}: ${questsBySubject[s].length} quests`));
+
+    // 각 과목별로 별도의 플랜 생성 및 추가
+    Object.entries(questsBySubject).forEach(([subject, quests]) => {
+      const plan = convertToQuestPlanForSubject(subject, quests);
+      console.log(`[useCurriculumGeneration] Adding plan for ${subject}:`, plan.materialName);
+      addPlan(plan);
+    });
+
+    // 상태 초기화
+    setSelectedCourses([]);
+    setGeneratedQuests([]);
+    setQuestSummary(null);
+
+    // 플래너 페이지로 이동
+    navigate('/planner');
+  }, [convertToQuestPlanForSubject, addPlan, navigate, generatedQuests]);
+
+  // 문제풀이 퀘스트 메모 업데이트
+  const updatePracticeNote = useCallback((questId: string, note: string) => {
+    setGeneratedQuests(prev =>
+      prev.map(quest =>
+        quest.id === questId
+          ? { ...quest, practiceNote: note }
+          : quest
+      )
+    );
+  }, []);
+
+  // 초기화
+  const reset = useCallback(() => {
+    setSearchResults([]);
+    setSelectedCourses([]);
+    setSubjectRatio(DEFAULT_SUBJECT_RATIO);
+    setSubjectHours(DEFAULT_SUBJECT_HOURS);
+    setCurriculumOptions(DEFAULT_CURRICULUM_OPTIONS);
+    setTargetDate('');
+    setDailyStudyHours(6);
+    setGeneratedQuests([]);
+    setQuestSummary(null);
+  }, []);
+
+  return {
+    // 상태
+    searchResults,
+    selectedCourses,
+    subjectRatio,
+    subjectHours,
+    curriculumOptions,
+    targetDate,
+    dailyStudyHours,
+    generatedQuests,
+    questSummary,
+
+    // 상태 변경
+    setSubjectRatio,
+    setSubjectHours,
+    setCurriculumOptions,
+    setTargetDate,
+    setDailyStudyHours,
+    selectCourse,
+    deselectCourse,
+    updateCourseStartChapter,
+
+    // 액션
+    searchCourses: searchCoursesDirectly,
+    generateQuests: generateMutation.mutate,
+    addToPlannerAndNavigate,
+    updatePracticeNote,
+    reset,
+
+    // 로딩 상태
+    isSearching: isSearchingCourses,
+    isGenerating: generateMutation.isPending,
+    searchError: searchErrorState,
+    generateError: generateMutation.error,
+  };
+}

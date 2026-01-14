@@ -5,7 +5,7 @@
 
 import { Link } from 'react-router-dom';
 import { useQuestStore } from '../stores/questStore';
-import { NotebookLayout, NotebookPage, PlanCard } from '../components/notebook';
+import { NotebookLayout, NotebookPage, PlanAccordion } from '../components/notebook';
 
 export function PlannerPage() {
   const { plans } = useQuestStore();
@@ -62,41 +62,7 @@ export function PlannerPage() {
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
-            {/* 진행 중 */}
-            {plans.filter(p => !p.dailyQuests.every(q => q.completed)).length > 0 && (
-              <div>
-                <h3 className="text-sm font-semibold text-[var(--pencil-gray)] mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[var(--sticker-coral)]" />
-                  진행 중
-                </h3>
-                <div className="space-y-3">
-                  {plans
-                    .filter(p => !p.dailyQuests.every(q => q.completed))
-                    .map(plan => (
-                      <PlanCard key={plan.id} plan={plan} />
-                    ))}
-                </div>
-              </div>
-            )}
-
-            {/* 완료됨 */}
-            {plans.filter(p => p.dailyQuests.every(q => q.completed)).length > 0 && (
-              <div className="mt-6">
-                <h3 className="text-sm font-semibold text-[var(--pencil-gray)] mb-3 flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[var(--sticker-mint)]" />
-                  완료됨
-                </h3>
-                <div className="space-y-3 opacity-70">
-                  {plans
-                    .filter(p => p.dailyQuests.every(q => q.completed))
-                    .map(plan => (
-                      <PlanCard key={plan.id} plan={plan} />
-                    ))}
-                </div>
-              </div>
-            )}
-          </div>
+          <PlanAccordion plans={plans} groupBy="subject" />
         )}
       </NotebookPage>
 

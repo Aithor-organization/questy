@@ -1,138 +1,304 @@
 /**
  * QuestCheckItem
- * 노트북 스타일의 체크리스트 아이템 + 학습 타이머
+ * 확장형 퀘스트 카드 컴포넌트
  *
- * FR-021: 학습 시작 유도
- * - 타이머 시작 시 예상 종료 시간 표시
+ * - 기본: 제목 + 시간만 표시 (컴팩트)
+ * - 클릭 시: 상세 정보 확장 (팁, 메모, 토픽 등)
+ * - 자습/교재 퀘스트: 타이머 페이지로 이동 버튼
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { QuestWithPlan } from '../../stores/questStore';
-import { getTodayDateString } from '../../stores/questStore';
-import { QuestTimer } from './QuestTimer';
+import { getTodayDateString, useQuestStore } from '../../stores/questStore';
 
 interface QuestCheckItemProps {
   quest: QuestWithPlan;
   onToggle: () => void;
 }
 
-export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
-  const [isAnimating, setIsAnimating] = useState(false);
-  const isToday = quest.date === getTodayDateString();
+// 날짜를 한국어 형식으로 포맷
+function formatDateKorean(dateStr: string): string {
+  const date = new Date(dateStr + 'T00:00:00');
+  const month = date.getMonth() + 1;
+  const day = date.getDate();
+  const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][date.getDay()];
+  return `${month}/${day}(${dayOfWeek})`;
+}
 
-  const handleToggle = () => {
-    if (!isToday) {
-      // 오늘 퀘스트가 아니면 무시
-      return;
+// 인강(영상 강의) 퀘스트 여부 판별
+function isVideoLectureQuest(quest: QuestWithPlan): boolean {
+  const title = quest.unitTitle || '';
+  const range = quest.range || '';
+
+  // 인강 관련 키워드
+  const lectureKeywords = ['강', '인강', '강의', '영상', 'OT', '오리엔테이션'];
+
+  // 자습/문제풀이/복습 키워드 (이건 인강이 아님)
+  const selfStudyKeywords = ['자습', '문제풀이', '복습', '정리', '연습'];
+
+  // 자습/복습 키워드가 있으면 인강이 아님
+  for (const keyword of selfStudyKeywords) {
+    if (title.includes(keyword) || range.includes(keyword)) {
+      return false;
     }
+  }
+
+  // isPractice 플래그가 있으면 인강이 아님
+  if (quest.isPractice) {
+    return false;
+  }
+
+  // 강의 키워드가 있으면 인강
+  for (const keyword of lectureKeywords) {
+    if (title.includes(keyword)) {
+      return true;
+    }
+  }
+
+  // "1강", "2강" 등의 패턴
+  if (/\d+강/.test(title)) {
+    return true;
+  }
+
+  return false;
+}
+
+export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
+  const navigate = useNavigate();
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [noteText, setNoteText] = useState(quest.practiceNote || '');
+  const updatePracticeNote = useQuestStore((state) => state.updatePracticeNote);
+
+  const todayStr = getTodayDateString();
+  const isToday = quest.date === todayStr;
+  const isPast = quest.date < todayStr;
+
+  // 타이머 표시 여부: 인강/복습이 아닌 퀘스트만 (자습, 문제풀이, 교재)
+  const showTimer = !isVideoLectureQuest(quest) &&
+                    !quest.unitTitle?.includes('복습') &&
+                    isToday && !quest.completed;
+
+  // 이전 타이머 기록 존재 여부
+  const hasTimerRecord = quest.timerRecord && !quest.timerRecord.completed;
+
+  // quest.practiceNote가 변경되면 로컬 상태도 업데이트
+  useEffect(() => {
+    setNoteText(quest.practiceNote || '');
+  }, [quest.practiceNote]);
+
+  // 메모 저장 핸들러
+  const handleNoteSave = () => {
+    if (quest.planId && quest.id) {
+      updatePracticeNote(quest.planId, quest.id, noteText);
+    }
+  };
+
+  const handleToggleComplete = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 카드 확장 방지
+    if (!isToday) return;
     setIsAnimating(true);
     onToggle();
     setTimeout(() => setIsAnimating(false), 500);
   };
 
+  const handleCardClick = () => {
+    if (hasDetails) {
+      setIsExpanded(!isExpanded);
+    }
+  };
+
+  const handleStartTimer = (e: React.MouseEvent) => {
+    e.stopPropagation(); // 카드 확장/축소 방지
+    navigate(`/timer/${quest.planId}/${quest.id}`);
+  };
+
+  // 상세 정보 존재 여부 (확장 가능 여부) - 완료된 퀘스트도 확장 가능
+  const hasDetails =
+    quest.tip ||
+    (quest.topics && quest.topics.length > 0) ||
+    (quest.objectives && quest.objectives.length > 0) ||
+    showTimer ||
+    quest.timerRecord?.completed ||  // 완료된 타이머 기록 표시
+    quest.practiceNote;  // 메모가 있으면 표시
+
   return (
     <div
-      className={`quest-card mb-3 ${quest.completed ? 'completed' : ''} ${isAnimating ? 'animate-wobble' : ''}`}
+      className={`quest-card mb-2 ${quest.completed ? 'completed' : ''} ${isAnimating ? 'animate-wobble' : ''} ${hasDetails ? 'cursor-pointer' : ''}`}
+      onClick={handleCardClick}
     >
-      {/* 상단: 플랜 태그 + 페이지 */}
-      <div className="flex items-center justify-between mb-2">
-        <span className="sticker sticker-coral text-xs">
-          📚 {quest.planName}
-        </span>
-        {quest.pages && (
-          <span className="text-xs text-[var(--pencil-gray)] font-mono">
-            p.{quest.pages}
-          </span>
-        )}
-      </div>
-
-      {/* 메인: 체크박스 + 제목 */}
-      <div className="flex items-start gap-3">
+      {/* === 기본 상태: 한 줄 요약 === */}
+      <div className="flex items-center gap-3">
+        {/* 체크박스 */}
         <button
-          onClick={handleToggle}
+          onClick={handleToggleComplete}
           disabled={!isToday}
-          className={`checkbox-notebook flex-shrink-0 mt-1 ${quest.completed ? 'checked' : ''} ${!isToday ? 'opacity-50 cursor-not-allowed' : ''}`}
+          className={`checkbox-notebook flex-shrink-0 ${quest.completed ? 'checked' : ''} ${!isToday ? 'opacity-50 cursor-not-allowed' : ''}`}
           title={!isToday ? '오늘 퀘스트만 완료할 수 있어요' : ''}
         >
           {quest.completed && <span className="checkmark">✓</span>}
         </button>
 
+        {/* 제목 */}
         <div className="flex-1 min-w-0">
-          <h3
-            className={`font-semibold text-[var(--ink-black)] ${
-              quest.completed ? 'line-through text-[var(--pencil-gray)]' : ''
+          <span
+            className={`font-medium ${
+              quest.completed ? 'line-through text-[var(--pencil-gray)]' : 'text-[var(--ink-black)]'
             }`}
           >
             <span className="text-[var(--ink-blue)] mr-1">{quest.unitNumber}.</span>
             {quest.unitTitle}
-          </h3>
-          <p className="text-sm text-[var(--pencil-gray)] mt-1">
-            {quest.range}
-          </p>
-        </div>
-
-        {/* 예상 시간 */}
-        <div className="flex-shrink-0 text-right">
-          <span className="text-xs text-[var(--pencil-gray)]">⏱</span>
-          <span className="text-sm font-medium text-[var(--ink-black)] ml-1">
-            {quest.estimatedMinutes}분
           </span>
         </div>
+
+        {/* 시간 */}
+        {quest.estimatedMinutes > 0 && (
+          <span className="flex-shrink-0 text-sm text-[var(--pencil-gray)]">
+            ⏱ {quest.estimatedMinutes}분
+          </span>
+        )}
+
+        {/* 확장 화살표 (상세 정보 있을 때만) */}
+        {hasDetails && (
+          <span
+            className={`text-[var(--pencil-gray)] transition-transform duration-200 ${
+              isExpanded ? 'rotate-180' : ''
+            }`}
+          >
+            ▼
+          </span>
+        )}
+
+        {/* 완료 뱃지 */}
+        {quest.completed && (
+          <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--sticker-mint)] text-white">
+            완료
+          </span>
+        )}
       </div>
 
-      {/* 토픽 태그들 */}
-      {quest.topics && quest.topics.length > 0 && !quest.completed && (
-        <div className="flex flex-wrap gap-1 mt-3 pl-9">
-          {quest.topics.slice(0, 4).map((topic, index) => (
-            <span
-              key={index}
-              className={`text-xs px-2 py-0.5 rounded ${
-                index % 3 === 0 ? 'highlight-yellow' :
-                index % 3 === 1 ? 'highlight-green' : 'highlight-blue'
-              }`}
-            >
-              {topic}
+      {/* === 확장 상태: 상세 정보 === */}
+      {isExpanded && (
+        <div className="mt-3 pt-3 border-t border-[var(--line-light)]">
+          {/* 메타 정보 (날짜, 플랜, 페이지) */}
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <span className={`text-xs px-2 py-0.5 rounded font-medium ${
+              isToday ? 'bg-[var(--sticker-mint)] text-white' :
+              isPast ? 'bg-gray-200 text-gray-500' :
+              'bg-[var(--highlight-blue)] text-[var(--ink-blue)]'
+            }`}>
+              📅 {isToday ? '오늘' : formatDateKorean(quest.date)}
             </span>
-          ))}
-          {quest.topics.length > 4 && (
-            <span className="text-xs text-[var(--pencil-gray)]">
-              +{quest.topics.length - 4}
+            <span className="sticker sticker-coral text-xs">
+              📚 {quest.planName}
             </span>
+            {quest.pages && (
+              <span className="text-xs text-[var(--pencil-gray)] font-mono">
+                p.{quest.pages}
+              </span>
+            )}
+          </div>
+
+          {/* 범위 */}
+          {quest.range && (
+            <p className="text-sm text-[var(--pencil-gray)] mb-3">
+              {quest.range}
+            </p>
           )}
-        </div>
-      )}
 
-      {/* 학습 목표 */}
-      {quest.objectives && quest.objectives.length > 0 && !quest.completed && (
-        <div className="mt-3 pl-9 space-y-1">
-          {quest.objectives.slice(0, 2).map((obj, index) => (
-            <div key={index} className="flex items-start gap-2 text-xs text-[var(--pencil-gray)]">
-              <span className="text-[var(--sticker-mint)]">→</span>
-              <span>{obj}</span>
+          {/* 토픽 태그들 */}
+          {quest.topics && quest.topics.length > 0 && (
+            <div className="flex flex-wrap gap-1 mb-3">
+              {quest.topics.map((topic, index) => (
+                <span
+                  key={index}
+                  className={`text-xs px-2 py-0.5 rounded ${
+                    index % 3 === 0 ? 'highlight-yellow' :
+                    index % 3 === 1 ? 'highlight-green' : 'highlight-blue'
+                  }`}
+                >
+                  {topic}
+                </span>
+              ))}
             </div>
-          ))}
-        </div>
-      )}
+          )}
 
-      {/* 코치 팁 */}
-      {quest.tip && !quest.completed && (
-        <div className="postit mt-3 ml-9 text-sm">
-          <span className="text-[var(--ink-black)]">💡 </span>
-          {quest.tip}
-        </div>
-      )}
+          {/* 학습 목표 */}
+          {quest.objectives && quest.objectives.length > 0 && (
+            <div className="mb-3 space-y-1">
+              {quest.objectives.map((obj, index) => (
+                <div key={index} className="flex items-start gap-2 text-xs text-[var(--pencil-gray)]">
+                  <span className="text-[var(--sticker-mint)]">→</span>
+                  <span>{obj}</span>
+                </div>
+              ))}
+            </div>
+          )}
 
-      {/* 학습 타이머 (FR-021) */}
-      <QuestTimer
-        estimatedMinutes={quest.estimatedMinutes}
-        onComplete={handleToggle}
-        isCompleted={quest.completed}
-      />
+          {/* 코치 팁 */}
+          {quest.tip && (
+            <div className="postit mb-3 text-sm">
+              <span className="text-[var(--ink-black)]">💡 </span>
+              {quest.tip}
+            </div>
+          )}
 
-      {/* 완료 스탬프 */}
-      {quest.completed && (
-        <div className="absolute top-2 right-2 sticker sticker-mint animate-stamp">
-          ✓ 완료!
+          {/* 메모 영역 */}
+          <div className="mb-3">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-[var(--ink-blue)]">📝 메모</span>
+              {noteText && (
+                <span className="text-xs text-[var(--pencil-gray)]">
+                  ({noteText.length}자)
+                </span>
+              )}
+            </div>
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              onBlur={handleNoteSave}
+              onClick={(e) => e.stopPropagation()}
+              placeholder="학습 중 메모를 남겨보세요..."
+              className="w-full p-3 text-sm border border-[var(--line-light)] rounded-lg
+                bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none
+                resize-none font-['Pretendard']"
+              rows={3}
+            />
+          </div>
+
+          {/* 학습 타이머 버튼 (자습/교재 퀘스트만) */}
+          {showTimer && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={handleStartTimer}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--sticker-mint)] text-white rounded-lg hover:opacity-90 transition-opacity font-medium text-sm"
+              >
+                <span>▶</span>
+                <span>{hasTimerRecord ? '학습 계속하기' : '학습 시작'}</span>
+              </button>
+              {hasTimerRecord && quest.timerRecord && (
+                <span className="text-xs text-[var(--pencil-gray)]">
+                  이어서 {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 진행 중
+                </span>
+              )}
+              {!hasTimerRecord && quest.estimatedMinutes > 0 && (
+                <span className="text-xs text-[var(--pencil-gray)]">
+                  예상 {quest.estimatedMinutes}분
+                </span>
+              )}
+            </div>
+          )}
+
+          {/* 완료된 타이머 기록 표시 */}
+          {quest.timerRecord?.completed && (
+            <div className="flex items-center gap-2 text-sm text-[var(--sticker-mint)]">
+              <span>✓</span>
+              <span>
+                {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 학습 완료
+              </span>
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -10,3 +10,5 @@ export { QuestTimer } from './QuestTimer';
 export { DailyHeader } from './DailyHeader';
 export { PlanCard } from './PlanCard';
 export { ImageUploadZone } from './ImageUploadZone';
+export { SubjectAccordion } from './SubjectAccordion';
+export { PlanAccordion } from './PlanAccordion';

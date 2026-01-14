@@ -12,6 +12,7 @@ export interface User {
   email: string;
   name: string;
   studentId: string | null;
+  isAdmin?: boolean;
 }
 
 interface AuthStore {
