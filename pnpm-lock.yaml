@@ -59,6 +59,9 @@ importers:
       hono:
         specifier: ^4.7.10
         version: 4.11.3
+      iconv-lite:
+        specifier: ^0.6.3
+        version: 0.6.3
       openai:
         specifier: ^4.103.0
         version: 4.104.0(zod@3.25.76)
