@@ -26,6 +26,11 @@ import { useAuthStore } from '../stores/authStore';
 import { useAdminCourses, type Teacher, type Course } from '../hooks/useAdminCourses';
 import { API_BASE_URL } from '../config';
 
+// ngrok 무료 버전 경고 페이지 우회용 헤더
+const defaultHeaders: Record<string, string> = {
+  'ngrok-skip-browser-warning': 'true',
+};
+
 type ModalType = 'none' | 'add-teacher' | 'add-course' | 'batch-update' | 'edit-teacher' | 'edit-course';
 type ViewTab = 'by-teacher' | 'outdated';
 
@@ -236,7 +241,9 @@ function AdminContent({ logout }: { logout: () => void }) {
       // 모든 강사의 강좌를 가져와서 합침
       const allCoursesData: Course[] = [];
       for (const teacher of teachers) {
-        const res = await fetch(`${API_BASE_URL}/api/admin/courses/${encodeURIComponent(teacher.name)}`);
+        const res = await fetch(`${API_BASE_URL}/api/admin/courses/${encodeURIComponent(teacher.name)}`, {
+          headers: defaultHeaders,
+        });
         const data = await res.json();
         if (data.success && data.data?.courses) {
           allCoursesData.push(...data.data.courses);
@@ -298,7 +305,7 @@ function AdminContent({ logout }: { logout: () => void }) {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin/courses/batch-update`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify(options),
       });
 

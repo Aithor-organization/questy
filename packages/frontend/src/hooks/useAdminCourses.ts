@@ -8,6 +8,11 @@ import { API_BASE_URL } from '../config';
 
 const API_BASE = API_BASE_URL;
 
+// ngrok 무료 버전 경고 페이지 우회용 헤더
+const defaultHeaders: Record<string, string> = {
+  'ngrok-skip-browser-warning': 'true',
+};
+
 // 강사 타입
 export interface Teacher {
   name: string;
@@ -53,7 +58,9 @@ export function useAdminCourses() {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${API_BASE}/api/admin/teachers`);
+      const res = await fetch(`${API_BASE}/api/admin/teachers`, {
+        headers: defaultHeaders,
+      });
       const json: ApiResponse<{ teachers: Teacher[] }> = await res.json();
 
       if (json.success && json.data) {
@@ -75,7 +82,7 @@ export function useAdminCourses() {
     try {
       const res = await fetch(`${API_BASE}/api/admin/teachers`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, platform, subject }),
       });
       const json: ApiResponse<{ teacher: Teacher }> = await res.json();
@@ -101,7 +108,9 @@ export function useAdminCourses() {
     setError(null);
     try {
       const encodedTeacher = encodeURIComponent(teacher);
-      const res = await fetch(`${API_BASE}/api/admin/courses/${encodedTeacher}`);
+      const res = await fetch(`${API_BASE}/api/admin/courses/${encodedTeacher}`, {
+        headers: defaultHeaders,
+      });
       const json: ApiResponse<{ courses: Course[] }> = await res.json();
 
       if (json.success && json.data) {
@@ -123,7 +132,7 @@ export function useAdminCourses() {
     try {
       const res = await fetch(`${API_BASE}/api/admin/courses`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, teacher, subject }),
       });
       const json: ApiResponse<{ course: Course }> = await res.json();
@@ -151,7 +160,7 @@ export function useAdminCourses() {
     try {
       const res = await fetch(`${API_BASE}/api/admin/courses/${courseId}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
       });
       const json: ApiResponse<{
         course: Course;
@@ -191,7 +200,7 @@ export function useAdminCourses() {
     try {
       const res = await fetch(`${API_BASE}/api/admin/teachers/${encodeURIComponent(oldName)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify(newData),
       });
       const json: ApiResponse<{ teacher: Teacher; coursesUpdated: number }> = await res.json();
@@ -227,7 +236,7 @@ export function useAdminCourses() {
     try {
       const res = await fetch(`${API_BASE}/api/admin/courses/${courseId}`, {
         method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       });
       const json: ApiResponse<{ course: Course }> = await res.json();
