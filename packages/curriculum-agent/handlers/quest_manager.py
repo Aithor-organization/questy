@@ -168,6 +168,11 @@ class QuestManager:
     BUFFER_RATIO = 0.80              # 80% 법칙: 가용 시간의 80%만 계획
     LECTURE_RATIO = 0.50             # 인강 50% : 자습+복습 50% 비율
 
+    # 인강 시간 비율 제한 (자습 시간 > 인강 시간 보장)
+    MAX_LECTURE_RATIO_SINGLE = 0.60  # 단일 강좌: 최대 60%
+    MAX_LECTURE_RATIO_MULTI = 0.45   # 복수 강좌: 최대 45%
+    MIN_SELF_STUDY_RATIO = 0.30      # 자습 시간 최소 30% 보장
+
     # 수능 출제 경향 기반 중요도 키워드
     HIGH_IMPORTANCE_KEYWORDS = [
         "킬러", "고난도", "필수", "핵심", "기출", "자주 출제",
@@ -216,6 +221,38 @@ class QuestManager:
             return max(5, min(180, total_minutes))
         except (ValueError, IndexError):
             return 45  # 파싱 오류 시 기본값
+
+    def _calculate_daily_lecture_limit(
+        self,
+        total_daily_minutes: int,
+        num_courses: int
+    ) -> int:
+        """
+        일일 인강 시간 제한 계산
+
+        자습 시간 > 인강 시간 보장을 위한 제한:
+        - 단일 강좌: 전체 시간의 최대 60%
+        - 복수 강좌: 전체 시간의 최대 45%
+
+        Args:
+            total_daily_minutes: 일일 총 학습 시간 (분)
+            num_courses: 등록된 강좌 수
+
+        Returns:
+            일일 최대 인강 시간 (분)
+        """
+        if num_courses <= 1:
+            max_ratio = self.MAX_LECTURE_RATIO_SINGLE
+        else:
+            max_ratio = self.MAX_LECTURE_RATIO_MULTI
+
+        max_lecture_minutes = int(total_daily_minutes * max_ratio)
+
+        # 최소 자습 시간 보장 (30%)
+        min_self_study = int(total_daily_minutes * self.MIN_SELF_STUDY_RATIO)
+        max_allowed = total_daily_minutes - min_self_study
+
+        return min(max_lecture_minutes, max_allowed)
 
     def _calculate_review_duration(
         self,
@@ -549,8 +586,16 @@ class QuestManager:
                 item.get("estimated_minutes", 45) for item in lectures
             )
 
-        # 과목별 일일 강의 수 계산 (비율 기반)
+        # 강좌 수 계산 (인강 비율 제한 결정용)
+        num_courses = len(course_contents) if course_contents else 1
+
+        # 일일 총 학습 시간 및 인강 시간 제한 계산
         total_daily_minutes = sum(subject_daily_minutes.values())
+        daily_lecture_limit = self._calculate_daily_lecture_limit(
+            total_daily_minutes, num_courses
+        )
+
+        # 과목별 일일 강의 수 계산 (비율 기반) - 참고용
         subject_lectures_per_day = {}
         for subject, daily_mins in subject_daily_minutes.items():
             if daily_mins > 0:
@@ -565,6 +610,9 @@ class QuestManager:
         # 순차적 배분: 각 과목 순서대로, 날짜 순서대로
         placed_lectures = []  # (quest, day_index, subject, original_item) 기록
         subject_next_lecture = {subject: 0 for subject in subject_lecture_queues}  # 과목별 다음 배치할 강의 인덱스
+
+        # 일별 인강 시간 추적 (인강 비율 제한 적용)
+        daily_lecture_minutes = {day: 0 for day in range(total_days)}
 
         for day in range(total_days):
             scheduled_date = start_date + timedelta(days=day)
@@ -584,6 +632,12 @@ class QuestManager:
                 placed_count = 0
                 while placed_count < lectures_today and next_idx < len(queue):
                     item = queue[next_idx]
+                    lecture_duration = item.get("estimated_minutes", 45)
+
+                    # 인강 시간 제한 체크: 이 강의를 추가하면 제한 초과하는지 확인
+                    if daily_lecture_minutes[day] + lecture_duration > daily_lecture_limit:
+                        # 제한 초과 시 더 이상 이 날에 배치하지 않음
+                        break
 
                     quest = self._create_quest(
                         item=item,
@@ -594,23 +648,37 @@ class QuestManager:
                     quests.append(quest)
                     placed_lectures.append((quest, day, subject, item))
 
+                    # 일별 인강 시간 업데이트
+                    daily_lecture_minutes[day] += lecture_duration
+
                     next_idx += 1
                     placed_count += 1
 
                 subject_next_lecture[subject] = next_idx
 
-        # 남은 강의 퀘스트 순차 배치 (순서 유지)
+        # 남은 강의 퀘스트 순차 배치 (순서 유지, 인강 제한 적용)
         for subject in subject_daily_minutes.keys():
             queue = subject_lecture_queues.get(subject, [])
             next_idx = subject_next_lecture.get(subject, 0)
 
-            # 남은 강의들을 마지막 날부터 순차 배치
+            # 남은 강의들을 순차적으로 배치
             remaining_lectures = queue[next_idx:]
             if remaining_lectures:
-                # 남은 강의들을 가능한 날에 분산
-                days_per_lecture = max(1, total_days // len(remaining_lectures)) if remaining_lectures else 1
-                for i, item in enumerate(remaining_lectures):
-                    day_to_place = min(total_days - 1, (next_idx + i) * days_per_lecture // max(1, subject_lectures_per_day.get(subject, 1)))
+                current_day = 0  # 첫 날부터 다시 탐색
+                for item in remaining_lectures:
+                    lecture_duration = item.get("estimated_minutes", 45)
+
+                    # 인강 제한 내에서 배치 가능한 날 찾기
+                    day_to_place = None
+                    for search_day in range(current_day, total_days):
+                        if daily_lecture_minutes[search_day] + lecture_duration <= daily_lecture_limit:
+                            day_to_place = search_day
+                            break
+
+                    # 배치 가능한 날이 없으면 마지막 날에 강제 배치
+                    if day_to_place is None:
+                        day_to_place = total_days - 1
+
                     scheduled_date = start_date + timedelta(days=day_to_place)
 
                     quest = self._create_quest(
@@ -621,6 +689,10 @@ class QuestManager:
                     )
                     quests.append(quest)
                     placed_lectures.append((quest, day_to_place, subject, item))
+
+                    # 일별 인강 시간 업데이트
+                    daily_lecture_minutes[day_to_place] += lecture_duration
+                    current_day = day_to_place  # 다음 강의는 이 날 이후부터 탐색
 
         # 복습 퀘스트 배치: 당일 복습 또는 다음날 복습
         for lecture_quest, day_idx, subject, original_item in placed_lectures:

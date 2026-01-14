@@ -4,8 +4,9 @@
  */
 
 import { useState, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+const API_BASE = API_BASE_URL;
 
 // 강사 타입
 export interface Teacher {
