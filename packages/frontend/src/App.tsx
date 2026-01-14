@@ -79,7 +79,7 @@ function App() {
         <Route path="/generate" element={<ProtectedRoute><GeneratePage /></ProtectedRoute>} />
         <Route path="/curriculum" element={<ProtectedRoute><CurriculumPage /></ProtectedRoute>} />
         <Route path="/tips" element={<ProtectedRoute><TipsPage /></ProtectedRoute>} />
-        <Route path="/admin" element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+        <Route path="/admin" element={<AdminPage />} />
         <Route path="/plan/:planId" element={<ProtectedRoute><PlanDetailPage /></ProtectedRoute>} />
         <Route path="/timer/:planId/:questId" element={<ProtectedRoute><TimerPage /></ProtectedRoute>} />
 
