@@ -55,13 +55,13 @@ export function LoginPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <label className="block text-sm font-medium text-[var(--ink-black)] mb-1.5">
-                  ✉️ 이메일 또는 아이디
+                  ✉️ 이메일
                 </label>
                 <input
-                  type="text"
+                  type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  placeholder="example@email.com 또는 admin"
+                  placeholder="이메일을 입력하세요"
                   className="w-full px-4 py-3 border-2 border-[var(--paper-lines)] rounded-lg bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none transition-colors"
                   required
                 />
