@@ -20,11 +20,39 @@ export function MessageList({
   roomId,
   messagesEndRef,
 }: MessageListProps) {
+  // 메시지가 적을 때 팁 표시 (환영 메시지만 있을 때)
+  const showTips = messages.length <= 1;
+
   return (
     <div className="flex-1 min-h-0 p-4 space-y-4 overflow-y-auto bg-[var(--paper-cream)]">
       {messages.map(msg => (
         <MessageBubble key={msg.id} message={msg} roomId={roomId} />
       ))}
+
+      {/* 채팅 사용 팁 (처음 사용 시) */}
+      {showTips && !isTyping && (
+        <div className="mx-auto max-w-sm mt-4 p-4 bg-[var(--highlight-yellow)] rounded-lg border border-yellow-300">
+          <p className="font-medium text-[var(--ink-black)] mb-2 text-center">💡 이렇게 대화해보세요</p>
+          <ul className="text-sm space-y-2 text-[var(--pencil-gray)]">
+            <li className="flex items-start gap-2">
+              <span>📸</span>
+              <span>"교재 목차 사진 보내면 학습 플랜 만들어줘"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>📅</span>
+              <span>"이번 주 학습 일정 어떻게 돼?"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>😰</span>
+              <span>"공부하기 싫을 때 어떻게 해?"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>📖</span>
+              <span>"수학 기출 3일 안에 끝내고 싶어"</span>
+            </li>
+          </ul>
+        </div>
+      )}
 
       {/* 타이핑 인디케이터 */}
       {isTyping && (

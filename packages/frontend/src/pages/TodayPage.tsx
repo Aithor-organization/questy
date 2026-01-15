@@ -339,13 +339,27 @@ export function TodayPage() {
           </div>
         </NotebookPage>
 
-        <div className="postit mt-6 mx-auto max-w-xs">
-          <p className="handwrite text-lg mb-2">💡 이렇게 시작해요:</p>
-          <ol className="text-sm space-y-1 text-[var(--pencil-gray)]">
-            <li>1. 코치와 대화로 학습 상담</li>
-            <li>2. 교재 목차 사진 촬영</li>
-            <li>3. AI가 맞춤 학습 플랜 생성!</li>
-          </ol>
+        {/* 꿀팁 메모장 */}
+        <div className="postit mt-6 mx-auto max-w-sm">
+          <p className="handwrite text-lg mb-3">💡 QuestyBook 사용 꿀팁</p>
+          <ul className="text-sm space-y-2 text-[var(--pencil-gray)]">
+            <li className="flex items-start gap-2">
+              <span>📸</span>
+              <span>교재 목차 사진을 찍어 보내면 AI가 학습 플랜을 만들어줘요</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>💬</span>
+              <span>코치에게 "오늘 뭐 공부해?" 라고 물어보세요</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>✅</span>
+              <span>퀘스트 완료 시 체크하면 연속 학습일이 쌓여요</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>🔥</span>
+              <span>7일 연속 달성하면 특별 배지를 받을 수 있어요!</span>
+            </li>
+          </ul>
         </div>
       </NotebookLayout>
     );

@@ -105,6 +105,69 @@ export function CurriculumPage() {
             onUpdatePracticeNote={updatePracticeNote}
           />
         )}
+
+        {/* 꿀팁 메모장 */}
+        <div className="postit mt-6">
+          <p className="handwrite text-lg mb-3">💡 커리큘럼 생성 꿀팁</p>
+          <ul className="text-sm space-y-2 text-[var(--pencil-gray)]">
+            {step === 'settings' && (
+              <>
+                <li className="flex items-start gap-2">
+                  <span>🎯</span>
+                  <span>목표일은 시험일보다 1주일 전으로 설정하면 여유가 생겨서 1주일동안 복습할 수 있어요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>⚖️</span>
+                  <span>취약 과목에 더 많은 시간을 배분하세요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>💪</span>
+                  <span>시간이 없는 과목은 비워두면 자동으로 제외돼요</span>
+                </li>
+              </>
+            )}
+            {step === 'courses' && (
+              <>
+                <li className="flex items-start gap-2">
+                  <span>🔍</span>
+                  <span>강사명으로 검색하면 해당 강사의 모든 강좌가 나와요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>📚</span>
+                  <span>과목 버튼을 누르면 해당 과목 강좌만 필터링돼요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>▶️</span>
+                  <span>이미 들은 강의가 있다면 '이어듣기'로 시작점을 지정하세요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>✅</span>
+                  <span>여러 강좌를 선택해서 통합 커리큘럼을 만들 수 있어요</span>
+                </li>
+              </>
+            )}
+            {step === 'preview' && (
+              <>
+                <li className="flex items-start gap-2">
+                  <span>📋</span>
+                  <span>생성된 퀘스트를 확인하고 플래너에 추가하세요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>✏️</span>
+                  <span>문제풀이 퀘스트는 메모를 추가해서 구체화할 수 있어요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>🔄</span>
+                  <span>마음에 안 들면 '이전'을 눌러 강좌를 수정할 수 있어요</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span>📅</span>
+                  <span>플래너에 추가되면 오늘의 퀘스트에서 바로 확인돼요</span>
+                </li>
+              </>
+            )}
+          </ul>
+        </div>
       </NotebookPage>
     </NotebookLayout>
   );

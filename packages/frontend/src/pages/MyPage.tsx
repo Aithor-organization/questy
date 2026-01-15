@@ -198,8 +198,31 @@ export function MyPage() {
           로그아웃
         </button>
 
+        {/* 꿀팁 메모장 */}
+        <div className="postit mt-6">
+          <p className="handwrite text-lg mb-3">💡 QuestyBook 활용 꿀팁</p>
+          <ul className="text-sm space-y-2 text-[var(--pencil-gray)]">
+            <li className="flex items-start gap-2">
+              <span>📊</span>
+              <span>학습 리포트에서 주간 통계와 연속 학습일을 확인하세요</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>💬</span>
+              <span>힘들 땐 코치에게 상담을 요청해보세요</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>📚</span>
+              <span>꿀팁 탭에서 인강 강사 추천과 학습 전략을 확인할 수 있어요</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <span>🔄</span>
+              <span>데이터 초기화 전 신중하게 생각하세요 - 되돌릴 수 없어요!</span>
+            </li>
+          </ul>
+        </div>
+
         {/* 데코레이션 */}
-        <div className="mt-8 text-center">
+        <div className="mt-6 text-center">
           <div className="inline-block washi-tape w-24 h-4 rounded-sm opacity-60" />
         </div>
       </NotebookPage>

@@ -324,6 +324,29 @@ export function ReportPage() {
               📚 오늘의 퀘스트
             </button>
           </div>
+
+          {/* 꿀팁 메모장 */}
+          <div className="postit mt-6">
+            <p className="handwrite text-lg mb-3">💡 학습 리포트 활용 꿀팁</p>
+            <ul className="text-sm space-y-2 text-[var(--pencil-gray)]">
+              <li className="flex items-start gap-2">
+                <span>🔥</span>
+                <span>연속 학습일을 7일 이상 유지하면 습관이 형성돼요</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span>📈</span>
+                <span>완료율이 70% 이상이면 적절한 학습량이에요</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span>🏆</span>
+                <span>배지를 모으면 동기부여가 되고 성취감을 느낄 수 있어요</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span>📊</span>
+                <span>주간 통계를 보며 자신의 패턴을 파악해보세요</span>
+              </li>
+            </ul>
+          </div>
         </div>
     </NotebookLayout>
   );
