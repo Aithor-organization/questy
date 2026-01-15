@@ -261,12 +261,13 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         try {
-          // 1. Supabase Auth에 사용자 생성
+          // 1. Supabase Auth에 사용자 생성 (이메일 인증 비활성화)
           const { data, error } = await supabase.auth.signUp({
             email,
             password,
             options: {
               data: { name },
+              emailRedirectTo: undefined, // 이메일 인증 리다이렉트 비활성화
             },
           });
 
@@ -303,30 +304,12 @@ export const useAuthStore = create<AuthStore>()(
               });
             }
 
-            const user = mapSupabaseUser(data.user, student?.id);
+            // 회원가입 성공 - 자동 로그인하지 않고 로그인 페이지로 리다이렉트하도록 함
+            // 세션이 있어도 저장하지 않음 (로그아웃 상태 유지)
+            await supabase.auth.signOut();
 
-            set({
-              user,
-              session: data.session,
-              isAuthenticated: true,
-              isLoading: false,
-            });
-
-            if (student?.id) {
-              localStorage.setItem('questybook_student_id', student.id);
-            }
-            localStorage.setItem('questybook_student_name', user.name);
-
+            set({ isLoading: false });
             return true;
-          }
-
-          // 이메일 확인이 필요한 경우
-          if (data.session === null && data.user) {
-            set({
-              error: '이메일로 전송된 확인 링크를 클릭해주세요',
-              isLoading: false,
-            });
-            return false;
           }
 
           set({ isLoading: false });

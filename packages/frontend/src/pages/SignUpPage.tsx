@@ -36,7 +36,8 @@ export function SignUpPage() {
 
     const success = await register(email, password, name);
     if (success) {
-      navigate('/');
+      // 회원가입 성공 시 로그인 페이지로 이동 (성공 메시지와 함께)
+      navigate('/login', { state: { message: '회원가입이 완료되었습니다! 로그인해주세요.' } });
     }
   };
 

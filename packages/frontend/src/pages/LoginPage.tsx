@@ -3,16 +3,28 @@
  * 로그인 페이지 - 노트북 스타일
  */
 
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { login, loginWithGoogle, isLoading, error, clearError } = useAuthStore();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // 회원가입 성공 메시지 표시
+  useEffect(() => {
+    const state = location.state as { message?: string } | null;
+    if (state?.message) {
+      setSuccessMessage(state.message);
+      // 메시지 표시 후 state 초기화 (새로고침 시 메시지 재표시 방지)
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +92,12 @@ export function LoginPage() {
                   required
                 />
               </div>
+
+              {successMessage && (
+                <div className="bg-[var(--highlight-green)] border border-green-500 rounded-lg p-3 text-green-700 text-sm">
+                  ✅ {successMessage}
+                </div>
+              )}
 
               {error && (
                 <div className="bg-[var(--highlight-pink)] border border-[var(--ink-red)] rounded-lg p-3 text-[var(--ink-red)] text-sm">
