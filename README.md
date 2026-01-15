@@ -4,6 +4,14 @@
 
 교재 사진을 찍으면 AI가 분석하여 맞춤형 학습 계획을 생성하고, 매일 AI 코치가 학습을 도와줍니다.
 
+## 🖥️ 지원 플랫폼
+
+| 플랫폼 | 지원 | 비고 |
+|--------|------|------|
+| **macOS** | ✅ | Bun 권장 |
+| **Windows** | ✅ | Node.js 사용 |
+| **Linux** | ✅ | Bun 또는 Node.js |
+
 ---
 
 ## ✨ 주요 기능
@@ -28,23 +36,44 @@
 - **스마트 복습**: SM-2 알고리즘 기반 최적 복습 타이밍
 - **번아웃 감지**: 감정 패턴 분석으로 휴식 권유
 
+### 📺 인강 커리큘럼 생성
+- **강좌 검색**: 과목별 인강 강좌 검색 및 선택
+- **과목 비중 설정**: 수학, 영어, 국어 등 과목별 학습 시간 배분
+- **이어듣기 지원**: 이미 들은 강의부터 시작점 지정
+- **자동 퀘스트 생성**: 강의, 복습, 문제풀이 퀘스트 자동 배분
+
+### 💡 꿀팁 가이드
+- **앱 사용법**: 전체 기능 사용 가이드 제공
+- **페이지별 팁**: 각 화면에서 상황에 맞는 도움말 표시
+- **인강 강사 추천**: 과목별 추천 강사 정보
+- **학습 전략**: 수능 대비 효과적인 공부법
+
 ---
 
 ## 🚀 빠른 시작
 
 ### 요구사항
 
-- **Bun** 1.0+ (권장) 또는 Node.js 18+
-- **pnpm** 8+
+- **Node.js** 20+ (필수)
+- **pnpm** 9+ ([설치 가이드](https://pnpm.io/installation))
+- **Bun** 1.0+ (macOS/Linux 권장, Windows는 선택)
 - **OpenRouter API Key** ([발급받기](https://openrouter.ai/keys))
-- **ChromaDB** (선택사항, Memory Lane용)
+- **Supabase 프로젝트** ([생성하기](https://supabase.com))
 
 ### 1. 설치
+
+#### macOS / Linux
 
 ```bash
 # 저장소 클론
 git clone https://github.com/Aithor-organization/questy.git
 cd questy
+
+# pnpm 설치 (없는 경우)
+npm install -g pnpm
+
+# Bun 설치 (macOS/Linux 권장)
+curl -fsSL https://bun.sh/install | bash
 
 # 의존성 설치
 pnpm install
@@ -53,25 +82,70 @@ pnpm install
 cd questyCoachAgent && pnpm install && pnpm build && cd ..
 ```
 
+#### Windows
+
+```powershell
+# 저장소 클론
+git clone https://github.com/Aithor-organization/questy.git
+cd questy
+
+# pnpm 설치 (없는 경우)
+npm install -g pnpm
+
+# Bun 설치 (선택사항 - PowerShell 관리자 권한)
+powershell -c "irm bun.sh/install.ps1 | iex"
+# 또는 npm으로 설치
+npm install -g bun
+
+# 의존성 설치
+pnpm install
+
+# questyCoachAgent 빌드
+cd questyCoachAgent
+pnpm install
+pnpm build
+cd ..
+```
+
+> ⚠️ **Windows 사용자 참고**: Bun 없이도 `tsx`로 백엔드 실행 가능합니다. 아래 실행 섹션 참조.
+
 ### 2. 환경 변수 설정
 
 ```bash
-# 백엔드 환경 변수 복사
+# macOS/Linux
 cp packages/backend/.env.example packages/backend/.env
+
+# Windows (PowerShell)
+copy packages\backend\.env.example packages\backend\.env
 ```
 
 `packages/backend/.env` 파일 편집:
 
 ```env
-# 필수
+# 필수 - OpenRouter API
 OPENROUTER_API_KEY=sk-or-v1-your-api-key-here
 
-# 선택 (ChromaDB - Memory Lane용)
-CHROMA_HOST=localhost
-CHROMA_PORT=8000
+# 필수 - Supabase (인증 및 DB)
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-role-key
+SUPABASE_ANON_KEY=your-anon-key
+
+# 선택 - Google OAuth
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+```
+
+프론트엔드 환경 변수 (`packages/frontend/.env`):
+
+```env
+VITE_API_URL=http://localhost:3001
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your-anon-key
 ```
 
 ### 3. 실행
+
+#### macOS / Linux (Bun 사용)
 
 ```bash
 # 터미널 1: 백엔드 서버
@@ -81,10 +155,31 @@ pnpm --filter backend dev
 pnpm --filter frontend dev
 ```
 
+#### Windows (Node.js 사용)
+
+```powershell
+# 터미널 1: 백엔드 서버 (tsx 사용)
+cd packages/backend
+npx tsx --watch src/index.ts
+
+# 터미널 2: 프론트엔드
+cd packages/frontend
+pnpm dev
+```
+
+#### 동시 실행 (모든 플랫폼)
+
+```bash
+# 루트 디렉토리에서 백엔드 + 프론트엔드 동시 실행
+pnpm dev
+```
+
 ### 4. 접속
 
 - **프론트엔드**: http://localhost:5173
 - **백엔드 API**: http://localhost:3001
+
+> 💡 **팁**: 첫 접속 시 Google 로그인 또는 이메일 회원가입으로 시작하세요!
 
 ---
 
@@ -139,8 +234,25 @@ pnpm --filter frontend dev
 2. 확인 가능한 내용:
    - 일일/주간 학습량
    - 과목별 진행률
-   - 약점 영역 분석
-   - 복습 필요 토픽
+   - 연속 학습일 (스트릭)
+   - 획득 배지
+
+### Step 6: 인강 커리큘럼 생성 (선택)
+
+1. **커리큘럼** 탭 클릭
+2. **목표일 설정** (수능, 모의고사 등 퀵버튼 제공)
+3. **과목별 학습 시간** 입력 (입력하지 않은 과목은 자동 제외)
+4. **강좌 검색** → 과목 필터 또는 강사명 검색
+5. 강좌 선택 후 **이어듣기 설정** (이미 들은 강의가 있다면)
+6. **퀘스트 생성** → 강의/복습/문제풀이 자동 배분
+7. **플래너에 추가** 클릭
+
+### Step 7: 꿀팁 활용
+
+1. **꿀팁** 탭에서 앱 사용법, 강사 추천, 학습 전략 확인
+2. 각 페이지 하단의 **포스트잇 메모**에서 상황별 팁 확인
+3. **인강 강사 추천**: 과목별 추천 강사와 특징
+4. **학습 전략**: 수능 대비 효과적인 공부법
 
 ---
 
@@ -148,12 +260,13 @@ pnpm --filter frontend dev
 
 | 영역 | 기술 |
 |------|------|
-| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS, Zustand |
-| **Backend** | Hono.js, Bun Runtime, Drizzle ORM |
+| **Frontend** | React 19, TypeScript, Vite, Tailwind CSS 4, Zustand |
+| **Backend** | Hono.js, Bun/Node.js, TypeScript |
+| **Database** | Supabase (PostgreSQL) |
+| **Auth** | Supabase Auth, Google OAuth |
 | **AI Engine** | questyCoachAgent (Multi-Agent System) |
-| **LLM** | Claude 4.5, Gemini 3, GPT-5 (via OpenRouter) |
-| **Vector DB** | ChromaDB (768-dim embeddings) |
-| **Auth** | Argon2id, JWT |
+| **LLM** | Claude, Gemini, GPT (via OpenRouter) |
+| **Deployment** | Vercel (Frontend), 자체 서버 (Backend) |
 
 ---
 
@@ -219,23 +332,6 @@ questyBook/
 
 ---
 
-## 🐳 ChromaDB 설정 (선택사항)
-
-Memory Lane의 벡터 검색을 위해 ChromaDB를 사용합니다.
-
-```bash
-# Docker로 ChromaDB 실행
-docker run -d -p 8000:8000 chromadb/chroma
-
-# 환경 변수 설정
-CHROMA_HOST=localhost
-CHROMA_PORT=8000
-```
-
-> ChromaDB 없이도 앱이 동작합니다 (인메모리 폴백 사용)
-
----
-
 ## 📚 추가 문서
 
 - [FEATURES.md](./FEATURES.md) - 상세 기능 현황 (사용자/개발자용)
@@ -259,7 +355,68 @@ MIT License - 자유롭게 사용하세요!
 
 ---
 
+## ❓ 문제 해결 (Troubleshooting)
+
+### Windows에서 Bun 오류 발생 시
+
+```powershell
+# Bun 대신 tsx 사용
+cd packages/backend
+npx tsx --watch src/index.ts
+```
+
+### `rm -rf` 명령어 오류 (Windows)
+
+Windows에서 `pnpm clean` 실행 시 오류가 발생할 수 있습니다:
+
+```powershell
+# 수동으로 삭제
+Remove-Item -Recurse -Force node_modules, packages/frontend/dist, packages/backend/dist
+```
+
+### pnpm 설치 오류
+
+```bash
+# npm으로 pnpm 재설치
+npm install -g pnpm@latest
+
+# 캐시 삭제 후 재설치
+pnpm store prune
+pnpm install
+```
+
+### 포트 충돌
+
+```bash
+# 사용 중인 포트 확인 (macOS/Linux)
+lsof -i :3001
+lsof -i :5173
+
+# Windows
+netstat -ano | findstr :3001
+netstat -ano | findstr :5173
+```
+
+### Supabase 연결 오류
+
+1. Supabase 대시보드에서 프로젝트 URL과 키 확인
+2. `.env` 파일의 환경 변수 재확인
+3. Supabase 프로젝트의 API 설정에서 허용된 도메인 확인
+
+---
+
 ## 💬 문의
 
 - **Issues**: [GitHub Issues](https://github.com/Aithor-organization/questy/issues)
 - **Email**: contact@aithor.org
+
+---
+
+## 📝 최근 업데이트
+
+- **v0.1.0** (2026-01)
+  - 인강 커리큘럼 생성 기능 추가
+  - 전체 페이지 꿀팁 가이드 추가
+  - Google OAuth 로그인 지원
+  - 프로필 수정 기능 추가
+  - Windows 플랫폼 지원 개선
