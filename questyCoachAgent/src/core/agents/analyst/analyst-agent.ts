@@ -16,6 +16,7 @@ import type {
   AgentResponse,
   DirectorContext,
 } from '../../../types/agent.js';
+import type { LLMStreamChunk } from '../../../llm/index.js';
 import type { ReviewPatternMemory } from '../../../types/memory.js';
 import { QuestActions } from '../../shared/quest-actions.js';
 
@@ -125,6 +126,56 @@ export class AnalystAgent extends BaseAgent {
 
     return this.createResponse(response, {
       suggestedFollowUp: generateFollowUps(analysisType),
+    });
+  }
+
+  /**
+   * 스트리밍 응답 생성 (SSE)
+   */
+  async *processStream(
+    request: AgentRequest,
+    context: DirectorContext
+  ): AsyncGenerator<LLMStreamChunk> {
+    const { message } = request;
+
+    // 일정/플랜 관련 요청은 동기 응답
+    if (QuestActions.isScheduleRequest(message) ||
+        QuestActions.isScheduleQuery(message) ||
+        QuestActions.isPlanCreationRequest(message)) {
+      const response = await this.process(request, context);
+      yield { content: response.message, done: false };
+      yield { content: '', done: true };
+      return;
+    }
+
+    // 분석 유형별 스트리밍
+    const { studentProfile, activePlans, memoryContext } = context;
+    const analysisType = classifyAnalysisRequest(message);
+
+    // PLAN_REVIEW는 별도 메서드 필요
+    if (analysisType === 'PLAN_REVIEW') {
+      yield { content: '플랜 리뷰는 reviewPlan 메서드를 통해 이용해주세요.', done: false };
+      yield { content: '', done: true };
+      return;
+    }
+
+    // 스트리밍 분석
+    const masteryCount = Array.isArray(memoryContext.masteryInfo)
+      ? memoryContext.masteryInfo.length
+      : 0;
+    const prompt = `${this.systemPrompt}
+
+현재 학생: ${studentProfile?.name ?? '알 수 없음'}
+활성 플랜: ${activePlans.length}개
+학습 항목: ${masteryCount}개
+
+분석 유형: ${analysisType}
+학생의 질문에 대해 학습 데이터 분석 관점에서 상세하게 응답해주세요.`;
+
+    yield* this.generateStreamResponse(prompt, message, {
+      model: 'gemini-3-flash',
+      temperature: 0.3,
+      maxTokens: 2048,
     });
   }
 

@@ -12,6 +12,8 @@ interface MessageListProps {
   isTyping: boolean;
   roomId: string;
   messagesEndRef: RefObject<HTMLDivElement | null>;
+  streamingContent?: string;
+  streamingAgentRole?: string | null;
 }
 
 export function MessageList({
@@ -19,6 +21,8 @@ export function MessageList({
   isTyping,
   roomId,
   messagesEndRef,
+  streamingContent,
+  streamingAgentRole,
 }: MessageListProps) {
   // 메시지가 적을 때 팁 표시 (환영 메시지만 있을 때)
   const showTips = messages.length <= 1;
@@ -54,14 +58,23 @@ export function MessageList({
         </div>
       )}
 
-      {/* 타이핑 인디케이터 */}
+      {/* 스트리밍 응답 표시 */}
       {isTyping && (
         <div className="flex justify-start">
-          <div className="w-8 h-8 rounded-full bg-[var(--sticker-mint)] flex items-center justify-center text-sm mr-2">
-            🤖
+          <div className="w-8 h-8 rounded-full bg-[var(--sticker-mint)] flex items-center justify-center text-sm mr-2 flex-shrink-0">
+            {streamingAgentRole === 'PLANNER' ? '📋' :
+             streamingAgentRole === 'ANALYST' ? '📊' :
+             streamingAgentRole === 'ADMISSION' ? '🎓' : '🤖'}
           </div>
-          <div className="bg-white border border-[var(--paper-lines)] rounded-2xl px-4 py-2">
-            <span className="animate-pulse">답변을 준비 중이에요...</span>
+          <div className="bg-white border border-[var(--paper-lines)] rounded-2xl px-4 py-3 max-w-[85%]">
+            {streamingContent ? (
+              <div className="whitespace-pre-wrap text-[var(--ink-black)]">
+                {streamingContent}
+                <span className="inline-block w-1 h-4 bg-[var(--pencil-gray)] ml-1 animate-pulse" />
+              </div>
+            ) : (
+              <span className="animate-pulse text-[var(--pencil-gray)]">답변을 준비 중이에요...</span>
+            )}
           </div>
         </div>
       )}

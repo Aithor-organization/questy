@@ -10,7 +10,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { NotebookLayout } from '../../components/notebook/NotebookLayout';
 import { useChatStore, DEFAULT_ROOM_ID } from '../../stores/chatStore';
 import { useQuestStore, getTodayDateString } from '../../stores/questStore';
-import { useBackgroundChat } from '../../hooks/useBackgroundChat';
+import { useStreamingChat } from '../../hooks/useStreamingChat';
 import { MessageList } from './components/MessageList';
 import { ChatInput } from './components/ChatInput';
 import { QuickActions } from './components/QuickActions';
@@ -34,8 +34,13 @@ export function ChatRoomPage() {
   const room = getRoomById(targetRoomId) || getDefaultRoom();
   const pendingResponse = getPendingResponseForRoom(targetRoomId);
 
-  // 백그라운드 채팅 훅 사용
-  const { sendMessage: sendBackgroundMessage, isTyping } = useBackgroundChat(targetRoomId);
+  // 스트리밍 채팅 훅 사용
+  const {
+    sendMessageStream,
+    isStreaming,
+    streamingContent,
+    streamingAgentRole,
+  } = useStreamingChat(targetRoomId);
 
   // Quest store에서 퀘스트 정보 가져오기
   const { plans, getQuestsByDate } = useQuestStore();
@@ -95,6 +100,13 @@ export function ChatRoomPage() {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [room?.messages.length]);
+
+  // 스트리밍 중 자동 스크롤 (실시간 응답 따라가기)
+  useEffect(() => {
+    if (streamingContent && !isFirstScrollRef.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [streamingContent]);
 
   // 포커스 시 읽음 처리
   useEffect(() => {
@@ -185,8 +197,8 @@ export function ChatRoomPage() {
       totalToday: todayQuests.length,
     };
 
-    // 백그라운드로 메시지 전송 (화면 이동해도 응답 계속 생성)
-    await sendBackgroundMessage(message, questContext);
+    // 스트리밍으로 메시지 전송 (실시간 응답 표시)
+    await sendMessageStream(message, questContext);
     setInputValue('');
   };
 
@@ -221,9 +233,11 @@ export function ChatRoomPage() {
         {/* 메시지 영역 */}
         <MessageList
           messages={room.messages}
-          isTyping={isTyping || pendingResponse?.status === 'processing'}
+          isTyping={isStreaming || pendingResponse?.status === 'processing'}
           roomId={targetRoomId}
           messagesEndRef={messagesEndRef}
+          streamingContent={streamingContent}
+          streamingAgentRole={streamingAgentRole}
         />
 
         {/* 빠른 액션 (기본 채팅방만) */}
@@ -236,7 +250,7 @@ export function ChatRoomPage() {
           value={inputValue}
           onChange={setInputValue}
           onSubmit={handleSendMessage}
-          disabled={isTyping}
+          disabled={isStreaming}
         />
       </div>
     </NotebookLayout>

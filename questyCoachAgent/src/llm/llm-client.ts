@@ -56,6 +56,13 @@ export interface LLMResponse {
   latencyMs: number;
 }
 
+// 스트리밍 청크 타입
+export interface LLMStreamChunk {
+  content: string;
+  done: boolean;
+  model?: ModelId;
+}
+
 export interface LLMClientConfig {
   apiKey?: string;  // OpenRouter API Key
   timeout?: number;
@@ -143,6 +150,130 @@ export class LLMClient {
       console.error(`[LLMClient] Error calling ${model}:`, error);
       throw error;
     }
+  }
+
+  /**
+   * LLM 스트리밍 호출 (SSE)
+   * OpenRouter의 stream: true 옵션 사용
+   */
+  async *callStream(params: {
+    model: ModelId;
+    messages: LLMMessage[];
+    maxTokens?: number;
+    temperature?: number;
+  }): AsyncGenerator<LLMStreamChunk> {
+    const { model, messages, maxTokens, temperature } = params;
+    const modelConfig = MODEL_CONFIGS[model];
+
+    // API 키 확인
+    const apiKey = this.config.apiKey || process.env.OPENROUTER_API_KEY || '';
+
+    if (!apiKey) {
+      console.warn('[LLMClient] No API key found, using simulation mode for streaming');
+      yield* this.simulateStreamResponse(model, messages);
+      return;
+    }
+
+    const openRouterModel = OPENROUTER_MODEL_MAP[model];
+
+    try {
+      const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': 'https://questycoach.app',
+          'X-Title': 'QuestyCoach Agent',
+        },
+        body: JSON.stringify({
+          model: openRouterModel,
+          messages,
+          max_tokens: maxTokens ?? modelConfig.maxTokens,
+          temperature: temperature ?? modelConfig.temperature,
+          stream: true,  // 스트리밍 활성화
+        }),
+        signal: AbortSignal.timeout(this.config.timeout ?? 60000),  // 스트리밍은 타임아웃 늘림
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      if (!response.body) {
+        throw new Error('Response body is null');
+      }
+
+      // SSE 파싱
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+
+        if (done) {
+          yield { content: '', done: true, model };
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() ?? '';  // 마지막 불완전한 라인은 버퍼에 유지
+
+        for (const line of lines) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed === 'data: [DONE]') {
+            if (trimmed === 'data: [DONE]') {
+              yield { content: '', done: true, model };
+            }
+            continue;
+          }
+
+          if (trimmed.startsWith('data: ')) {
+            try {
+              const jsonStr = trimmed.slice(6);  // 'data: ' 제거
+              const data = JSON.parse(jsonStr);
+              const content = data.choices?.[0]?.delta?.content ?? '';
+
+              if (content) {
+                yield { content, done: false, model };
+              }
+            } catch {
+              // JSON 파싱 실패는 무시 (불완전한 청크일 수 있음)
+            }
+          }
+        }
+      }
+
+      this.requestCount++;
+    } catch (error) {
+      console.error(`[LLMClient] Stream error for ${model}:`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * 스트리밍 시뮬레이션 (개발용)
+   */
+  private async *simulateStreamResponse(
+    model: ModelId,
+    messages: LLMMessage[]
+  ): AsyncGenerator<LLMStreamChunk> {
+    const lastMessage = messages[messages.length - 1]?.content ?? '';
+    const isKorean = /[가-힣]/.test(lastMessage);
+
+    const fullResponse = isKorean
+      ? '네, 차근차근 설명해 드릴게요. 학습은 꾸준히 하는 것이 가장 중요해요. 오늘도 화이팅! 💪'
+      : 'Let me explain step by step. Consistent learning is key. Keep going! 💪';
+
+    // 글자별로 스트리밍 시뮬레이션
+    for (const char of fullResponse) {
+      yield { content: char, done: false, model };
+      await this.sleep(20);  // 타이핑 효과
+    }
+
+    yield { content: '', done: true, model };
   }
 
   /**

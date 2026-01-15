@@ -22,7 +22,7 @@ import {
   AdmissionAgent,
 } from '../../agents/index.js';
 import { MemoryLane } from '../../../memory/index.js';
-import { getLLMClient, type LLMClient } from '../../../llm/index.js';
+import { getLLMClient, type LLMClient, type LLMStreamChunk } from '../../../llm/index.js';
 import { StudentRegistry } from '../../../registry/index.js';
 import { QuestGenerator, QuestTracker, ScheduleDelayHandler, ScheduleModifier } from '../../../quest/index.js';
 
@@ -195,6 +195,75 @@ export class Supervisor {
 
     this.stateManager.incrementTurnCount(state);
     return response;
+  }
+
+  /**
+   * 스트리밍 처리 엔트리포인트 (SSE)
+   */
+  async *processStream(request: AgentRequest): AsyncGenerator<LLMStreamChunk & { agentRole?: string }> {
+    const { studentId, message, conversationId, metadata } = request;
+
+    // 1. 실행 상태 초기화/복원
+    const state = this.stateManager.getOrCreate(conversationId, studentId);
+
+    // 2. 대화 기록 추가
+    this.conversationManager.addMessage(conversationId, 'user', message);
+
+    // 3. 의도 분류 및 라우팅 결정
+    const routeDecision = await this.route(message);
+
+    // 4. 컨텍스트 구성
+    const conversationHistory = this.conversationManager.getHistory(conversationId);
+    const context = await buildContext(
+      studentId,
+      message,
+      metadata?.currentSubject,
+      metadata?.questContext as FrontendQuestContext | undefined,
+      this.config,
+      this.studentRegistry,
+      this.memoryLane,
+      this.questTracker,
+      this.scheduleDelayHandler,
+      conversationHistory
+    );
+
+    // 5. 에이전트 선택
+    const targetAgent = this.selectAgent(routeDecision);
+    this.stateManager.addToExecutionPath(state, targetAgent);
+
+    const agent = this.agents.get(targetAgent);
+    if (!agent) {
+      const fallback = this.agents.get('COACH')!;
+      yield* this.wrapStreamWithRole(fallback.processStream(request, context), 'COACH');
+      return;
+    }
+
+    console.log(`[Supervisor/Stream] Routing to ${targetAgent}`);
+
+    // 6. 스트리밍 실행
+    let fullMessage = '';
+    for await (const chunk of agent.processStream(request, context)) {
+      fullMessage += chunk.content;
+      yield { ...chunk, agentRole: targetAgent };
+    }
+
+    // 7. 대화 기록 저장
+    this.conversationManager.addMessage(conversationId, 'assistant', fullMessage);
+    this.stateManager.incrementTurnCount(state);
+
+    console.log(`[Supervisor/Stream] Completed for ${targetAgent}`);
+  }
+
+  /**
+   * 스트리밍에 에이전트 역할 추가
+   */
+  private async *wrapStreamWithRole(
+    stream: AsyncGenerator<LLMStreamChunk>,
+    role: string
+  ): AsyncGenerator<LLMStreamChunk & { agentRole?: string }> {
+    for await (const chunk of stream) {
+      yield { ...chunk, agentRole: role };
+    }
   }
 
   /**

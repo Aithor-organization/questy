@@ -13,7 +13,7 @@ import type {
   ModelConfig,
   ModelId,
 } from '../../types/agent.js';
-import { getLLMClient, type LLMClient, type LLMMessage } from '../../llm/index.js';
+import { getLLMClient, type LLMClient, type LLMMessage, type LLMStreamChunk } from '../../llm/index.js';
 
 export interface BaseAgentConfig {
   role: AgentRole;
@@ -111,6 +111,47 @@ ${studentInfo}`.trim();
     console.log(`[${this.role}] Complexity-based: ${response.model} (${(complexity * 100).toFixed(0)}%) in ${response.latencyMs}ms`);
 
     return response.content;
+  }
+
+  /**
+   * 스트리밍 응답 생성 (SSE)
+   */
+  protected async *generateStreamResponse(
+    prompt: string,
+    userMessage: string,
+    options?: {
+      model?: ModelId;
+      temperature?: number;
+      maxTokens?: number;
+    }
+  ): AsyncGenerator<LLMStreamChunk> {
+    const messages: LLMMessage[] = [
+      { role: 'system', content: prompt },
+      { role: 'user', content: userMessage },
+    ];
+
+    console.log(`[${this.role}] Starting stream with ${options?.model ?? this.modelConfig.id}`);
+
+    yield* this.llmClient.callStream({
+      model: options?.model ?? this.modelConfig.id,
+      messages,
+      maxTokens: options?.maxTokens ?? this.maxTokens,
+      temperature: options?.temperature ?? this.modelConfig.temperature,
+    });
+  }
+
+  /**
+   * 스트리밍 처리 (각 에이전트가 오버라이드 가능)
+   * 기본 구현: generateStreamResponse 호출
+   */
+  async *processStream(
+    request: AgentRequest,
+    context: DirectorContext
+  ): AsyncGenerator<LLMStreamChunk> {
+    // 서브클래스에서 오버라이드하여 구현
+    // 기본 구현은 빈 제너레이터
+    console.warn(`[${this.role}] processStream not implemented, using empty generator`);
+    yield { content: '', done: true };
   }
 
   /**

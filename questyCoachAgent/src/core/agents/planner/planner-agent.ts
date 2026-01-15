@@ -17,6 +17,7 @@ import type {
   AgentAction,
   MessageAction,
 } from '../../../types/agent.js';
+import type { LLMStreamChunk } from '../../../llm/index.js';
 
 // 모듈 import
 import { PLANNER_SYSTEM_PROMPT } from './prompts.js';
@@ -112,6 +113,43 @@ export class PlannerAgent extends BaseAgent {
       actions,
       suggestedFollowUp: generateFollowUps(requestType),
       messageActions: messageActions.length > 0 ? messageActions : undefined,
+    });
+  }
+
+  /**
+   * 스트리밍 응답 생성 (SSE)
+   */
+  async *processStream(
+    request: AgentRequest,
+    context: DirectorContext
+  ): AsyncGenerator<LLMStreamChunk> {
+    const { message } = request;
+
+    // 플랜 생성/조정/일정 확인은 동기 응답 필요 (액션 처리)
+    const requestType = classifyRequest(message);
+    if (['CREATE_PLAN', 'ADJUST_PLAN', 'CHECK_SCHEDULE'].includes(requestType)) {
+      const response = await this.process(request, context);
+      yield { content: response.message, done: false };
+      yield { content: '', done: true };
+      return;
+    }
+
+    // 일반 질문은 스트리밍
+    const { activePlans, memoryContext } = context;
+    const masteryCount = Array.isArray(memoryContext.masteryInfo)
+      ? memoryContext.masteryInfo.length
+      : 0;
+    const prompt = `${this.systemPrompt}
+
+현재 활성 플랜: ${activePlans.length}개
+학습 진도 요약: ${masteryCount}개 항목 학습 중
+
+학생의 질문에 대해 학습 계획 관점에서 조언해주세요.`;
+
+    yield* this.generateStreamResponse(prompt, message, {
+      model: 'gemini-3-flash',
+      temperature: 0.5,
+      maxTokens: 2048,
     });
   }
 

@@ -5,6 +5,7 @@
 
 import { BaseAgent } from '../base-agent.js';
 import type { AgentRequest, AgentResponse, DirectorContext } from '../../../types/agent.js';
+import type { LLMStreamChunk } from '../../../llm/index.js';
 import { QuestActions } from '../../shared/quest-actions.js';
 
 import type { TodayStudyStatus, MissedStudyContext, StudentState, ResponseType } from './types.js';
@@ -85,6 +86,47 @@ export class CoachAgent extends BaseAgent {
     return this.createResponse(response, {
       memoryExtracted: true,
       suggestedFollowUp: generateFollowUps(responseType),
+    });
+  }
+
+  /**
+   * 스트리밍 응답 생성 (SSE)
+   */
+  async *processStream(
+    request: AgentRequest,
+    context: DirectorContext
+  ): AsyncGenerator<LLMStreamChunk> {
+    const { message, metadata } = request;
+
+    // 일정/플랜 관련 요청은 스트리밍 불가 - 동기 응답 필요
+    if (QuestActions.isScheduleRequest(message) ||
+        QuestActions.isScheduleQuery(message) ||
+        QuestActions.isPlanCreationRequest(message)) {
+      const response = await this.process(request, context);
+      yield { content: response.message, done: false };
+      yield { content: '', done: true };
+      return;
+    }
+
+    // 학생 상태 파악
+    const studentState = analyzeStudentState(message, context);
+    const responseType = determineResponseType(studentState, message);
+    const memoryContext = buildMemoryContext(context);
+
+    const fullPrompt = buildCoachingPrompt(
+      this.systemPrompt,
+      memoryContext,
+      studentState,
+      responseType,
+      metadata,
+      context.recentConversations
+    );
+
+    // 스트리밍 응답 생성
+    yield* this.generateStreamResponse(fullPrompt, message, {
+      model: 'claude-4.5-haiku',
+      temperature: 0.7,
+      maxTokens: 1024,
     });
   }
 

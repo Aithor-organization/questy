@@ -14,6 +14,7 @@ import type {
   AgentAction,
   MessageAction,
 } from '../../../types/agent.js';
+import type { LLMStreamChunk } from '../../../llm/index.js';
 import type { Subject } from '../../../types/memory.js';
 import { QuestActions } from '../../shared/quest-actions.js';
 
@@ -165,6 +166,52 @@ export class AdmissionAgent extends BaseAgent {
     return this.createResponse(response, {
       actions,
       suggestedFollowUp: getStageFollowUps(stage),
+    });
+  }
+
+  /**
+   * 스트리밍 응답 생성 (SSE)
+   */
+  async *processStream(
+    request: AgentRequest,
+    context?: DirectorContext
+  ): AsyncGenerator<LLMStreamChunk> {
+    const { message, metadata } = request;
+    const studentProfile = context?.studentProfile;
+
+    // 일정/플랜 관련 요청은 동기 응답
+    if (context && (QuestActions.isScheduleRequest(message) ||
+        QuestActions.isScheduleQuery(message) ||
+        QuestActions.isPlanCreationRequest(message))) {
+      const response = await this.process(request, context);
+      yield { content: response.message, done: false };
+      yield { content: '', done: true };
+      return;
+    }
+
+    // 온보딩 단계 결정
+    const providedStage = metadata?.stage as string | undefined;
+    const stage = mapFrontendStageToOnboardingStage(providedStage)
+      ?? determineOnboardingStage(studentProfile, message);
+
+    const extractedName = metadata?.extractedInfo?.name as string | undefined;
+    const currentInfo = metadata?.currentInfo as {
+      name?: string;
+      grade?: string;
+      subjects?: string[];
+      goals?: string[];
+    } | undefined;
+
+    // 스트리밍 응답 생성
+    const stagePrompt = buildStagePrompt(stage, studentProfile, {
+      extractedName,
+      currentInfo,
+    });
+
+    yield* this.generateStreamResponse(stagePrompt, message, {
+      model: 'claude-4.5-haiku',
+      temperature: 0.7,
+      maxTokens: 1024,
     });
   }
 
