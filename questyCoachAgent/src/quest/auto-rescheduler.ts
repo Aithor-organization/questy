@@ -261,7 +261,7 @@ export class AutoRescheduler {
     switch (decision.strategy) {
       case 'WEEKEND_SPILLOVER':
         coachMessage = `📅 오늘 못 끝낸 "${quest.unitTitle}"을 **${formattedDate}(${dayName})**로 옮겼어요!\n\n` +
-          `평일에 너무 몰리지 않게 주말에 배치했어요. 부담 없이 해보자! 💪`;
+          `평일에 너무 몰리지 않게 주말에 배치했어요. 부담 없이 해봐요! 💪`;
 
         messageActions.push({
           id: `accept-weekend-${quest.questId}`,
@@ -286,7 +286,7 @@ export class AutoRescheduler {
       case 'STACK_NEXT_DAY':
         const totalTomorrow = existingQuestsOnNextDay + 1;
         coachMessage = `📚 오늘 못 끝낸 "${quest.unitTitle}"을 **${formattedDate}**에 추가했어요!\n\n` +
-          `내일은 총 ${totalTomorrow}개 퀘스트가 있어요. ${totalTomorrow >= 2 ? '조금 바쁘지만 할 수 있어! 💪' : '무리 없이 해보자! 😊'}`;
+          `내일은 총 ${totalTomorrow}개 퀘스트가 있어요. ${totalTomorrow >= 2 ? '조금 바쁘지만 할 수 있어요! 💪' : '무리 없이 해봐요! 😊'}`;
 
         messageActions.push({
           id: `accept-stack-${quest.questId}`,

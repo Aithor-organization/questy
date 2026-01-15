@@ -11,6 +11,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useQuestStore, getTodayDateString } from '../stores/questStore';
 import { useChatStore, DEFAULT_ROOM_ID } from '../stores/chatStore';
+import { useAuthStore } from '../stores/authStore';
 import {
   NotebookLayout,
   NotebookPage,
@@ -39,10 +40,11 @@ export function TodayPage() {
   const navigate = useNavigate();
   const { plans, getQuestsByDate, toggleQuestComplete } = useQuestStore();
   const { addMessage } = useChatStore();
+  const { user, syncName } = useAuthStore();
+  const studentName = user?.name || '';
+  const studentId = user?.studentId || null;
   const [selectedDate, setSelectedDate] = useState(getTodayDateString());
   const [coachData, setCoachData] = useState<DailyCoachData | null>(null);
-  const [studentName, setStudentName] = useState<string>('');
-  const [studentId, setStudentId] = useState<string | null>(null);
   const [showEveningReview, setShowEveningReview] = useState(false);
   const [eveningReview, setEveningReview] = useState<EveningReviewData | null>(null);
   const [isLoadingReview, setIsLoadingReview] = useState(false);
@@ -55,18 +57,10 @@ export function TodayPage() {
   const currentHour = new Date().getHours();
   const isEvening = currentHour >= 18; // 6 PM 이후
 
-  // 학생 정보 및 코치 데이터 로드
+  // 코치 데이터 로드 (authStore에서 studentId 사용)
   useEffect(() => {
-    const storedName = localStorage.getItem('questybook_student_name');
-    const storedId = localStorage.getItem('questybook_student_id');
-
-    if (storedName) {
-      setStudentName(storedName);
-    }
-
-    if (storedId) {
-      setStudentId(storedId);
-      fetchCoachData(storedId);
+    if (studentId) {
+      fetchCoachData(studentId);
     } else {
       setCoachData({
         dailyMessage: '안녕하세요! 오늘도 함께 성장해요! 🌱',
@@ -74,7 +68,7 @@ export function TodayPage() {
         streak: 0,
       });
     }
-  }, []);
+  }, [studentId]);
 
   const fetchCoachData = async (id: string) => {
     try {
@@ -82,6 +76,11 @@ export function TodayPage() {
       const data = await response.json();
 
       if (data.success) {
+        // 백엔드에서 받은 이름으로 authStore 동기화
+        if (data.data.studentName) {
+          syncName(data.data.studentName);
+        }
+
         const coachInfo = {
           dailyMessage: data.data.dailyMessage,
           coachTip: data.data.coachTip,
@@ -109,10 +108,11 @@ export function TodayPage() {
         });
       }
     } catch (error) {
+      console.warn('[TodayPage] 코치 데이터 로드 실패:', error);
       setCoachData({
-        dailyMessage: `안녕 ${studentName || ''}님! 오늘도 파이팅! 💪`,
+        dailyMessage: `안녕하세요 ${studentName || ''}님! 오늘도 파이팅이에요! 💪`,
         coachTip: '💡 작은 목표부터 차근차근 달성해봐요!',
-        streak: 3,
+        streak: 0,  // 실제 데이터 없으면 0
       });
     }
   };
@@ -276,8 +276,8 @@ export function TodayPage() {
     setSelectedDate(`${year}-${month}-${day}`);
   };
 
-  // 신규 사용자 체크
-  const isNewUser = !localStorage.getItem('questybook_student_id');
+  // 신규 사용자 체크 (authStore에서 studentId 사용)
+  const isNewUser = !studentId;
 
   // 플랜이 없을 때
   if (plans.length === 0) {

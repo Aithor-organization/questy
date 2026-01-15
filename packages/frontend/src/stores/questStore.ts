@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { API_BASE_URL } from '../config';
+import { createSupabaseStorage } from '../lib/supabase-storage';
 
 // AI 학습 팁 (수능 맞춤)
 interface StudyTips {
@@ -430,6 +431,8 @@ export const useQuestStore = create<QuestStore>()(
     {
       name: 'questybook-storage',
       version: 2, // id 필드 추가 마이그레이션
+      // Supabase 스토리지 사용 (localStorage 폴백 지원)
+      storage: createSupabaseStorage('quest'),
       migrate: (persistedState: unknown, version: number) => {
         const state = persistedState as { plans?: QuestPlan[] };
 

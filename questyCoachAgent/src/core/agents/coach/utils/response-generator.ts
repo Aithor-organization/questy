@@ -128,7 +128,7 @@ export function getFallbackResponse(
 
   // FEEDBACK 타입은 상태에 따라 동적 처리
   if (responseType === 'FEEDBACK') {
-    return `잘했어! 👏\n${state.isConfident ? '이해를 잘 하고 있구나.' : '조금만 더 연습하면 완벽해질 거야!'}`;
+    return `잘하셨어요! 👏\n${state.isConfident ? '이해를 잘 하고 계시네요.' : '조금만 더 연습하면 완벽해질 거예요!'}`;
   }
 
   return template;

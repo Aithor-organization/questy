@@ -24,24 +24,47 @@ import { MemoryRetriever } from './retrieval/index.js';
 import { SpacedRepetitionManager } from './mastery/index.js';
 import { BurnoutMonitor } from './monitor/index.js';
 import { MemoryContextInjector } from './injection/index.js';
-import { ChromaMemoryStorage, type ChromaStorageConfig } from './storage/index.js';
+import {
+  ChromaMemoryStorage,
+  SupabaseMemoryStorage,
+  type ChromaStorageConfig,
+  type SupabaseStorageConfig,
+} from './storage/index.js';
 
 export interface MemoryLaneConfig {
   enableAutoExtraction: boolean;
   enableBurnoutMonitoring: boolean;
   enableSpacedRepetition: boolean;
-  enableChromaDB: boolean;  // ChromaDB 사용 여부
+  enableVectorDB: boolean;  // 벡터 DB 사용 여부
+  storageBackend: 'supabase' | 'chroma';  // 저장소 백엔드 선택
   maxMemoriesPerStudent: number;
   chromaConfig?: ChromaStorageConfig;
+  supabaseConfig?: SupabaseStorageConfig;
 }
 
 const DEFAULT_CONFIG: MemoryLaneConfig = {
   enableAutoExtraction: true,
   enableBurnoutMonitoring: true,
   enableSpacedRepetition: true,
-  enableChromaDB: true,  // 기본 활성화
+  enableVectorDB: true,
+  storageBackend: 'supabase',  // Supabase를 기본으로 사용
   maxMemoriesPerStudent: 1000,
 };
+
+// 통합 스토리지 인터페이스
+interface MemoryStorage {
+  storeMemory(studentId: string, memory: LearningMemory): Promise<void>;
+  storeBatch(studentId: string, memories: LearningMemory[]): Promise<void>;
+  searchSimilar(params: {
+    studentId: string;
+    query: string;
+    topK?: number;
+    filters?: { subject?: Subject; minConfidence?: number };
+  }): Promise<Array<{ memory: LearningMemory; similarity: number }>>;
+  getAllMemories(studentId: string): Promise<LearningMemory[]>;
+  updateMemory(studentId: string, memory: LearningMemory): Promise<void>;
+  deleteAllMemories(studentId: string): Promise<void>;
+}
 
 export class MemoryLane {
   private config: MemoryLaneConfig;
@@ -51,8 +74,8 @@ export class MemoryLane {
   private burnoutMonitor: BurnoutMonitor;
   private contextInjector: MemoryContextInjector;
 
-  // ChromaDB 벡터 저장소
-  private chromaStorage: ChromaMemoryStorage;
+  // 벡터 저장소 (Supabase 또는 ChromaDB)
+  private storage: MemoryStorage;
 
   // 인메모리 캐시 (빠른 조회용)
   private memoryCache: Map<string, LearningMemory[]>;
@@ -69,8 +92,12 @@ export class MemoryLane {
     this.burnoutMonitor = new BurnoutMonitor();
     this.contextInjector = new MemoryContextInjector();
 
-    // ChromaDB 저장소 초기화
-    this.chromaStorage = new ChromaMemoryStorage(this.config.chromaConfig);
+    // 저장소 백엔드 선택
+    if (this.config.storageBackend === 'supabase') {
+      this.storage = new SupabaseMemoryStorage(this.config.supabaseConfig);
+    } else {
+      this.storage = new ChromaMemoryStorage(this.config.chromaConfig);
+    }
 
     // 인메모리 캐시
     this.memoryCache = new Map();
@@ -90,9 +117,9 @@ export class MemoryLane {
       return [];
     }
 
-    // 2. ChromaDB에 저장
-    if (this.config.enableChromaDB) {
-      await this.chromaStorage.storeBatch(studentId, extractedMemories);
+    // 2. 벡터 DB에 저장
+    if (this.config.enableVectorDB) {
+      await this.storage.storeBatch(studentId, extractedMemories);
     }
 
     // 3. 캐시 업데이트
@@ -147,8 +174,8 @@ export class MemoryLane {
     // 1. ChromaDB Semantic Search
     let semanticResults: Array<{ memory: LearningMemory; similarity: number }> = [];
 
-    if (this.config.enableChromaDB) {
-      semanticResults = await this.chromaStorage.searchSimilar({
+    if (this.config.enableVectorDB) {
+      semanticResults = await this.storage.searchSimilar({
         studentId,
         query,
         topK: 50,  // 상위 50개 후보
@@ -272,8 +299,8 @@ export class MemoryLane {
     memory.lastRecalled = new Date();
 
     // ChromaDB 업데이트
-    if (this.config.enableChromaDB) {
-      await this.chromaStorage.updateMemory(studentId, memory);
+    if (this.config.enableVectorDB) {
+      await this.storage.updateMemory(studentId, memory);
     }
   }
 
@@ -313,8 +340,8 @@ export class MemoryLane {
    */
   async addMemory(studentId: string, memory: LearningMemory): Promise<void> {
     // ChromaDB에 저장
-    if (this.config.enableChromaDB) {
-      await this.chromaStorage.storeMemory(studentId, memory);
+    if (this.config.enableVectorDB) {
+      await this.storage.storeMemory(studentId, memory);
     }
 
     // 캐시 업데이트
@@ -327,8 +354,8 @@ export class MemoryLane {
    * 학생의 모든 메모리 조회
    */
   async getAllMemories(studentId: string): Promise<LearningMemory[]> {
-    if (this.config.enableChromaDB) {
-      const memories = await this.chromaStorage.getAllMemories(studentId);
+    if (this.config.enableVectorDB) {
+      const memories = await this.storage.getAllMemories(studentId);
 
       // 캐시 갱신
       this.memoryCache.set(studentId, memories);
@@ -396,8 +423,8 @@ export class MemoryLane {
    */
   async importData(studentId: string, data: Awaited<ReturnType<typeof this.exportData>>) {
     // ChromaDB에 저장
-    if (this.config.enableChromaDB && data.memories.length > 0) {
-      await this.chromaStorage.storeBatch(studentId, data.memories);
+    if (this.config.enableVectorDB && data.memories.length > 0) {
+      await this.storage.storeBatch(studentId, data.memories);
     }
 
     // 캐시 업데이트
@@ -412,8 +439,8 @@ export class MemoryLane {
    */
   async deleteStudentData(studentId: string): Promise<void> {
     // ChromaDB에서 삭제
-    if (this.config.enableChromaDB) {
-      await this.chromaStorage.deleteAllMemories(studentId);
+    if (this.config.enableVectorDB) {
+      await this.storage.deleteAllMemories(studentId);
     }
 
     // 캐시에서 삭제

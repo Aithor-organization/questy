@@ -8,6 +8,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
+import { createSupabaseStorage } from '../lib/supabase-storage';
 
 // 일정 재조정 옵션
 export interface RescheduleOption {
@@ -387,6 +388,8 @@ export const useChatStore = create<ChatStore>()(
     }),
     {
       name: NEW_STORAGE_KEY,
+      // Supabase 스토리지 사용 (localStorage 폴백 지원)
+      storage: createSupabaseStorage('chat'),
       // 마이그레이션: 기존 데이터가 있으면 기본 채팅방으로 이관
       migrate: (persistedState: unknown, _version: number) => {
         const state = persistedState as Partial<ChatStore> & { messages?: ChatMessage[] };

@@ -3,6 +3,7 @@
  * AI 학습 코치 + 노트북 스타일 플래너 앱
  */
 
+import { useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useScheduledNotifications } from './hooks/useScheduledNotifications';
@@ -49,11 +50,30 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
 }
 
 function App() {
+  const { initializeAuth, isLoading } = useAuthStore();
+
+  // Supabase Auth 초기화 (세션 복원)
+  useEffect(() => {
+    initializeAuth();
+  }, [initializeAuth]);
+
   // 예약된 알림 백그라운드 체크 (1분마다)
   useScheduledNotifications();
 
   // 자동 코치 메시지 스케줄러 (10시 리마인더, 자정 요약)
   useCoachScheduler();
+
+  // 인증 초기화 중 로딩 표시
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-amber-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">로딩 중...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <BrowserRouter>

@@ -296,12 +296,12 @@ export class ScheduleDelayHandler {
 
       return {
         type: 'REDUCE_LOAD',
-        message: '요즘 바빴구나 😢 작은 것부터 다시 시작해볼까?',
+        message: '요즘 바쁘셨죠? 😢 작은 것부터 다시 시작해볼까요?',
         suggestedQuests: easiest.map(eq => ({
           originalQuestId: eq.quest.id,
           newDate: tomorrow,
           reducedTargetValue: Math.floor(eq.quest.targetValue * 0.5),
-          reason: '절반만 해보자! 10분이면 돼',
+          reason: '절반만 해봐요! 10분이면 돼요',
         })),
         estimatedMinutes: 10,
       };
@@ -315,7 +315,7 @@ export class ScheduleDelayHandler {
 
       return {
         type: 'CARRY_OVER',
-        message: '밀린 거 조금 있는데, 내일 같이 해볼까?',
+        message: '밀린 거 조금 있는데, 내일 같이 해볼까요?',
         suggestedQuests: carryOvers.map(eq => ({
           originalQuestId: eq.quest.id,
           newDate: tomorrow,
@@ -323,8 +323,8 @@ export class ScheduleDelayHandler {
             ? Math.floor(eq.quest.targetValue * 0.7)
             : eq.quest.targetValue,
           reason: eq.carryOverSuggestion === 'REDUCE'
-            ? '분량 살짝 줄여서'
-            : '그대로 이월',
+            ? '분량 살짝 줄여서요'
+            : '그대로 이월해요',
         })),
         estimatedMinutes: carryOvers.reduce(
           (sum, eq) => sum + eq.quest.estimatedMinutes, 0
@@ -335,7 +335,7 @@ export class ScheduleDelayHandler {
     // 경고 상황: 전체 이월
     return {
       type: 'CARRY_OVER',
-      message: '어제 못 한 거, 오늘 할 수 있어?',
+      message: '어제 못 한 거, 오늘 할 수 있으세요?',
       suggestedQuests: expiredQuests.map(eq => ({
         originalQuestId: eq.quest.id,
         newDate: tomorrow,
@@ -445,13 +445,13 @@ export class ScheduleDelayHandler {
   private getNotificationTitle(analysis: DelayAnalysis): string {
     switch (analysis.crisisLevel) {
       case 'CRISIS':
-        return `${analysis.consecutiveMissedDays}일째 쉬고 있구나 💙`;
+        return `${analysis.consecutiveMissedDays}일째 쉬고 계시네요 💙`;
       case 'CONCERN':
         return '밀린 퀘스트가 있어요 📚';
       case 'WARNING':
-        return '어제 못 한 거 있어!';
+        return '어제 못 한 거 있어요!';
       default:
-        return '오늘도 화이팅!';
+        return '오늘도 화이팅이에요!';
     }
   }
 
@@ -460,13 +460,13 @@ export class ScheduleDelayHandler {
 
     switch (analysis.crisisLevel) {
       case 'CRISIS':
-        return `요즘 바빴구나... 괜찮아 😢\n${suggestion?.estimatedMinutes || 10}분만 해볼까? 아니어도 괜찮아.`;
+        return `요즘 바쁘셨죠... 괜찮아요 😢\n${suggestion?.estimatedMinutes || 10}분만 해볼까요? 아니어도 괜찮아요.`;
       case 'CONCERN':
-        return `${analysis.expiredQuests.length}개 밀렸는데, ${suggestion?.message || '같이 해볼까?'}`;
+        return `${analysis.expiredQuests.length}개 밀렸는데, ${suggestion?.message || '같이 해볼까요?'}`;
       case 'WARNING':
-        return suggestion?.message || '오늘 30분만 해볼까?';
+        return suggestion?.message || '오늘 30분만 해볼까요?';
       default:
-        return '작은 시작이 큰 변화를 만들어!';
+        return '작은 시작이 큰 변화를 만들어요!';
     }
   }
 
@@ -486,15 +486,15 @@ export class ScheduleDelayHandler {
   ): ActionButton[] {
     if (crisisLevel === 'CRISIS') {
       return [
-        { label: '10분만 해볼게', action: 'START_NOW' },
-        { label: '코치랑 얘기하기', action: 'TALK_TO_COACH' },
+        { label: '10분만 해볼게요', action: 'START_NOW' },
+        { label: '코치와 얘기하기', action: 'TALK_TO_COACH' },
       ];
     }
 
     return [
-      { label: '지금 시작!', action: 'START_NOW' },
-      { label: '내일 할게', action: 'RESCHEDULE' },
-      { label: '오늘은 쉴래', action: 'SKIP_TODAY' },
+      { label: '지금 시작해요!', action: 'START_NOW' },
+      { label: '내일 할게요', action: 'RESCHEDULE' },
+      { label: '오늘은 쉴게요', action: 'SKIP_TODAY' },
     ];
   }
 

@@ -10,7 +10,7 @@ import { generateRoutes } from './routes/generate';
 import booksRoutes from './routes/books';
 import { coachRoutes } from './routes/coach';
 import { progressRoutes } from './routes/progress';
-import { authRoutes } from './routes/auth';
+// auth는 Supabase Auth로 이전됨 (프론트엔드에서 직접 처리)
 import { curriculumRoutes } from './routes/curriculum';
 import { adminRoutes } from './routes/admin';
 
@@ -31,8 +31,7 @@ app.use('*', cors({
 app.get('/', (c) => c.json({ status: 'ok', service: 'questybook-api' }));
 app.get('/health', (c) => c.json({ status: 'healthy' }));
 
-// 라우트
-app.route('/api/auth', authRoutes);
+// 라우트 (auth는 Supabase Auth 사용)
 app.route('/api/quests', questRoutes);
 app.route('/api/plans', planRoutes);
 app.route('/api/generate', generateRoutes);

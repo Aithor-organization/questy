@@ -80,33 +80,33 @@ export const RESPONSE_GUIDELINES: Record<ResponseType, string> = {
 
 // 후속 질문 템플릿
 export const FOLLOW_UP_TEMPLATES: Record<ResponseType, string[]> = {
-  EMOTIONAL_SUPPORT: ['기분이 나아지면 말해줘', '쉬고 나서 다시 시작할까?'],
-  MOTIVATION: ['어떤 부분이 가장 어려워?', '천천히 시작해볼까?'],
-  EXPLANATION: ['이해가 됐어?', '더 궁금한 게 있어?'],
-  PROBLEM_SOLVING: ['힌트가 필요해?', '어디까지 풀었어?'],
-  FEEDBACK: ['다음 문제도 풀어볼까?', '비슷한 유형 더 연습할까?'],
-  GENERAL: ['오늘 뭘 공부하고 싶어?', '어떤 과목이 가장 급해?'],
-  EVENING_REVIEW: ['내일 계획은 어때?', '오늘 어려웠던 부분 있어?'],
-  MISSED_STUDY: ['오늘은 조금만 해볼까?', '일정 조정해줄까?'],
-  CRISIS_INTERVENTION: ['무슨 일 있었어?', '도움이 필요하면 말해줘'],
+  EMOTIONAL_SUPPORT: ['기분이 나아지면 말해주세요', '쉬고 나서 다시 시작해볼까요?'],
+  MOTIVATION: ['어떤 부분이 가장 어려우세요?', '천천히 시작해볼까요?'],
+  EXPLANATION: ['이해가 되셨나요?', '더 궁금한 게 있으세요?'],
+  PROBLEM_SOLVING: ['힌트가 필요하세요?', '어디까지 푸셨어요?'],
+  FEEDBACK: ['다음 문제도 풀어볼까요?', '비슷한 유형 더 연습해볼까요?'],
+  GENERAL: ['오늘 뭘 공부하고 싶으세요?', '어떤 과목이 가장 급하세요?'],
+  EVENING_REVIEW: ['내일 계획은 어떠세요?', '오늘 어려웠던 부분 있으세요?'],
+  MISSED_STUDY: ['오늘은 조금만 해볼까요?', '일정 조정해드릴까요?'],
+  CRISIS_INTERVENTION: ['무슨 일 있으셨어요?', '도움이 필요하시면 말씀해주세요'],
 };
 
 // 폴백 응답 템플릿
 export const FALLBACK_TEMPLATES: Record<ResponseType, string> = {
-  EMOTIONAL_SUPPORT: `😊 지금 많이 지쳤구나. 오늘은 무리하지 말고 잠시 쉬어가는 건 어떨까?
-공부는 마라톤이야. 쉬어가면서 해도 괜찮아.`,
-  MOTIVATION: `💪 어렵게 느껴지는 건 당연해! 그게 성장하고 있다는 증거야.
-한 걸음씩 천천히 가보자. 넌 충분히 할 수 있어!`,
-  EXPLANATION: `좋은 질문이야! 😊 차근차근 알려줄게.`,
-  PROBLEM_SOLVING: `이 문제 함께 풀어보자! 🎯
-먼저 문제에서 구하라는 게 뭔지 찾아볼까?`,
-  FEEDBACK: `잘했어! 👏`,
-  GENERAL: `안녕! 무엇이든 물어봐도 좋아. 😊
-함께 공부하자!`,
-  EVENING_REVIEW: `🌙 오늘도 고생했어! 오늘 학습을 간단히 정리해볼게.
-내일도 함께 화이팅하자!`,
-  MISSED_STUDY: `😊 괜찮아, 누구나 쉬어갈 때가 있어.
-다시 시작하는 것 자체가 대단한 거야! 천천히 해보자.`,
-  CRISIS_INTERVENTION: `💕 많이 힘들었구나. 정말 걱정했어.
-무리하지 말고, 작은 것부터 천천히 시작해보자. 난 항상 여기 있을게.`,
+  EMOTIONAL_SUPPORT: `😊 지금 많이 지치셨죠? 오늘은 무리하지 말고 잠시 쉬어가는 건 어떨까요?
+공부는 마라톤이에요. 쉬어가면서 해도 괜찮아요.`,
+  MOTIVATION: `💪 어렵게 느껴지는 건 당연해요! 그게 성장하고 있다는 증거예요.
+한 걸음씩 천천히 가봐요. 충분히 하실 수 있어요!`,
+  EXPLANATION: `좋은 질문이에요! 😊 차근차근 알려드릴게요.`,
+  PROBLEM_SOLVING: `이 문제 함께 풀어볼까요! 🎯
+먼저 문제에서 구하라는 게 뭔지 찾아볼까요?`,
+  FEEDBACK: `잘하셨어요! 👏`,
+  GENERAL: `안녕하세요! 무엇이든 물어봐도 좋아요. 😊
+함께 공부해요!`,
+  EVENING_REVIEW: `🌙 오늘도 고생하셨어요! 오늘 학습을 간단히 정리해볼게요.
+내일도 함께 화이팅해요!`,
+  MISSED_STUDY: `😊 괜찮아요, 누구나 쉬어갈 때가 있어요.
+다시 시작하는 것 자체가 대단한 거예요! 천천히 해봐요.`,
+  CRISIS_INTERVENTION: `💕 많이 힘드셨죠? 정말 걱정했어요.
+무리하지 말고, 작은 것부터 천천히 시작해봐요. 항상 여기 있을게요.`,
 };

@@ -4,15 +4,13 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { setupTestAuth, setupNewUser, TEST_USER } from './utils/test-auth';
 
 test.describe('QuestyBook AI 코치 시스템', () => {
   test.beforeEach(async ({ page }) => {
     // localStorage 초기화 (신규 사용자로 시작)
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.removeItem('questybook_student_id');
-      localStorage.removeItem('questybook_student_name');
-    });
+    await setupNewUser(page);
     await page.reload();
   });
 
@@ -43,10 +41,7 @@ test.describe('QuestyBook AI 코치 시스템', () => {
 
   test('코치 채팅 페이지 접근 (등록된 사용자)', async ({ page }) => {
     // 사용자 등록 시뮬레이션
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.goto('/chat');
 
     // 채팅 헤더 확인
@@ -57,10 +52,7 @@ test.describe('QuestyBook AI 코치 시스템', () => {
 
   test('리포트 페이지 접근', async ({ page }) => {
     // 사용자 등록 시뮬레이션
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.goto('/report');
 
     // 리포트 헤더 확인
@@ -72,10 +64,7 @@ test.describe('QuestyBook 퀘스트 생성', () => {
   test.beforeEach(async ({ page }) => {
     // 등록된 사용자로 설정
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.reload();
   });
 

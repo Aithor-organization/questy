@@ -12,14 +12,83 @@ import { NotebookLayout, NotebookPage } from '../components/notebook';
 
 export function MyPage() {
   const navigate = useNavigate();
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateProfile } = useAuthStore();
   const clearRoomMessages = useChatStore((state) => state.clearRoomMessages);
   const clearNotifications = useChatStore((state) => state.clearNotifications);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  const [editName, setEditName] = useState(user?.name || '');
+  const [editPassword, setEditPassword] = useState('');
+  const [editPasswordConfirm, setEditPasswordConfirm] = useState('');
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
 
   const handleLogout = () => {
     logout();
     navigate('/login');
+  };
+
+  const openEditModal = () => {
+    setEditName(user?.name || '');
+    setEditPassword('');
+    setEditPasswordConfirm('');
+    setUpdateError(null);
+    setUpdateSuccess(false);
+    setShowEditProfile(true);
+  };
+
+  const handleUpdateProfile = async () => {
+    setUpdateError(null);
+    setUpdateSuccess(false);
+
+    // 유효성 검사
+    if (!editName.trim()) {
+      setUpdateError('이름을 입력해주세요');
+      return;
+    }
+
+    if (editPassword && editPassword.length < 6) {
+      setUpdateError('비밀번호는 최소 6자 이상이어야 해요');
+      return;
+    }
+
+    if (editPassword && editPassword !== editPasswordConfirm) {
+      setUpdateError('비밀번호가 일치하지 않아요');
+      return;
+    }
+
+    setIsUpdating(true);
+
+    const updates: { name?: string; password?: string } = {};
+    if (editName.trim() !== user?.name) {
+      updates.name = editName.trim();
+    }
+    if (editPassword) {
+      updates.password = editPassword;
+    }
+
+    // 변경 사항이 없으면 그냥 닫기
+    if (Object.keys(updates).length === 0) {
+      setShowEditProfile(false);
+      setIsUpdating(false);
+      return;
+    }
+
+    const result = await updateProfile(updates);
+    setIsUpdating(false);
+
+    if (result.success) {
+      setUpdateSuccess(true);
+      setEditPassword('');
+      setEditPasswordConfirm('');
+      setTimeout(() => {
+        setShowEditProfile(false);
+        setUpdateSuccess(false);
+      }, 1500);
+    } else {
+      setUpdateError(result.error || '업데이트에 실패했어요');
+    }
   };
 
   const handleResetAllData = () => {
@@ -91,6 +160,15 @@ export function MyPage() {
               </div>
             </div>
           </div>
+
+          {/* 내 정보 수정 버튼 */}
+          <button
+            onClick={openEditModal}
+            className="w-full mt-4 py-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg border border-blue-200 transition-colors flex items-center justify-center gap-2 handwrite"
+          >
+            <span>✏️</span>
+            내 정보 수정
+          </button>
         </div>
 
         {/* 데이터 관리 */}
@@ -152,6 +230,95 @@ export function MyPage() {
                 className="flex-1 py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors handwrite"
               >
                 초기화
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 프로필 수정 모달 */}
+      {showEditProfile && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
+            <div className="text-center mb-4">
+              <span className="text-4xl">✏️</span>
+              <h3 className="handwrite handwrite-lg text-[var(--ink-black)] mt-2">
+                내 정보 수정
+              </h3>
+            </div>
+
+            <div className="space-y-4">
+              {/* 이름 입력 */}
+              <div>
+                <label className="block text-sm text-[var(--pencil-gray)] mb-1">
+                  이름
+                </label>
+                <input
+                  type="text"
+                  value={editName}
+                  onChange={(e) => setEditName(e.target.value)}
+                  className="w-full px-3 py-2 border border-[var(--paper-lines)] rounded-lg focus:outline-none focus:border-blue-400 handwrite"
+                  placeholder="이름을 입력하세요"
+                />
+              </div>
+
+              {/* 비밀번호 입력 */}
+              <div>
+                <label className="block text-sm text-[var(--pencil-gray)] mb-1">
+                  새 비밀번호 (선택)
+                </label>
+                <input
+                  type="password"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  className="w-full px-3 py-2 border border-[var(--paper-lines)] rounded-lg focus:outline-none focus:border-blue-400 handwrite"
+                  placeholder="변경할 비밀번호 (6자 이상)"
+                />
+              </div>
+
+              {/* 비밀번호 확인 */}
+              {editPassword && (
+                <div>
+                  <label className="block text-sm text-[var(--pencil-gray)] mb-1">
+                    비밀번호 확인
+                  </label>
+                  <input
+                    type="password"
+                    value={editPasswordConfirm}
+                    onChange={(e) => setEditPasswordConfirm(e.target.value)}
+                    className="w-full px-3 py-2 border border-[var(--paper-lines)] rounded-lg focus:outline-none focus:border-blue-400 handwrite"
+                    placeholder="비밀번호를 다시 입력하세요"
+                  />
+                </div>
+              )}
+
+              {/* 에러 메시지 */}
+              {updateError && (
+                <p className="text-sm text-red-500 text-center">{updateError}</p>
+              )}
+
+              {/* 성공 메시지 */}
+              {updateSuccess && (
+                <p className="text-sm text-green-500 text-center">
+                  ✅ 정보가 수정되었어요!
+                </p>
+              )}
+            </div>
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={() => setShowEditProfile(false)}
+                disabled={isUpdating}
+                className="flex-1 py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors handwrite disabled:opacity-50"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleUpdateProfile}
+                disabled={isUpdating}
+                className="flex-1 py-2 px-4 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors handwrite disabled:opacity-50"
+              >
+                {isUpdating ? '저장 중...' : '저장'}
               </button>
             </div>
           </div>

@@ -4,10 +4,11 @@
  * questStore의 실제 퀘스트 완료 데이터 연동
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NotebookLayout } from '../components/notebook/NotebookLayout';
 import { useQuestStore, getTodayDateString } from '../stores/questStore';
+import { useAuthStore } from '../stores/authStore';
 
 interface WeeklyReport {
   period: {
@@ -39,14 +40,10 @@ interface WeeklyReport {
 
 export function ReportPage() {
   const navigate = useNavigate();
-  const [studentName, setStudentName] = useState('학생');
+  const { user } = useAuthStore();
+  const studentName = user?.name || '학생';
   const [activeTab, setActiveTab] = useState<'weekly' | 'daily'>('weekly');
   const plans = useQuestStore((state) => state.plans);
-
-  useEffect(() => {
-    const storedName = localStorage.getItem('questybook_student_name');
-    setStudentName(storedName || '학생');
-  }, []);
 
   // questStore 데이터로 실제 리포트 계산
   const report = useMemo((): WeeklyReport => {

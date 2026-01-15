@@ -5,15 +5,13 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { setupTestAuth, setupNewUser } from './utils/test-auth';
 
 test.describe('입학 상담 확장 기능', () => {
   test.beforeEach(async ({ page }) => {
     // localStorage 초기화 (신규 사용자로 시작)
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.removeItem('questybook_student_id');
-      localStorage.removeItem('questybook_student_name');
-    });
+    await setupNewUser(page);
     await page.reload();
   });
 
@@ -32,10 +30,7 @@ test.describe('입학 상담 확장 기능', () => {
 
   test('레벨테스트 소개 화면 표시', async ({ page }) => {
     // 기존 사용자로 설정 (기본 등록 완료 상태)
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.goto('/admission');
 
     // 레벨테스트 시작 버튼이 있는지 확인 (있으면 클릭)
@@ -48,10 +43,7 @@ test.describe('입학 상담 확장 기능', () => {
   });
 
   test('반 배정 옵션 표시', async ({ page }) => {
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.goto('/admission');
 
     // 반 배정 관련 UI가 있는지 확인
@@ -64,10 +56,7 @@ test.describe('입학 상담 확장 기능', () => {
   });
 
   test('오리엔테이션 단계 표시', async ({ page }) => {
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.goto('/admission');
 
     // 오리엔테이션 관련 UI가 있는지 확인
@@ -82,10 +71,7 @@ test.describe('코치 채팅 기능', () => {
   test.beforeEach(async ({ page }) => {
     // 등록된 사용자로 설정 - localStorage를 먼저 설정한 후 페이지 로드
     await page.goto('/admission'); // 리다이렉트 없는 페이지로 먼저 이동
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
   });
 
   test('채팅 페이지 기본 UI', async ({ page }) => {
@@ -140,10 +126,7 @@ test.describe('코치 채팅 기능', () => {
 test.describe('오늘의 퀘스트 페이지 코치 기능', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.reload();
   });
 
@@ -216,10 +199,7 @@ test.describe('리포트 페이지', () => {
   test.beforeEach(async ({ page }) => {
     // localStorage 설정을 위해 리다이렉트 없는 페이지로 먼저 이동
     await page.goto('/admission');
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
   });
 
   test('리포트 페이지 기본 요소', async ({ page }) => {
@@ -269,10 +249,7 @@ test.describe('리포트 페이지', () => {
 test.describe('플래너 페이지', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.reload();
   });
 
@@ -300,10 +277,7 @@ test.describe('네비게이션 통합 테스트', () => {
   test.beforeEach(async ({ page }) => {
     // localStorage 설정을 위해 리다이렉트 없는 페이지로 먼저 이동
     await page.goto('/admission');
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
   });
 
   test('전체 네비게이션 플로우', async ({ page }) => {
@@ -351,10 +325,7 @@ test.describe('반응형 UI 테스트', () => {
   test('모바일 뷰포트에서 하단 네비게이션', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.reload();
 
     // 하단 네비게이션 바 확인 (fixed bottom-0)
@@ -372,10 +343,7 @@ test.describe('반응형 UI 테스트', () => {
   test('태블릿 뷰포트에서 레이아웃', async ({ page }) => {
     await page.setViewportSize({ width: 768, height: 1024 });
     await page.goto('/');
-    await page.evaluate(() => {
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.reload();
 
     // 노트북 레이아웃이 유지되는지 확인

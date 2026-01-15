@@ -4,29 +4,13 @@
  */
 
 import { test, expect } from '@playwright/test';
+import { setupTestAuth } from './utils/test-auth';
 
 test.describe('커리큘럼 페이지 기본 기능', () => {
   test.beforeEach(async ({ page }) => {
-    // 등록된 사용자로 설정 (zustand persist 형식)
+    // 등록된 사용자로 설정
     await page.goto('/');
-    await page.evaluate(() => {
-      // zustand auth store 상태 설정
-      const authState = {
-        state: {
-          user: {
-            id: 'test-user-id',
-            email: 'test@example.com',
-            name: '테스트학생',
-            studentId: 'test-student-001'
-          },
-          isAuthenticated: true
-        },
-        version: 0
-      };
-      localStorage.setItem('questybook-auth', JSON.stringify(authState));
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.goto('/curriculum');
   });
 
@@ -111,25 +95,9 @@ test.describe('커리큘럼 페이지 기본 기능', () => {
 
 test.describe('강좌 선택 스텝', () => {
   test.beforeEach(async ({ page }) => {
-    // 등록된 사용자로 설정 (zustand persist 형식)
+    // 등록된 사용자로 설정
     await page.goto('/');
-    await page.evaluate(() => {
-      const authState = {
-        state: {
-          user: {
-            id: 'test-user-id',
-            email: 'test@example.com',
-            name: '테스트학생',
-            studentId: 'test-student-001'
-          },
-          isAuthenticated: true
-        },
-        version: 0
-      };
-      localStorage.setItem('questybook-auth', JSON.stringify(authState));
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
     await page.goto('/curriculum');
 
     // 설정 완료 후 다음 단계로
@@ -218,18 +186,7 @@ test.describe('문제풀이 퀘스트 표시', () => {
   test.beforeEach(async ({ page }) => {
     // 등록된 사용자로 설정
     await page.goto('/');
-    await page.evaluate(() => {
-      const authState = {
-        state: {
-          user: { id: 'test-user-id', email: 'test@example.com', name: '테스트학생', studentId: 'test-student-001' },
-          isAuthenticated: true
-        },
-        version: 0
-      };
-      localStorage.setItem('questybook-auth', JSON.stringify(authState));
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
   });
 
   test('문제풀이 퀘스트 타입 렌더링', async ({ page }) => {
@@ -250,18 +207,7 @@ test.describe('접근성 및 반응형 테스트', () => {
   test.beforeEach(async ({ page }) => {
     // 등록된 사용자로 설정
     await page.goto('/');
-    await page.evaluate(() => {
-      const authState = {
-        state: {
-          user: { id: 'test-user-id', email: 'test@example.com', name: '테스트학생', studentId: 'test-student-001' },
-          isAuthenticated: true
-        },
-        version: 0
-      };
-      localStorage.setItem('questybook-auth', JSON.stringify(authState));
-      localStorage.setItem('questybook_student_id', 'test-student-001');
-      localStorage.setItem('questybook_student_name', '테스트학생');
-    });
+    await setupTestAuth(page);
   });
 
   test('모바일 뷰포트에서 커리큘럼 페이지', async ({ page }) => {

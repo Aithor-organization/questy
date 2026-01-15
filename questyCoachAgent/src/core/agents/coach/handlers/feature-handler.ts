@@ -68,21 +68,21 @@ function getEveningReviewFallback(
   tomorrowQuests: string[]
 ): string {
   if (completionRate >= 100) {
-    return `${studentName}야, 오늘 정말 대단했어! 🎉\n\n` +
-      `모든 퀘스트 완료! ${todayStatus.completedMinutes}분 동안 열심히 했네.\n` +
-      (todayStatus.streak > 1 ? `🔥 ${todayStatus.streak}일 연속 학습 중이야!\n\n` : '\n') +
-      `내일은 ${tomorrowQuests[0] || '새로운 도전'}이 기다리고 있어.\n` +
-      `오늘은 푹 쉬어! 🌙`;
+    return `${studentName}님, 오늘 정말 대단했어요! 🎉\n\n` +
+      `모든 퀘스트 완료! ${todayStatus.completedMinutes}분 동안 열심히 하셨네요.\n` +
+      (todayStatus.streak > 1 ? `🔥 ${todayStatus.streak}일 연속 학습 중이에요!\n\n` : '\n') +
+      `내일은 ${tomorrowQuests[0] || '새로운 도전'}이 기다리고 있어요.\n` +
+      `오늘은 푹 쉬세요! 🌙`;
   } else if (completionRate >= 70) {
-    return `${studentName}야, 오늘도 수고했어! 👏\n\n` +
-      `${todayStatus.completedQuests}개 퀘스트 완료! 거의 다 했네.\n` +
-      `${todayStatus.remainingQuests.length > 0 ? `남은 건 내일 이어가자.` : ''}\n\n` +
-      `내일 화이팅! 푹 쉬어 🌙`;
+    return `${studentName}님, 오늘도 수고하셨어요! 👏\n\n` +
+      `${todayStatus.completedQuests}개 퀘스트 완료! 거의 다 하셨네요.\n` +
+      `${todayStatus.remainingQuests.length > 0 ? `남은 건 내일 이어가요.` : ''}\n\n` +
+      `내일도 화이팅! 푹 쉬세요 🌙`;
   }
-  return `${studentName}야, 오늘 하루 수고했어 😊\n\n` +
-    `바쁜 날이었구나. 괜찮아, 내일 다시 시작하면 돼.\n` +
-    `작은 것부터 천천히 해보자.\n\n` +
-    `푹 쉬고 내일 보자! 🌙`;
+  return `${studentName}님, 오늘 하루 수고하셨어요 😊\n\n` +
+    `바쁜 날이었죠? 괜찮아요, 내일 다시 시작하면 돼요.\n` +
+    `작은 것부터 천천히 해봐요.\n\n` +
+    `푹 쉬고 내일 봐요! 🌙`;
 }
 
 /**
@@ -110,8 +110,9 @@ export async function generateMissedStudyResponse(
 
 ## 대응 규칙 (절대 비난/강압 금지!)
 1. 톤: ${tone === 'concerned' ? '걱정하는 톤 (하지만 따뜻하게)' : tone === 'supportive' ? '응원하는 톤' : '가벼운 톤'}
-2. 공감 표현 필수 ("힘들었구나", "바빴구나")
-3. 협상 제안: "오늘 10분만 해볼까?" 또는 "짧게 1개만 해볼까?"`;
+2. 공감 표현 필수 ("힘드셨죠?", "바쁘셨죠?")
+3. 협상 제안: "오늘 10분만 해볼까요?" 또는 "짧게 1개만 해볼까요?"
+4. 말투: 요체 (공손하지만 친근한 말투) 사용 - "해봐요", "있어요", "할까요?"`;
 
   try {
     return await generateResponse(prompt, '미학습 대응 메시지를 작성해주세요.', {
@@ -129,18 +130,18 @@ export async function generateMissedStudyResponse(
  */
 function getMissedStudyFallback(studentName: string, missedDays: number): string {
   if (missedDays >= 3) {
-    return `${studentName}야... 요즘 많이 바빴구나 😢\n\n` +
-      `걱정했어. 괜찮아?\n` +
-      `무리하지 않아도 돼. 오늘은 딱 10분만 해볼까?\n` +
-      `아니면 일정을 다시 조정해줄 수도 있어.\n\n` +
-      `어떻게 하고 싶어?`;
+    return `${studentName}님... 요즘 많이 바쁘셨죠? 😢\n\n` +
+      `걱정했어요. 괜찮으세요?\n` +
+      `무리하지 않아도 돼요. 오늘은 딱 10분만 해볼까요?\n` +
+      `아니면 일정을 다시 조정해드릴 수도 있어요.\n\n` +
+      `어떻게 하고 싶으세요?`;
   } else if (missedDays >= 1) {
-    return `${studentName}야, 어제 바빴구나! 😊\n\n` +
-      `괜찮아, 누구나 그런 날 있어.\n` +
-      `오늘 30분만 해볼까? 아니면 짧게 1개만?\n\n` +
-      `선택해줘!`;
+    return `${studentName}님, 어제 바쁘셨군요! 😊\n\n` +
+      `괜찮아요, 누구나 그런 날 있어요.\n` +
+      `오늘 30분만 해볼까요? 아니면 짧게 1개만?\n\n` +
+      `선택해주세요!`;
   }
-  return `${studentName}야, 오늘 공부 시작할 준비 됐어? 😊\n\n천천히 시작해보자!`;
+  return `${studentName}님, 오늘 공부 시작할 준비 됐어요? 😊\n\n천천히 시작해봐요!`;
 }
 
 /**
@@ -179,13 +180,13 @@ export async function generateCrisisIntervention(
       maxTokens: 600,
     });
   } catch {
-    return `${studentName}야... 😢\n\n` +
-      `요즘 많이 힘들었구나. 걱정했어.\n\n` +
-      `공부보다 네가 더 중요해.\n` +
-      `무슨 일 있으면 얘기해줘. 듣고 있을게.\n\n` +
-      `준비되면, 딱 5분만 같이 해볼까?\n` +
-      `아니면 플랜을 좀 줄여줄 수도 있어.\n\n` +
-      `어떻게 하고 싶어? 네가 정해도 돼 💙`;
+    return `${studentName}님... 😢\n\n` +
+      `요즘 많이 힘드셨죠? 걱정했어요.\n\n` +
+      `공부보다 학생분이 더 중요해요.\n` +
+      `무슨 일 있으시면 얘기해주세요. 듣고 있을게요.\n\n` +
+      `준비되시면, 딱 5분만 같이 해볼까요?\n` +
+      `아니면 플랜을 좀 줄여드릴 수도 있어요.\n\n` +
+      `어떻게 하고 싶으세요? 선택해주세요 💙`;
   }
 }
 
@@ -203,20 +204,20 @@ export function generateStudyStartReminder(
   const endTimeStr = `${endTime.getHours()}시 ${endTime.getMinutes()}분`;
 
   const templates = {
-    first: `${studentName}야~ 공부 시작할 시간이야! 📚\n\n` +
+    first: `${studentName}님~ 공부 시작할 시간이에요! 📚\n\n` +
       `오늘의 퀘스트: ${questName}\n` +
-      `지금 시작하면 ${endTimeStr}에 끝나!\n\n` +
-      `준비 됐어? 💪`,
+      `지금 시작하면 ${endTimeStr}에 끝나요!\n\n` +
+      `준비 됐어요? 💪`,
 
-    '15min': `${studentName}야, 아직 시작 안 했구나! 😊\n\n` +
-      `괜찮아, 지금 시작해도 충분해.\n` +
-      `${questName} - ${estimatedMinutes}분이면 끝나!\n\n` +
-      `같이 해보자!`,
+    '15min': `${studentName}님, 아직 시작 안 하셨네요! 😊\n\n` +
+      `괜찮아요, 지금 시작해도 충분해요.\n` +
+      `${questName} - ${estimatedMinutes}분이면 끝나요!\n\n` +
+      `같이 해볼까요!`,
 
-    '30min': `${studentName}야~ 한 번 더 알려줄게 ⏰\n\n` +
-      `오늘 ${questName} 남았어.\n` +
-      `바빠? 10분만 짧게 해볼까?\n` +
-      `아니면 나중에 해도 돼!\n\n` +
+    '30min': `${studentName}님~ 한 번 더 알려드릴게요 ⏰\n\n` +
+      `오늘 ${questName} 남았어요.\n` +
+      `바쁘세요? 10분만 짧게 해볼까요?\n` +
+      `아니면 나중에 해도 괜찮아요!\n\n` +
       `[지금 시작] [나중에]`,
   };
 

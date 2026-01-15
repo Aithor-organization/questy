@@ -1,6 +1,18 @@
 /**
- * ChromaDB Client
- * 학습 메모리의 벡터 저장 및 검색
+ * ChromaDB Client (DEPRECATED)
+ *
+ * @deprecated 이 클라이언트는 더 이상 권장되지 않습니다.
+ * Supabase (pgvector) 기반의 SupabaseMemoryStorage를 사용하세요.
+ *
+ * 이 파일은 로컬 개발 환경에서 Supabase 없이 테스트할 때만 사용됩니다.
+ *
+ * 마이그레이션 방법:
+ * 1. Supabase 프로젝트 설정
+ * 2. 008_create_learning_memories.sql 마이그레이션 적용
+ * 3. SUPABASE_URL, SUPABASE_SERVICE_KEY 환경 변수 설정
+ * 4. MemoryLane 설정에서 storageBackend: 'supabase' 사용 (기본값)
+ *
+ * 기능:
  * - 768차원 임베딩 저장
  * - 메타데이터 필터링
  * - Semantic Search 지원
