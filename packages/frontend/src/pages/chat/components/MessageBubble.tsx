@@ -64,7 +64,7 @@ export function MessageBubble({ message, roomId }: MessageBubbleProps) {
         </div>
       )}
 
-      <div className="max-w-[75%]">
+      <div className="max-w-[75%] min-w-0">
         {/* 에이전트 역할 라벨 */}
         {!isUser && message.agentRole && (
           <p className="text-xs text-[var(--pencil-gray)] mb-1 ml-1">
@@ -74,7 +74,7 @@ export function MessageBubble({ message, roomId }: MessageBubbleProps) {
 
         {/* 메시지 버블 */}
         <div
-          className={`rounded-2xl px-4 py-2 ${
+          className={`rounded-2xl px-4 py-2 break-words overflow-hidden ${
             isUser
               ? 'bg-[var(--highlight-yellow)] text-[var(--ink-black)] whitespace-pre-wrap'
               : 'bg-white border border-[var(--paper-lines)] text-[var(--ink-black)]'

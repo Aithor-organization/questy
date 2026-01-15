@@ -66,9 +66,9 @@ export function MessageList({
              streamingAgentRole === 'ANALYST' ? '📊' :
              streamingAgentRole === 'ADMISSION' ? '🎓' : '🤖'}
           </div>
-          <div className="bg-white border border-[var(--paper-lines)] rounded-2xl px-4 py-3 max-w-[85%]">
+          <div className="bg-white border border-[var(--paper-lines)] rounded-2xl px-4 py-3 max-w-[85%] min-w-0 break-words overflow-hidden">
             {streamingContent ? (
-              <div className="whitespace-pre-wrap text-[var(--ink-black)]">
+              <div className="whitespace-pre-wrap break-words text-[var(--ink-black)]">
                 {streamingContent}
                 <span className="inline-block w-1 h-4 bg-[var(--pencil-gray)] ml-1 animate-pulse" />
               </div>
