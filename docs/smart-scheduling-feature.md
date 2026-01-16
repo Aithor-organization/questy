@@ -141,6 +141,167 @@ CREATE TABLE daily_availability (
 
 ### 2.2 기존 플랜 고려 로직
 
+#### 2.2.0 구현: 프론트엔드 → 백엔드 → Python 에이전트 데이터 흐름
+
+현재 questStore에 저장된 기존 플랜 정보를 새 플랜 생성 시 Python 에이전트에 전달하는 구현입니다.
+
+**Step 1: 프론트엔드 (useCurriculumGeneration.ts)**
+
+```typescript
+// packages/frontend/src/hooks/useCurriculumGeneration.ts
+
+export function useCurriculumGeneration() {
+  const addPlan = useQuestStore((state) => state.addPlan);
+  const existingPlans = useQuestStore((state) => state.plans);  // 기존 플랜 조회
+
+  const generateMutation = useMutation({
+    mutationFn: async () => {
+      // 기존 플랜의 일별 퀘스트 정보 추출 (가용 시간 계산용)
+      const existingPlanData = existingPlans.map(plan => ({
+        id: plan.id,
+        materialName: plan.materialName,
+        dailyQuests: plan.dailyQuests.map(q => ({
+          date: q.date,
+          estimatedMinutes: q.estimatedMinutes,
+          completed: q.completed,
+          unitTitle: q.unitTitle,
+        })),
+      }));
+
+      const res = await fetch(`${API_BASE_URL}/api/curriculum/generate-quests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          // ... 기존 파라미터들
+          existingPlans: existingPlanData,  // 기존 플랜 정보 전달
+        }),
+      });
+      // ...
+    },
+  });
+}
+```
+
+**Step 2: 백엔드 (curriculum.ts)**
+
+```typescript
+// packages/backend/src/routes/curriculum.ts
+
+curriculumRoutes.post('/generate-quests', async (c) => {
+  const {
+    // ... 기존 파라미터들
+    existingPlans,  // 프론트엔드에서 전달받은 기존 플랜
+  } = body;
+
+  console.log(`[curriculum] Existing plans: ${existingPlans?.length || 0} plans`);
+
+  const result = await callPythonAgent('generate_quests', {
+    // ... 기존 파라미터들
+    existing_plans: existingPlans || [],  // Python 에이전트에 전달
+  });
+});
+```
+
+**Step 3: Python 에이전트 (main.py)**
+
+```python
+# packages/curriculum-agent/main.py
+
+async def cli_generate_quests(params: dict) -> dict:
+    # 기존 플랜 정보 받기
+    existing_plans = params.get("existing_plans", [])
+
+    # 일별 기존 사용 시간 계산
+    daily_existing_usage = calculate_daily_usage(existing_plans)
+
+    # 퀘스트 생성 시 기존 사용 시간 고려
+    quests = quest_manager.generate_quests_from_curriculum(
+        # ... 기존 파라미터들
+        existing_plans=existing_plans,
+        daily_existing_usage=daily_existing_usage,
+    )
+
+def calculate_daily_usage(existing_plans: list) -> dict:
+    """기존 플랜들의 일별 사용 시간 계산"""
+    daily_usage = {}
+
+    for plan in existing_plans:
+        for quest in plan.get("dailyQuests", []):
+            date = quest.get("date")
+            minutes = quest.get("estimatedMinutes", 0)
+
+            if date:
+                daily_usage[date] = daily_usage.get(date, 0) + minutes
+
+    return daily_usage
+```
+
+**Step 4: QuestManager (quest_manager.py)**
+
+```python
+# packages/curriculum-agent/handlers/quest_manager.py
+
+def generate_quests_from_curriculum(
+    self,
+    course_contents: List[Dict],
+    existing_plans: Optional[List[Dict]] = None,
+    daily_existing_usage: Optional[Dict[str, int]] = None,
+    **kwargs
+) -> List[Quest]:
+    """기존 플랜을 고려한 퀘스트 생성"""
+
+    # 일별 가용 시간 계산 (기존 사용량 차감)
+    daily_available = {}
+    base_minutes = kwargs.get("daily_study_hours", 6) * 60 * self.BUFFER_RATIO
+
+    for day in range(total_days):
+        date_str = (start_date + timedelta(days=day)).isoformat()
+        existing_used = daily_existing_usage.get(date_str, 0) if daily_existing_usage else 0
+
+        daily_available[date_str] = max(0, base_minutes - existing_used)
+
+    # 가용 시간 내에서 퀘스트 배분
+    return self._distribute_with_availability(
+        course_contents, daily_available, **kwargs
+    )
+```
+
+**데이터 흐름 요약**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  Frontend (questStore)                                          │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │ existingPlans = [                                           ││
+│  │   { id, materialName, dailyQuests: [{date, minutes}...] }   ││
+│  │ ]                                                           ││
+│  └─────────────────────────────────────────────────────────────┘│
+└────────────────────────────┬────────────────────────────────────┘
+                             │ POST /api/curriculum/generate-quests
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Backend (curriculum.ts)                                        │
+│  - existingPlans 파라미터 추출                                   │
+│  - callPythonAgent(..., existing_plans)                         │
+└────────────────────────────┬────────────────────────────────────┘
+                             │ --params JSON
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  Python Agent (main.py)                                         │
+│  - calculate_daily_usage(existing_plans)                        │
+│  - daily_existing_usage = { "2026-01-17": 180, ... }            │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  QuestManager (quest_manager.py)                                │
+│  - 일별 가용시간 = base_minutes - daily_existing_usage[date]    │
+│  - 가용 시간 내에서만 새 퀘스트 배분                              │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
 #### 2.2.1 새 플랜 생성 시 가용 시간 계산
 
 ```typescript

@@ -45,6 +45,7 @@ const DEFAULT_CURRICULUM_OPTIONS: CurriculumOptions = {
 export function useCurriculumGeneration() {
   const navigate = useNavigate();
   const addPlan = useQuestStore((state) => state.addPlan);
+  const existingPlans = useQuestStore((state) => state.plans);
 
   // 임시 상태 (Hook 내부에서 관리)
   const [searchResults, setSearchResults] = useState<Course[]>([]);
@@ -87,6 +88,18 @@ export function useCurriculumGeneration() {
   // 퀘스트 생성
   const generateMutation = useMutation({
     mutationFn: async () => {
+      // 기존 플랜의 일별 퀘스트 정보 추출 (가용 시간 계산용)
+      const existingPlanData = existingPlans.map(plan => ({
+        id: plan.id,
+        materialName: plan.materialName,
+        dailyQuests: plan.dailyQuests.map(q => ({
+          date: q.date,
+          estimatedMinutes: q.estimatedMinutes,
+          completed: q.completed,
+          unitTitle: q.unitTitle,
+        })),
+      }));
+
       const res = await fetch(`${API_BASE_URL}/api/curriculum/generate-quests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -99,6 +112,8 @@ export function useCurriculumGeneration() {
           // 새로운 옵션들
           subjectHours,
           options: curriculumOptions,
+          // 기존 플랜 정보 (가용 시간 계산용)
+          existingPlans: existingPlanData,
         }),
       });
       if (!res.ok) throw new Error('퀘스트 생성 실패');

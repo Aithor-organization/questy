@@ -148,9 +148,12 @@ curriculumRoutes.post('/generate-quests', async (c) => {
       options,
       // 학습 전략 옵션 (PlannerAgent 전략 통합)
       learningStrategies, // 학습 전략 설정
+      // 기존 플랜 정보 (가용 시간 계산용)
+      existingPlans,
     } = body;
 
     console.log(`[curriculum] Generate quests: ${selectedCourseIds?.length || 0} courses, target=${targetDate}`);
+    console.log(`[curriculum] Existing plans: ${existingPlans?.length || 0} plans`);
     console.log(`[curriculum] Options: includeOT=${options?.includeOT}, review=${options?.reviewSettings?.enabled}, customRules=${options?.customSchedule?.length || 0}`);
     console.log(`[curriculum] Learning strategies: buffer=${learningStrategies?.applyBuffer ?? true}`);
 
@@ -208,6 +211,8 @@ curriculumRoutes.post('/generate-quests', async (c) => {
         apply_buffer: true,     // 80% 법칙: 가용 시간의 80%만 계획
         five_day_cycle: false,  // 5일 단위 운영법
       },
+      // 기존 플랜 정보 (가용 시간 계산용)
+      existing_plans: existingPlans || [],
     });
 
     if (!result.success) {
