@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@hono/node-server": "^1.14.1",
-    "@questy/coach-agent": "file:../../questyCoachAgent",
+    "@questy/coach-agent": "workspace:*",
     "@questybook/shared": "workspace:*",
     "@supabase/supabase-js": "^2.90.1",
     "cheerio": "^1.1.2",
