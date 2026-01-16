@@ -25,17 +25,27 @@ export interface RescheduleOption {
 // 메시지 액션 버튼
 export interface MessageAction {
   id: string;
-  type: 'POSTPONE_TODAY' | 'RESCHEDULE_QUEST' | 'NAVIGATE' | 'CUSTOM';
+  type: 'POSTPONE_TODAY' | 'RESCHEDULE_QUEST' | 'NAVIGATE' | 'CUSTOM' | 'SMART_RESCHEDULE' | 'GENERATE_CURRICULUM' | 'COMPLETE_QUEST' | 'DELETE_PLAN';
   label: string;
   icon?: string;
   // 액션별 데이터
   data?: {
     daysToAdd?: number;       // POSTPONE_TODAY용
-    planId?: string;          // RESCHEDULE_QUEST용
-    questId?: string;         // RESCHEDULE_QUEST용 (고유 식별자)
+    planId?: string;          // RESCHEDULE_QUEST용, SMART_RESCHEDULE용, DELETE_PLAN용
+    questId?: string;         // RESCHEDULE_QUEST용, COMPLETE_QUEST용 (고유 식별자)
     newDate?: string;         // RESCHEDULE_QUEST용
     navigateTo?: string;      // NAVIGATE용
     customHandler?: string;   // CUSTOM용
+    // SMART_RESCHEDULE용
+    targetDate?: string;
+    strategy?: 'smart' | 'spread' | 'front_load' | 'back_load' | 'priority_first';
+    // GENERATE_CURRICULUM용
+    materialName?: string;
+    targetDays?: number;
+    dailyStudyHours?: number;
+    units?: Array<{ unitNumber: number; unitTitle: string; estimatedMinutes?: number }>;
+    // COMPLETE_QUEST용
+    completed?: boolean;      // true면 완료, false면 미완료로 변경
   };
 }
 

@@ -105,6 +105,19 @@ interface AutoRescheduleResult {
   confidence: number;
 }
 
+// 스마트 재스케줄링 결과 타입 (다른 플랜과의 충돌 고려)
+interface SmartRescheduleResult {
+  success: boolean;
+  rescheduledCount: number;
+  rescheduledQuests: Array<{
+    id: string;
+    newDate: string;
+    estimatedMinutes: number;
+  }>;
+  warnings?: string[];
+  overloadDays?: string[];
+}
+
 interface QuestStore {
   plans: QuestPlan[];
   addPlan: (plan: Omit<QuestPlan, 'id' | 'createdAt'>) => void;
@@ -121,6 +134,8 @@ interface QuestStore {
   getIncompleteQuests: (date: string) => QuestWithPlan[];
   autoRescheduleQuest: (quest: QuestWithPlan, excludeWeekends?: boolean) => Promise<AutoRescheduleResult | null>;
   applyAutoReschedule: (planId: string, questId: string, result: AutoRescheduleResult) => void;
+  // 스마트 재스케줄링 (다른 플랜과의 충돌 고려)
+  smartRescheduleQuests: (planId: string, targetDate: string, strategy?: string) => Promise<SmartRescheduleResult | null>;
   // 문제풀이(자습) 메모
   updatePracticeNote: (planId: string, questId: string, note: string) => void;
   // 타이머 기록
@@ -376,6 +391,87 @@ export const useQuestStore = create<QuestStore>()(
           console.log(`[QuestStore] 자동 재조정 적용: ${result.strategy} → ${result.newDate}`);
         } else {
           console.error('[QuestStore] 자동 재조정 적용 실패');
+        }
+      },
+
+      // 스마트 재스케줄링 (다른 플랜과의 충돌 고려)
+      smartRescheduleQuests: async (
+        planId: string,
+        targetDate: string,
+        strategy: string = 'smart'
+      ): Promise<SmartRescheduleResult | null> => {
+        try {
+          const plan = get().getPlanById(planId);
+          if (!plan) {
+            console.error('[QuestStore] 플랜을 찾을 수 없습니다:', planId);
+            return null;
+          }
+
+          // 재스케줄링할 퀘스트 ID 목록 (미완료 퀘스트)
+          const questIds = plan.dailyQuests
+            .filter((q) => !q.completed)
+            .map((q) => q.id);
+
+          if (questIds.length === 0) {
+            console.log('[QuestStore] 재스케줄링할 퀘스트가 없습니다.');
+            return { success: true, rescheduledCount: 0, rescheduledQuests: [] };
+          }
+
+          // 다른 플랜들의 정보 수집 (현재 플랜 제외)
+          const existingPlans = get().plans
+            .filter((p) => p.id !== planId)
+            .map((p) => ({
+              id: p.id,
+              title: p.materialName,
+              quests: p.dailyQuests.map((q) => ({
+                scheduledDate: q.date,
+                estimatedMinutes: q.estimatedMinutes,
+              })),
+            }));
+
+          console.log(`[QuestStore] 스마트 재스케줄링: ${questIds.length}개 퀘스트, 기존 플랜 ${existingPlans.length}개 고려`);
+
+          const response = await fetch(`${API_BASE_URL}/api/curriculum/reschedule`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              questIds,
+              targetDate,
+              dailyStudyHours: 10, // 기본 10시간
+              strategy,
+              existingPlans, // 다른 플랜 정보 전달
+            }),
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            // 재스케줄링 결과 적용
+            const rescheduledQuests = data.data.rescheduledQuests || [];
+            rescheduledQuests.forEach((rq: { id: string; scheduled_date: string }) => {
+              get().rescheduleQuest(planId, rq.id, rq.scheduled_date);
+            });
+
+            console.log(`[QuestStore] 스마트 재스케줄링 완료: ${rescheduledQuests.length}개 퀘스트 재배치`);
+
+            return {
+              success: true,
+              rescheduledCount: data.data.rescheduledCount || rescheduledQuests.length,
+              rescheduledQuests: rescheduledQuests.map((rq: any) => ({
+                id: rq.id,
+                newDate: rq.scheduled_date,
+                estimatedMinutes: rq.estimated_minutes,
+              })),
+              warnings: data.data.newSchedule?.warnings,
+              overloadDays: data.data.newSchedule?.daily_overload,
+            };
+          }
+
+          console.error('[QuestStore] 스마트 재스케줄링 실패:', data.error);
+          return null;
+        } catch (error) {
+          console.error('[QuestStore] 스마트 재스케줄링 API 오류:', error);
+          return null;
         }
       },
 

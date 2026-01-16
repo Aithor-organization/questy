@@ -13,6 +13,7 @@ import { progressRoutes } from './routes/progress';
 // auth는 Supabase Auth로 이전됨 (프론트엔드에서 직접 처리)
 import { curriculumRoutes } from './routes/curriculum';
 import { adminRoutes } from './routes/admin';
+import { inquiryRoutes } from './routes/inquiries';
 
 const app = new Hono();
 
@@ -44,6 +45,7 @@ app.route('/api/coach', coachRoutes);
 app.route('/api/progress', progressRoutes);
 app.route('/api/curriculum', curriculumRoutes);
 app.route('/api/admin', adminRoutes);
+app.route('/api/inquiries', inquiryRoutes);
 
 // 서버 시작
 const port = Number(process.env.PORT) || 3001;

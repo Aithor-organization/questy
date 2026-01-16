@@ -6,16 +6,11 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
-import { useChatStore } from '../stores/chatStore';
-import { useQuestStore } from '../stores/questStore';
 import { NotebookLayout, NotebookPage } from '../components/notebook';
 
 export function MyPage() {
   const navigate = useNavigate();
   const { user, logout, updateProfile } = useAuthStore();
-  const clearRoomMessages = useChatStore((state) => state.clearRoomMessages);
-  const clearNotifications = useChatStore((state) => state.clearNotifications);
-  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [editName, setEditName] = useState(user?.name || '');
   const [editPassword, setEditPassword] = useState('');
@@ -91,27 +86,6 @@ export function MyPage() {
     }
   };
 
-  const handleResetAllData = () => {
-    // 모든 스토어 초기화
-    // 각 채팅방 메시지 삭제
-    useChatStore.getState().rooms.forEach((room) => {
-      clearRoomMessages(room.id);
-    });
-    clearNotifications();
-    useQuestStore.getState().plans.forEach((plan) => {
-      useQuestStore.getState().removePlan(plan.id);
-    });
-
-    // localStorage 직접 삭제
-    localStorage.removeItem('questybook-chat-storage');
-    localStorage.removeItem('questybook-storage');
-    localStorage.removeItem('questybook_student_id');
-    localStorage.removeItem('questybook_student_name');
-
-    setShowResetConfirm(false);
-    alert('모든 데이터가 초기화되었습니다.');
-  };
-
   return (
     <NotebookLayout>
       <NotebookPage>
@@ -171,21 +145,21 @@ export function MyPage() {
           </button>
         </div>
 
-        {/* 데이터 관리 */}
+        {/* 고객 지원 */}
         <div className="bg-white/50 rounded-lg p-6 mb-6 border border-[var(--paper-lines)]">
           <h2 className="handwrite handwrite-lg text-[var(--ink-black)] mb-4 flex items-center gap-2">
-            <span>⚙️</span> 데이터 관리
+            <span>💬</span> 고객 지원
           </h2>
 
           <button
-            onClick={() => setShowResetConfirm(true)}
-            className="w-full py-3 px-4 bg-orange-50 hover:bg-orange-100 text-orange-600 rounded-lg border border-orange-200 transition-colors flex items-center justify-center gap-2 handwrite"
+            onClick={() => navigate('/inquiry')}
+            className="w-full py-3 px-4 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg border border-green-200 transition-colors flex items-center justify-center gap-2 handwrite"
           >
-            <span>🗑️</span>
-            학습 데이터 초기화
+            <span>📝</span>
+            1:1 문의하기
           </button>
           <p className="text-xs text-[var(--pencil-gray)] mt-2 text-center">
-            채팅 기록, 학습 계획 등 모든 데이터가 삭제됩니다
+            궁금한 점이나 건의 사항이 있으면 편하게 문의해주세요
           </p>
         </div>
 
@@ -215,8 +189,8 @@ export function MyPage() {
               <span>꿀팁 탭에서 인강 강사 추천과 학습 전략을 확인할 수 있어요</span>
             </li>
             <li className="flex items-start gap-2">
-              <span>🔄</span>
-              <span>데이터 초기화 전 신중하게 생각하세요 - 되돌릴 수 없어요!</span>
+              <span>📝</span>
+              <span>문의사항이 있으면 1:1 문의를 이용해주세요</span>
             </li>
           </ul>
         </div>
@@ -226,38 +200,6 @@ export function MyPage() {
           <div className="inline-block washi-tape w-24 h-4 rounded-sm opacity-60" />
         </div>
       </NotebookPage>
-
-      {/* 초기화 확인 모달 */}
-      {showResetConfirm && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 max-w-sm w-full">
-            <div className="text-center mb-4">
-              <span className="text-4xl">⚠️</span>
-              <h3 className="handwrite handwrite-lg text-[var(--ink-black)] mt-2">
-                정말 초기화할까요?
-              </h3>
-              <p className="text-sm text-[var(--pencil-gray)] mt-2">
-                채팅 기록, 학습 계획 등 모든 데이터가 영구 삭제됩니다.
-                이 작업은 되돌릴 수 없습니다.
-              </p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setShowResetConfirm(false)}
-                className="flex-1 py-2 px-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg transition-colors handwrite"
-              >
-                취소
-              </button>
-              <button
-                onClick={handleResetAllData}
-                className="flex-1 py-2 px-4 bg-red-500 hover:bg-red-600 text-white rounded-lg transition-colors handwrite"
-              >
-                초기화
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* 프로필 수정 모달 */}
       {showEditProfile && (

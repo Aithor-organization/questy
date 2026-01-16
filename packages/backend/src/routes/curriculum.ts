@@ -187,7 +187,7 @@ curriculumRoutes.post('/generate-quests', async (c) => {
       course_ids: selectedCourseIds || [],
       course_contents: courseContents || [],
       target_date: targetDate,
-      daily_study_hours: dailyStudyHours || 6,
+      daily_study_hours: dailyStudyHours || 10,  // 기본 10시간
       subject_ratio: subjectRatio || {
         '국어': 20,
         '영어': 25,
@@ -246,16 +246,21 @@ curriculumRoutes.post('/reschedule', async (c) => {
       questIds,
       targetDate,
       dailyStudyHours,
-      strategy = 'smart'
+      strategy = 'smart',
+      // 다른 플랜 정보 (스마트 스케줄링 - 충돌 방지)
+      existingPlans,
     } = body;
 
     console.log(`[curriculum] Reschedule: ${questIds?.length || 0} quests, strategy=${strategy}`);
+    console.log(`[curriculum] Existing plans for reschedule: ${existingPlans?.length || 0} plans`);
 
     const result = await callPythonAgent('reschedule_quests', {
       quest_ids: questIds || [],
       target_date: targetDate,
-      daily_study_hours: dailyStudyHours || 6,
-      strategy
+      daily_study_hours: dailyStudyHours || 10,  // 기본 10시간
+      strategy,
+      // 다른 플랜 정보 전달 (스마트 스케줄링)
+      existing_plans: existingPlans || [],
     });
 
     if (!result.success) {

@@ -40,6 +40,12 @@ export {
 // Stats queries
 export { getStudentStats } from './queries/stats.js';
 
+// Inquiry queries
+export {
+  getAllInquiries, getInquiry, getUserInquiries,
+  createInquiry, updateInquiryStatus, deleteInquiry
+} from './queries/inquiries.js';
+
 // Re-export schema
 export * from './schema.js';
 

@@ -12,6 +12,7 @@ import {
   LoginPage,
   SignUpPage,
   MyPage,
+  InquiryPage,
   TodayPage,
   PlannerPage,
   GeneratePage,
@@ -95,6 +96,8 @@ function App() {
 
         <Route path="/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
         <Route path="/mypage" element={<ProtectedRoute><MyPage /></ProtectedRoute>} />
+        <Route path="/my" element={<ProtectedRoute><MyPage /></ProtectedRoute>} />
+        <Route path="/inquiry" element={<ProtectedRoute><InquiryPage /></ProtectedRoute>} />
         <Route path="/planner" element={<ProtectedRoute><PlannerPage /></ProtectedRoute>} />
         <Route path="/generate" element={<ProtectedRoute><GeneratePage /></ProtectedRoute>} />
         <Route path="/curriculum" element={<ProtectedRoute><CurriculumPage /></ProtectedRoute>} />

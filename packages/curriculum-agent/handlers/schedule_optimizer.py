@@ -68,19 +68,23 @@ class ScheduleOptimizer:
         self,
         target_date: str,
         daily_study_hours: int = 6,
-        strategy: RescheduleStrategy = RescheduleStrategy.SMART
+        strategy: RescheduleStrategy = RescheduleStrategy.SMART,
+        existing_plans: list = None
     ) -> RescheduleResult:
         """
-        미완료 퀘스트 재조정
+        미완료 퀘스트 재조정 (스마트 스케줄링: 다른 플랜과의 충돌 방지)
 
         Args:
             target_date: 목표일 (YYYY-MM-DD)
             daily_study_hours: 일일 학습 시간
             strategy: 재조정 전략
+            existing_plans: 다른 플랜 정보 (일별 시간 사용량 계산용)
 
         Returns:
             RescheduleResult: 재조정 결과
         """
+        # 다른 플랜의 일별 시간 사용량 계산
+        external_daily_usage = self._calculate_external_daily_usage(existing_plans or [])
         # 1. 미완료/기한초과 퀘스트 수집
         overdue_quests = self.quest_manager.get_overdue_quests()
         pending_quests = [
@@ -122,9 +126,9 @@ class ScheduleOptimizer:
                 metadata={"reason": "target_date_passed"}
             )
 
-        # 4. 일일 가용 시간 계산 (기존 퀘스트 고려)
+        # 4. 일일 가용 시간 계산 (기존 퀘스트 + 다른 플랜 고려)
         daily_capacity = self._calculate_daily_capacity(
-            today, end_date, daily_study_hours, pending_quests
+            today, end_date, daily_study_hours, pending_quests, external_daily_usage
         )
 
         # 5. 전략에 따라 재조정
@@ -173,28 +177,75 @@ class ScheduleOptimizer:
             }
         )
 
+    def _calculate_external_daily_usage(self, existing_plans: list) -> Dict[str, int]:
+        """
+        다른 플랜의 일별 시간 사용량 계산 (스마트 스케줄링)
+
+        Args:
+            existing_plans: 다른 플랜 목록
+                각 플랜은 quests 배열을 가지며, 각 퀘스트는 scheduledDate와 estimatedMinutes를 가짐
+
+        Returns:
+            Dict[str, int]: 날짜별 사용 시간 (분)
+        """
+        daily_usage: Dict[str, int] = {}
+
+        for plan in existing_plans:
+            quests = plan.get("quests", [])
+            for quest in quests:
+                scheduled_date = quest.get("scheduledDate", "")
+                estimated_minutes = quest.get("estimatedMinutes", 0)
+
+                if scheduled_date and estimated_minutes > 0:
+                    if scheduled_date not in daily_usage:
+                        daily_usage[scheduled_date] = 0
+                    daily_usage[scheduled_date] += estimated_minutes
+
+        return daily_usage
+
     def _calculate_daily_capacity(
         self,
         start_date: datetime,
         end_date: datetime,
         daily_hours: int,
-        existing_quests: List[Quest]
+        existing_quests: List[Quest],
+        external_daily_usage: Dict[str, int] = None
     ) -> Dict[str, int]:
-        """일별 남은 용량 계산"""
+        """
+        일별 남은 용량 계산 (내부 퀘스트 + 외부 플랜 모두 고려)
+
+        Args:
+            start_date: 시작일
+            end_date: 종료일
+            daily_hours: 일일 학습 시간
+            existing_quests: 현재 플랜의 기존 퀘스트
+            external_daily_usage: 다른 플랜의 일별 시간 사용량
+        """
         capacity = {}
         daily_minutes = daily_hours * 60
         buffer_minutes = int(daily_minutes * self.buffer_ratio)
         available = daily_minutes - buffer_minutes
 
+        if external_daily_usage is None:
+            external_daily_usage = {}
+
         current = start_date
         while current <= end_date:
             date_str = current.strftime("%Y-%m-%d")
-            # 기존 퀘스트 시간 차감
-            existing_minutes = sum(
+
+            # 1. 기존 퀘스트 시간 차감 (현재 플랜 내부)
+            internal_minutes = sum(
                 q.estimated_minutes for q in existing_quests
                 if q.scheduled_date == date_str
             )
-            capacity[date_str] = max(0, available - existing_minutes)
+
+            # 2. 외부 플랜 시간 차감 (다른 플랜들)
+            external_minutes = external_daily_usage.get(date_str, 0)
+
+            # 3. 최종 가용 시간 = 총 가용 - 내부 - 외부
+            remaining = max(0, available - internal_minutes - external_minutes)
+            capacity[date_str] = remaining
+
             current += timedelta(days=1)
 
         return capacity

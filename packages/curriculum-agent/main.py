@@ -96,7 +96,7 @@ async def handle_curriculum_command(agent: CurriculumRAGAgent, command: str):
     level = input("  수준 (초급/중급/고급): ").strip() or "중급"
     target = input("  목표 등급 (예: 1등급): ").strip() or "2등급"
     subjects_input = input("  과목 (쉼표로 구분, 예: 국어,수학,영어): ").strip() or "국어,수학,영어"
-    hours = input("  일일 학습 시간 (기본 6): ").strip() or "6"
+    hours = input("  일일 학습 시간 (기본 10, 최대 14): ").strip() or "10"
     weeks = input("  학습 기간 주 (기본 12): ").strip() or "12"
 
     subjects = [s.strip() for s in subjects_input.split(",")]
@@ -226,6 +226,33 @@ async def cli_search_courses(params: dict) -> dict:
     }
 
 
+def calculate_daily_usage_from_existing_plans(existing_plans: list) -> dict:
+    """
+    기존 플랜에서 일별 시간 사용량 계산
+
+    Args:
+        existing_plans: 프론트엔드에서 전달된 기존 플랜 정보
+            [{ id, materialName, dailyQuests: [{ date, estimatedMinutes, completed, unitTitle }] }]
+
+    Returns:
+        일별 사용 시간 딕셔너리 {"2025-01-20": 120, "2025-01-21": 90, ...}
+    """
+    daily_usage = {}
+
+    for plan in existing_plans:
+        daily_quests = plan.get("dailyQuests", [])
+        for quest in daily_quests:
+            date = quest.get("date")
+            # 완료되지 않은 퀘스트만 계산 (완료된 것은 이미 끝난 것이므로 제외)
+            if date and not quest.get("completed", False):
+                minutes = quest.get("estimatedMinutes", 0)
+                if date not in daily_usage:
+                    daily_usage[date] = 0
+                daily_usage[date] += minutes
+
+    return daily_usage
+
+
 async def cli_generate_quests(params: dict) -> dict:
     """퀘스트 생성 CLI 핸들러
 
@@ -233,13 +260,17 @@ async def cli_generate_quests(params: dict) -> dict:
     - 80% 법칙: 가용 시간의 80%만 계획 (버퍼 확보)
     - 5일 단위 운영법: 월~금 5일 안에 일주일 분량
     - 자동 필터링: 선택된 강좌가 있는 과목만 시간 배분에 포함
+
+    스마트 스케줄링 (기존 플랜 고려):
+    - 기존 플랜의 일별 시간 사용량 계산
+    - 남은 가용 시간 내에서만 새 퀘스트 배치
     """
     rag_handler = RAGHandler()
     quest_manager = QuestManager()
 
     course_ids = params.get("course_ids", [])
     target_date = params.get("target_date")
-    daily_study_hours = params.get("daily_study_hours", 6)
+    daily_study_hours = params.get("daily_study_hours", 10)  # 기본 10시간
     subject_ratio = params.get("subject_ratio", {
         "국어": 20,
         "영어": 25,
@@ -264,6 +295,10 @@ async def cli_generate_quests(params: dict) -> dict:
         "apply_buffer": True,      # 80% 법칙: 가용 시간의 80%만 계획
         "five_day_cycle": False    # 5일 단위 운영법
     })
+
+    # 기존 플랜 정보 (스마트 스케줄링용)
+    existing_plans = params.get("existing_plans", [])
+    daily_existing_usage = calculate_daily_usage_from_existing_plans(existing_plans)
 
     # 1. 선택된 강좌 정보 조회
     course_contents = []
@@ -324,7 +359,7 @@ async def cli_generate_quests(params: dict) -> dict:
         if filtered_ratio:
             subject_ratio = filtered_ratio
 
-    # 3. 퀘스트 생성 (PlannerAgent 학습 전략 적용)
+    # 3. 퀘스트 생성 (PlannerAgent 학습 전략 적용 + 스마트 스케줄링)
     try:
         quests = quest_manager.generate_quests_from_curriculum(
             course_contents=course_contents,
@@ -335,7 +370,8 @@ async def cli_generate_quests(params: dict) -> dict:
             include_ot=include_ot,
             review_settings=review_settings,
             custom_schedule=custom_schedule,
-            learning_strategies=learning_strategies
+            learning_strategies=learning_strategies,
+            daily_existing_usage=daily_existing_usage  # 기존 플랜 시간 사용량 전달
         )
 
         # 3. 결과 직렬화
@@ -444,8 +480,10 @@ async def cli_reschedule_quests(params: dict) -> dict:
     # 기존 퀘스트 로드 (실제로는 DB에서 로드해야 함)
     quest_ids = params.get("quest_ids", [])
     target_date = params.get("target_date")
-    daily_study_hours = params.get("daily_study_hours", 6)
+    daily_study_hours = params.get("daily_study_hours", 10)  # 기본 10시간
     strategy_str = params.get("strategy", "smart")
+    # 다른 플랜 정보 (스마트 스케줄링 - 다른 플랜과의 충돌 방지)
+    existing_plans = params.get("existing_plans", [])
 
     # 전략 매핑
     strategy_map = {
@@ -462,7 +500,8 @@ async def cli_reschedule_quests(params: dict) -> dict:
     result = optimizer.reschedule_overdue(
         target_date=target_date,
         daily_study_hours=daily_study_hours,
-        strategy=strategy
+        strategy=strategy,
+        existing_plans=existing_plans  # 다른 플랜 정보 전달
     )
 
     return {

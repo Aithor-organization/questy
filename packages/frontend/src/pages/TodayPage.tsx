@@ -7,9 +7,9 @@
  * - 위기 개입 트리거 (FR-026)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { useQuestStore, getTodayDateString } from '../stores/questStore';
+import { useQuestStore, getTodayDateString, type QuestWithPlan } from '../stores/questStore';
 import { useChatStore, DEFAULT_ROOM_ID } from '../stores/chatStore';
 import { useAuthStore } from '../stores/authStore';
 import {
@@ -20,6 +20,13 @@ import {
   SubjectAccordion,
 } from '../components/notebook';
 import { API_BASE_URL } from '../config';
+
+// 재조정 모달 타입
+interface RescheduleModalState {
+  isOpen: boolean;
+  quest: QuestWithPlan | null;
+  mode: 'single' | 'bulk';
+}
 
 interface DailyCoachData {
   dailyMessage: string;
@@ -38,7 +45,7 @@ interface EveningReviewData {
 
 export function TodayPage() {
   const navigate = useNavigate();
-  const { plans, getQuestsByDate, toggleQuestComplete } = useQuestStore();
+  const { plans, getQuestsByDate, toggleQuestComplete, smartRescheduleQuests, rescheduleQuest } = useQuestStore();
   const { addMessage } = useChatStore();
   const { user, syncName } = useAuthStore();
   const studentName = user?.name || '';
@@ -50,12 +57,55 @@ export function TodayPage() {
   const [isLoadingReview, setIsLoadingReview] = useState(false);
   const [showMissedStudyAlert, setShowMissedStudyAlert] = useState(false);
   const [showCrisisModal, setShowCrisisModal] = useState(false);
+  // 재조정 모달 상태
+  const [rescheduleModal, setRescheduleModal] = useState<RescheduleModalState>({
+    isOpen: false,
+    quest: null,
+    mode: 'single',
+  });
+  const [isRescheduling, setIsRescheduling] = useState(false);
+  const [rescheduleTargetDate, setRescheduleTargetDate] = useState('');
 
   const todayStr = getTodayDateString();
   const quests = getQuestsByDate(selectedDate);
   const isToday = selectedDate === todayStr;
   const currentHour = new Date().getHours();
   const isEvening = currentHour >= 18; // 6 PM 이후
+
+  // 모든 과거 날짜의 미완료 퀘스트 계산 (오늘 이전)
+  const overdueQuests = useMemo(() => {
+    const allOverdue: QuestWithPlan[] = [];
+    for (const plan of plans) {
+      for (const quest of plan.dailyQuests) {
+        // 오늘 이전 날짜이고 미완료인 퀘스트
+        if (quest.date < todayStr && !quest.completed) {
+          allOverdue.push({
+            ...quest,
+            planId: plan.id,
+            planName: plan.materialName,
+          });
+        }
+      }
+    }
+    // 날짜순 정렬 (오래된 것 먼저)
+    return allOverdue.sort((a, b) => a.date.localeCompare(b.date));
+  }, [plans, todayStr]);
+
+  // 플랜별 미완료 퀘스트 그룹화
+  const overdueByPlan = useMemo(() => {
+    const byPlan: Record<string, { planId: string; planName: string; quests: QuestWithPlan[] }> = {};
+    for (const quest of overdueQuests) {
+      if (!byPlan[quest.planId]) {
+        byPlan[quest.planId] = {
+          planId: quest.planId,
+          planName: quest.planName,
+          quests: [],
+        };
+      }
+      byPlan[quest.planId].quests.push(quest);
+    }
+    return Object.values(byPlan);
+  }, [overdueQuests]);
 
   // 코치 데이터 로드 (authStore에서 studentId 사용)
   useEffect(() => {
@@ -266,6 +316,88 @@ export function TodayPage() {
     navigate('/chat/' + DEFAULT_ROOM_ID);
   };
 
+  // 단일 퀘스트 재조정 (오늘로)
+  const handleRescheduleToToday = (quest: QuestWithPlan) => {
+    const success = rescheduleQuest(quest.planId, quest.id, todayStr);
+    if (success) {
+      addMessage(DEFAULT_ROOM_ID, {
+        role: 'assistant',
+        content: `✅ "${quest.unitTitle}" 퀘스트를 오늘로 이동했어요! 화이팅! 💪`,
+        agentRole: 'COACH',
+      });
+    }
+  };
+
+  // 재조정 모달 열기 (개별 퀘스트)
+  const openRescheduleModal = (quest: QuestWithPlan) => {
+    setRescheduleTargetDate(todayStr);
+    setRescheduleModal({ isOpen: true, quest, mode: 'single' });
+  };
+
+  // 전체 재조정 모달 열기 (플랜 단위)
+  const openBulkRescheduleModal = (planId: string) => {
+    const plan = plans.find((p) => p.id === planId);
+    if (plan) {
+      setRescheduleTargetDate(todayStr);
+      setRescheduleModal({
+        isOpen: true,
+        quest: { planId, planName: plan.materialName } as QuestWithPlan,
+        mode: 'bulk',
+      });
+    }
+  };
+
+  // 모달에서 재조정 실행
+  const handleRescheduleConfirm = async () => {
+    if (!rescheduleModal.quest || !rescheduleTargetDate) return;
+
+    setIsRescheduling(true);
+    try {
+      if (rescheduleModal.mode === 'single') {
+        // 단일 퀘스트 재조정
+        const success = rescheduleQuest(
+          rescheduleModal.quest.planId,
+          rescheduleModal.quest.id,
+          rescheduleTargetDate
+        );
+        if (success) {
+          addMessage(DEFAULT_ROOM_ID, {
+            role: 'assistant',
+            content: `✅ "${rescheduleModal.quest.unitTitle}" 퀘스트를 ${rescheduleTargetDate}로 이동했어요!`,
+            agentRole: 'COACH',
+          });
+        }
+      } else {
+        // 플랜 전체 스마트 재조정
+        const result = await smartRescheduleQuests(
+          rescheduleModal.quest.planId,
+          rescheduleTargetDate,
+          'smart'
+        );
+        if (result?.success) {
+          const message = result.warnings?.length
+            ? `✅ ${result.rescheduledCount}개 퀘스트를 재조정했어요!\n⚠️ 주의: ${result.warnings.join(', ')}`
+            : `✅ ${result.rescheduledCount}개 퀘스트를 스마트하게 재조정했어요! 다른 플랜과의 충돌도 고려했습니다. 📅`;
+          addMessage(DEFAULT_ROOM_ID, {
+            role: 'assistant',
+            content: message,
+            agentRole: 'COACH',
+          });
+        }
+      }
+    } catch (error) {
+      console.error('[TodayPage] 재조정 실패:', error);
+      addMessage(DEFAULT_ROOM_ID, {
+        role: 'assistant',
+        content: '😅 재조정 중 오류가 발생했어요. 다시 시도해주세요.',
+        agentRole: 'COACH',
+      });
+    } finally {
+      setIsRescheduling(false);
+      setRescheduleModal({ isOpen: false, quest: null, mode: 'single' });
+    }
+  };
+
   // 날짜 이동
   const changeDate = (delta: number) => {
     const date = new Date(selectedDate);
@@ -431,6 +563,70 @@ export function TodayPage() {
         </div>
       )}
 
+      {/* 재조정 모달 */}
+      {rescheduleModal.isOpen && rescheduleModal.quest && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full">
+            <div className="text-center">
+              <div className="text-4xl mb-3">📅</div>
+              <h3 className="font-bold text-lg text-[var(--ink-black)] mb-2">
+                {rescheduleModal.mode === 'single' ? '퀘스트 일정 변경' : '전체 일정 재조정'}
+              </h3>
+              <p className="text-[var(--pencil-gray)] mb-4 text-sm">
+                {rescheduleModal.mode === 'single'
+                  ? `"${rescheduleModal.quest.unitTitle}" 퀘스트를 언제로 옮길까요?`
+                  : `"${rescheduleModal.quest.planName}" 플랜의 미완료 퀘스트를 스마트하게 재배치합니다.`}
+              </p>
+
+              {/* 날짜 선택 */}
+              <div className="mb-4">
+                <label className="block text-sm text-[var(--pencil-gray)] mb-1">
+                  {rescheduleModal.mode === 'single' ? '새 날짜' : '시작 날짜'}
+                </label>
+                <input
+                  type="date"
+                  value={rescheduleTargetDate}
+                  onChange={(e) => setRescheduleTargetDate(e.target.value)}
+                  min={todayStr}
+                  className="w-full px-4 py-2 border border-gray-200 rounded-lg text-center"
+                />
+              </div>
+
+              {/* 스마트 재조정 설명 */}
+              {rescheduleModal.mode === 'bulk' && (
+                <div className="bg-[var(--highlight-blue)] rounded-lg p-3 mb-4 text-left">
+                  <p className="text-xs text-[var(--ink-blue)]">
+                    🧠 <strong>스마트 재조정</strong>이란?
+                    <br />
+                    • 다른 플랜과의 시간 충돌 방지
+                    <br />
+                    • 하루 학습량 80% 버퍼 규칙 적용
+                    <br />
+                    • 균등한 일정 분배
+                  </p>
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <button
+                  onClick={handleRescheduleConfirm}
+                  disabled={isRescheduling || !rescheduleTargetDate}
+                  className="w-full py-3 bg-[var(--ink-blue)] text-white rounded-lg disabled:opacity-50"
+                >
+                  {isRescheduling ? '재조정 중...' : rescheduleModal.mode === 'single' ? '날짜 변경' : '🧠 스마트 재조정'}
+                </button>
+                <button
+                  onClick={() => setRescheduleModal({ isOpen: false, quest: null, mode: 'single' })}
+                  className="w-full py-3 bg-gray-100 text-gray-600 rounded-lg"
+                >
+                  취소
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 저녁 리뷰 모달 */}
       {showEveningReview && eveningReview && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -501,6 +697,104 @@ export function TodayPage() {
                 {isLoadingReview ? '로딩...' : '🌙 저녁 리뷰'}
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* 미완료 퀘스트 섹션 (이전 날짜에서 밀린 퀘스트) */}
+      {isToday && overdueQuests.length > 0 && (
+        <div className="notebook-page-lined p-4 bg-[var(--highlight-pink)] mb-4 rounded-lg border-l-4 border-[var(--sticker-coral)]">
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⏰</span>
+              <h3 className="font-semibold text-[var(--ink-black)]">
+                미완료 퀘스트 ({overdueQuests.length}개)
+              </h3>
+            </div>
+            {/* 전체 재조정 버튼 (플랜이 하나일 때만) */}
+            {overdueByPlan.length === 1 && (
+              <button
+                onClick={() => openBulkRescheduleModal(overdueByPlan[0].planId)}
+                className="text-xs px-3 py-1 bg-[var(--ink-blue)] text-white rounded-full hover:bg-blue-600 transition-colors"
+              >
+                🧠 전체 재조정
+              </button>
+            )}
+          </div>
+
+          {/* 플랜별 미완료 퀘스트 목록 */}
+          <div className="space-y-3">
+            {overdueByPlan.map((planGroup) => (
+              <div key={planGroup.planId} className="bg-white/50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-[var(--ink-black)]">
+                    📚 {planGroup.planName}
+                  </span>
+                  {overdueByPlan.length > 1 && (
+                    <button
+                      onClick={() => openBulkRescheduleModal(planGroup.planId)}
+                      className="text-xs px-2 py-1 bg-[var(--sticker-mint)] text-white rounded hover:bg-emerald-500"
+                    >
+                      재조정
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-2">
+                  {planGroup.quests.slice(0, 3).map((quest) => (
+                    <div
+                      key={quest.id}
+                      className="flex items-center justify-between bg-white rounded px-3 py-2 text-sm"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <span className="text-[var(--pencil-gray)] mr-2">
+                          {quest.date.slice(5).replace('-', '/')}
+                        </span>
+                        <span className="text-[var(--ink-black)] truncate">
+                          {quest.unitTitle}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 ml-2">
+                        <button
+                          onClick={() => handleRescheduleToToday(quest)}
+                          className="text-xs px-2 py-1 bg-[var(--ink-blue)] text-white rounded hover:bg-blue-600"
+                          title="오늘로 이동"
+                        >
+                          오늘
+                        </button>
+                        <button
+                          onClick={() => openRescheduleModal(quest)}
+                          className="text-xs px-2 py-1 bg-gray-200 text-gray-600 rounded hover:bg-gray-300"
+                          title="날짜 선택"
+                        >
+                          📅
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {planGroup.quests.length > 3 && (
+                    <p className="text-xs text-[var(--pencil-gray)] text-center py-1">
+                      +{planGroup.quests.length - 3}개 더...
+                    </p>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* AI 코치에게 도움 요청 */}
+          <div className="mt-3 pt-3 border-t border-[var(--sticker-coral)]/30">
+            <button
+              onClick={() => {
+                addMessage(DEFAULT_ROOM_ID, {
+                  role: 'user',
+                  content: `밀린 퀘스트 ${overdueQuests.length}개를 어떻게 처리하면 좋을까요?`,
+                });
+                navigate('/chat/' + DEFAULT_ROOM_ID);
+              }}
+              className="w-full py-2 text-sm text-[var(--ink-blue)] hover:underline"
+            >
+              💬 AI 코치에게 일정 조언 받기
+            </button>
           </div>
         </div>
       )}

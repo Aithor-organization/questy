@@ -29,6 +29,7 @@ import { interventionRoutes } from './interventions.js';
 import { schedulerRoutes } from './scheduler.js';
 import { levelTestRoutes } from './level-test.js';
 import { classAssignmentRoutes } from './class-assignment.js';
+import { curriculumActionRoutes } from './curriculum-actions.js';
 
 export const coachRoutes = new Hono();
 
@@ -267,3 +268,9 @@ coachRoutes.post('/students/:studentId/orientation/complete-step', async (c) => 
     )
   );
 });
+
+// ===================== AI 코치 커리큘럼 액션 =====================
+// POST /curriculum/generate - AI 코치가 커리큘럼 생성
+// POST /curriculum/reschedule - AI 코치가 스마트 재스케줄링
+// POST /curriculum/analyze-overdue - 밀린 퀘스트 분석
+coachRoutes.route('/curriculum', curriculumActionRoutes);

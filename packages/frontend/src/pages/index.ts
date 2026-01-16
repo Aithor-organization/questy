@@ -7,6 +7,7 @@
 export { LoginPage } from './LoginPage';
 export { SignUpPage } from './SignUpPage';
 export { MyPage } from './MyPage';
+export { InquiryPage } from './InquiryPage';
 
 // 노트북 스타일 (V2)
 export { TodayPage } from './TodayPage';

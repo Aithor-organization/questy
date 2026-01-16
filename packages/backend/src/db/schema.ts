@@ -124,6 +124,23 @@ export const conversations = sqliteTable('conversations', {
   createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
 });
 
+// ===================== 문의 테이블 =====================
+
+export const inquiries = sqliteTable('inquiries', {
+  id: text('id').primaryKey(),
+  userId: text('user_id'),  // Supabase auth user id
+  userEmail: text('user_email').notNull(),
+  userName: text('user_name').notNull(),
+  category: text('category').notNull(),  // general, bug, suggestion, account, payment, other
+  title: text('title').notNull(),
+  content: text('content').notNull(),
+  status: text('status').default('pending'),  // pending, in_progress, resolved, closed
+  adminNote: text('admin_note'),  // 관리자 메모
+  resolvedAt: integer('resolved_at', { mode: 'timestamp' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).$defaultFn(() => new Date()),
+});
+
 // ===================== 타입 내보내기 =====================
 
 export type User = typeof users.$inferSelect;
@@ -149,3 +166,6 @@ export type NewProgress = typeof progress.$inferInsert;
 
 export type Conversation = typeof conversations.$inferSelect;
 export type NewConversation = typeof conversations.$inferInsert;
+
+export type Inquiry = typeof inquiries.$inferSelect;
+export type NewInquiry = typeof inquiries.$inferInsert;

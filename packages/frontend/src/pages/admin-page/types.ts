@@ -9,7 +9,23 @@ import type { Teacher, Course } from '../../hooks/useAdminCourses';
 export type ModalType = 'none' | 'add-teacher' | 'add-course' | 'batch-update' | 'edit-teacher' | 'edit-course';
 
 // 뷰 탭 타입
-export type ViewTab = 'by-teacher' | 'outdated';
+export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries';
+
+// 문의 타입
+export interface Inquiry {
+  id: string;
+  userId: string | null;
+  userEmail: string;
+  userName: string;
+  category: string;
+  title: string;
+  content: string;
+  status: 'pending' | 'in_progress' | 'resolved' | 'closed';
+  adminNote: string | null;
+  resolvedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
 
 // 배치 업데이트 진행 상태 타입
 export interface BatchUpdateProgress {

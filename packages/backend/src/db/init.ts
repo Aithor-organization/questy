@@ -132,6 +132,23 @@ function createTables() {
       created_at INTEGER DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS inquiries (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      user_email TEXT NOT NULL,
+      user_name TEXT NOT NULL,
+      category TEXT NOT NULL,
+      title TEXT NOT NULL,
+      content TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      admin_note TEXT,
+      resolved_at INTEGER,
+      created_at INTEGER DEFAULT (unixepoch()),
+      updated_at INTEGER DEFAULT (unixepoch())
+    );
+    CREATE INDEX IF NOT EXISTS idx_inquiries_status ON inquiries(status);
+    CREATE INDEX IF NOT EXISTS idx_inquiries_created ON inquiries(created_at);
+
     CREATE INDEX IF NOT EXISTS idx_plans_student ON plans(student_id);
     CREATE INDEX IF NOT EXISTS idx_quests_student ON quests(student_id);
     CREATE INDEX IF NOT EXISTS idx_quests_plan ON quests(plan_id);

@@ -21,8 +21,12 @@ export function CurriculumPage() {
     subjectRatio,
     subjectHours,
     targetDate,
+    dailyStudyHours,
     generatedQuests,
     questSummary,
+    // 시간 초과 경고 상태
+    showTimeExceededWarning,
+    requiredHoursPerDay,
     // 상태 변경
     setSubjectRatio,
     setSubjectHours,
@@ -35,6 +39,8 @@ export function CurriculumPage() {
     generateQuests,
     addToPlannerAndNavigate,
     updatePracticeNote,
+    adjustDailyStudyHours,
+    dismissTimeWarning,
     // 로딩
     isSearching,
     isGenerating,
@@ -103,6 +109,12 @@ export function CurriculumPage() {
             onBack={() => setStep('courses')}
             onConfirm={addToPlannerAndNavigate}
             onUpdatePracticeNote={updatePracticeNote}
+            // 시간 초과 경고 관련
+            dailyStudyHours={dailyStudyHours}
+            showTimeExceededWarning={showTimeExceededWarning}
+            requiredHoursPerDay={requiredHoursPerDay}
+            onAdjustHours={adjustDailyStudyHours}
+            onDismissWarning={dismissTimeWarning}
           />
         )}
 
@@ -631,6 +643,12 @@ function PreviewStep(props: {
   onBack: () => void;
   onConfirm: () => void;
   onUpdatePracticeNote?: (questId: string, note: string) => void;
+  // 시간 초과 경고 관련
+  dailyStudyHours: number;
+  showTimeExceededWarning: boolean;
+  requiredHoursPerDay: number;
+  onAdjustHours: (hours: number) => void;
+  onDismissWarning: () => void;
 }) {
   // 메모 편집 상태 관리
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -739,6 +757,74 @@ function PreviewStep(props: {
           <p className="text-xs text-amber-600 mt-2">
             💡 해당 과목의 강좌를 추가하면 학습 시간이 반영됩니다.
           </p>
+        </div>
+      )}
+
+      {/* 일일 학습 시간 초과 경고 */}
+      {props.showTimeExceededWarning && (
+        <div className="notebook-card p-4 bg-red-50 border-red-200">
+          <h4 className="font-medium text-red-800 mb-2">⏰ 일일 학습 시간 초과</h4>
+          <p className="text-sm text-red-700 mb-3">
+            현재 설정된 일일 학습 시간(<strong>{props.dailyStudyHours}시간</strong>)으로는
+            목표일까지 커리큘럼을 완료하기 어렵습니다.
+          </p>
+          <p className="text-sm text-red-700 mb-3">
+            일평균 <strong>{props.summary?.averageMinutesPerDay || 0}분</strong>이 필요하며,
+            최소 <strong>{props.requiredHoursPerDay}시간</strong>으로 조정하는 것을 권장합니다.
+          </p>
+
+          {/* 시간 조정 슬라이더 */}
+          <div className="bg-white rounded-lg p-3 mb-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-700">일일 학습 시간 조정</span>
+              <span className="text-lg font-bold text-red-600">{props.dailyStudyHours}시간</span>
+            </div>
+            <input
+              type="range"
+              min="10"
+              max="14"
+              value={props.dailyStudyHours}
+              onChange={(e) => props.onAdjustHours(Number(e.target.value))}
+              className="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-red-500"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>10시간</span>
+              <span>12시간</span>
+              <span>14시간 (최대)</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              onClick={() => props.onAdjustHours(props.requiredHoursPerDay)}
+              className="flex-1 px-3 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600"
+            >
+              {props.requiredHoursPerDay}시간으로 조정
+            </button>
+            <button
+              onClick={props.onDismissWarning}
+              className="px-3 py-2 bg-gray-100 text-gray-700 text-sm rounded-lg hover:bg-gray-200"
+            >
+              현재 설정 유지
+            </button>
+          </div>
+          <p className="text-xs text-red-500 mt-2">
+            💡 시간을 늘리면 더 많은 학습량을 하루에 소화해야 합니다.
+          </p>
+        </div>
+      )}
+
+      {/* 현재 일일 학습 시간 표시 (경고가 없을 때) */}
+      {!props.showTimeExceededWarning && (
+        <div className="notebook-card p-3 bg-green-50 border-green-200">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-green-700">
+              ✅ 일일 학습 시간: <strong>{props.dailyStudyHours}시간</strong>
+            </span>
+            <span className="text-xs text-green-600">
+              여유롭게 학습 가능합니다
+            </span>
+          </div>
         </div>
       )}
 

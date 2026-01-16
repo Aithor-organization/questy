@@ -18,9 +18,11 @@ import {
   PlayCircle,
   Clock,
   Pencil,
+  MessageSquare,
 } from 'lucide-react';
 import { useAdminCourses } from '../../hooks/useAdminCourses';
 import { CourseCard } from './CourseCard';
+import { InquiriesView } from './InquiriesView';
 import {
   AddTeacherModal,
   AddCourseModal,
@@ -216,6 +218,7 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
           viewTab={viewTab}
           setViewTab={setViewTab}
           outdatedCount={outdatedCourses.length}
+          showInquiries
         />
 
         {/* 강사별 탭 내용 */}
@@ -252,6 +255,11 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
             onUpdateCourse={handleUpdateCourse}
             updateResult={updateResult}
           />
+        )}
+
+        {/* 문의 관리 탭 내용 */}
+        {viewTab === 'inquiries' && (
+          <InquiriesView />
         )}
 
         {/* 모달 */}
@@ -388,13 +396,15 @@ function ViewTabs({
   viewTab,
   setViewTab,
   outdatedCount,
+  showInquiries,
 }: {
   viewTab: ViewTab;
   setViewTab: (tab: ViewTab) => void;
   outdatedCount: number;
+  showInquiries?: boolean;
 }) {
   return (
-    <div className="mb-4 flex gap-2">
+    <div className="mb-4 flex gap-2 flex-wrap">
       <button
         onClick={() => setViewTab('by-teacher')}
         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
@@ -424,6 +434,19 @@ function ViewTabs({
           </span>
         )}
       </button>
+      {showInquiries && (
+        <button
+          onClick={() => setViewTab('inquiries')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+            viewTab === 'inquiries'
+              ? 'bg-green-500 text-white'
+              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          }`}
+        >
+          <MessageSquare size={16} />
+          문의 관리
+        </button>
+      )}
     </div>
   );
 }

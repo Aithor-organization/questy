@@ -54,7 +54,9 @@ export function useCurriculumGeneration() {
   const [subjectHours, setSubjectHours] = useState<SubjectHours>(DEFAULT_SUBJECT_HOURS);
   const [curriculumOptions, setCurriculumOptions] = useState<CurriculumOptions>(DEFAULT_CURRICULUM_OPTIONS);
   const [targetDate, setTargetDate] = useState<string>('');
-  const [dailyStudyHours, setDailyStudyHours] = useState<number>(6);
+  const [dailyStudyHours, setDailyStudyHours] = useState<number>(10);  // 기본 10시간
+  const [showTimeExceededWarning, setShowTimeExceededWarning] = useState(false);
+  const [requiredHoursPerDay, setRequiredHoursPerDay] = useState<number>(0);
   const [generatedQuests, setGeneratedQuests] = useState<CurriculumQuest[]>([]);
   const [questSummary, setQuestSummary] = useState<GenerateQuestsResponse['summary'] | null>(null);
 
@@ -124,6 +126,20 @@ export function useCurriculumGeneration() {
     onSuccess: (data) => {
       setGeneratedQuests(data.quests);
       setQuestSummary(data.summary);
+
+      // 일별 최대 시간 초과 여부 체크
+      const avgMinutesPerDay = data.summary.averageMinutesPerDay || 0;
+      const currentLimitMinutes = dailyStudyHours * 60 * 0.8; // 80% 버퍼 적용
+
+      if (avgMinutesPerDay > currentLimitMinutes) {
+        // 필요한 시간 계산 (버퍼 포함)
+        const neededHours = Math.ceil(avgMinutesPerDay / 60 / 0.8);
+        setRequiredHoursPerDay(Math.min(neededHours, 14)); // 최대 14시간
+        setShowTimeExceededWarning(true);
+      } else {
+        setShowTimeExceededWarning(false);
+        setRequiredHoursPerDay(0);
+      }
     },
   });
 
@@ -358,6 +374,18 @@ export function useCurriculumGeneration() {
     );
   }, []);
 
+  // 일일 학습 시간 조정 (10~14시간 범위 제한)
+  const adjustDailyStudyHours = useCallback((hours: number) => {
+    const bounded = Math.max(10, Math.min(14, hours));
+    setDailyStudyHours(bounded);
+    setShowTimeExceededWarning(false);
+  }, []);
+
+  // 경고 닫기
+  const dismissTimeWarning = useCallback(() => {
+    setShowTimeExceededWarning(false);
+  }, []);
+
   // 초기화
   const reset = useCallback(() => {
     setSearchResults([]);
@@ -366,7 +394,9 @@ export function useCurriculumGeneration() {
     setSubjectHours(DEFAULT_SUBJECT_HOURS);
     setCurriculumOptions(DEFAULT_CURRICULUM_OPTIONS);
     setTargetDate('');
-    setDailyStudyHours(6);
+    setDailyStudyHours(10);
+    setShowTimeExceededWarning(false);
+    setRequiredHoursPerDay(0);
     setGeneratedQuests([]);
     setQuestSummary(null);
   }, []);
@@ -383,6 +413,10 @@ export function useCurriculumGeneration() {
     generatedQuests,
     questSummary,
 
+    // 시간 초과 경고 상태
+    showTimeExceededWarning,
+    requiredHoursPerDay,
+
     // 상태 변경
     setSubjectRatio,
     setSubjectHours,
@@ -398,6 +432,8 @@ export function useCurriculumGeneration() {
     generateQuests: generateMutation.mutate,
     addToPlannerAndNavigate,
     updatePracticeNote,
+    adjustDailyStudyHours,
+    dismissTimeWarning,
     reset,
 
     // 로딩 상태

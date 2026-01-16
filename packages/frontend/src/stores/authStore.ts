@@ -48,29 +48,191 @@ function mapSupabaseUser(supabaseUser: SupabaseUser, studentId?: string): User {
   };
 }
 
+// 세션 검증 타임아웃 (ms)
+const AUTH_TIMEOUT = 3000;
+
+// 백그라운드 세션 검증 상태
+let isVerifyingSession = false;
+
+// 타입 정의
+type SetState = (partial: Partial<AuthStore> | ((state: AuthStore) => Partial<AuthStore>)) => void;
+type GetState = () => AuthStore;
+
+// 백그라운드 세션 검증 (낙관적 로딩 후 실행)
+async function verifySessionInBackground(set: SetState, get: GetState): Promise<void> {
+  if (isVerifyingSession || !supabase) return;
+  isVerifyingSession = true;
+
+  try {
+    console.log('[Auth] 🔄 Background: Verifying session...');
+    const { data: { session }, error } = await supabase.auth.getSession();
+
+    if (error || !session) {
+      // 세션 만료 - 로그아웃 처리
+      console.warn('[Auth] ⚠️ Background: Session invalid, logging out');
+      set({ user: null, session: null, isAuthenticated: false });
+      localStorage.removeItem('questybook_student_id');
+      localStorage.removeItem('questybook_student_name');
+      return;
+    }
+
+    // 세션 유효 - 최신 정보로 업데이트
+    const currentUser = get().user;
+    const user = mapSupabaseUser(session.user, currentUser?.studentId || undefined);
+    set({ user, session });
+
+    // studentId가 없으면 조회
+    if (!currentUser?.studentId) {
+      fetchStudentIdInBackground(session.user.id, set, get);
+    }
+
+    // 리스너 등록
+    setupAuthStateListener(set);
+
+    console.log('[Auth] ✅ Background: Session verified');
+  } catch (err) {
+    console.error('[Auth] Background verification error:', err);
+  } finally {
+    isVerifyingSession = false;
+  }
+}
+
+// 백그라운드 studentId 조회
+async function fetchStudentIdInBackground(userId: string, set: SetState, get: GetState): Promise<void> {
+  if (!supabase) return;
+
+  try {
+    const { data: student } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .single();
+
+    if (student?.id) {
+      const currentUser = get().user;
+      if (currentUser) {
+        set({ user: { ...currentUser, studentId: student.id } });
+        localStorage.setItem('questybook_student_id', student.id);
+        console.log('[Auth] 📝 Background: studentId updated');
+      }
+    }
+  } catch (e) {
+    console.warn('[Auth] Background: Student lookup failed:', e);
+  }
+}
+
+// 인증 상태 변경 리스너 설정
+function setupAuthStateListener(set: SetState): void {
+  if (!supabase) return;
+
+  const client = supabase; // TypeScript null 체크용
+
+  client.auth.onAuthStateChange(async (event, newSession) => {
+    console.log('[Auth] State changed:', event);
+
+    if (event === 'SIGNED_IN' && newSession?.user) {
+      let studentId: string | null = null;
+      try {
+        const { data: student } = await client
+          .from('students')
+          .select('id')
+          .eq('user_id', newSession.user.id)
+          .single();
+
+        if (!student) {
+          // 새 사용자: students 레코드 생성
+          const userName = newSession.user.user_metadata?.name ||
+                           newSession.user.email?.split('@')[0] || '학생';
+          const { data: newStudent } = await client
+            .from('students')
+            .insert({ user_id: newSession.user.id, name: userName })
+            .select('id')
+            .single();
+          studentId = newStudent?.id || null;
+        } else {
+          studentId = student.id;
+        }
+      } catch (e) {
+        console.warn('[Auth] Student handling error:', e);
+      }
+
+      const user = mapSupabaseUser(newSession.user, studentId || undefined);
+      set({
+        user,
+        session: newSession,
+        isAuthenticated: true,
+        isLoading: false,
+      });
+
+      if (studentId) {
+        localStorage.setItem('questybook_student_id', studentId);
+      }
+      localStorage.setItem('questybook_student_name', user.name);
+    } else if (event === 'SIGNED_OUT') {
+      set({
+        user: null,
+        session: null,
+        isAuthenticated: false,
+        isLoading: false,
+      });
+      localStorage.removeItem('questybook_student_id');
+      localStorage.removeItem('questybook_student_name');
+    } else if (event === 'TOKEN_REFRESHED' && newSession) {
+      set({ session: newSession });
+    }
+  });
+}
+
 export const useAuthStore = create<AuthStore>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       user: null,
       session: null,
       isAuthenticated: false,
-      isLoading: true,  // OAuth 콜백 처리 완료까지 로딩 상태 유지
+      isLoading: true,
       error: null,
 
-      // Supabase Auth 초기화 (앱 시작 시 호출)
+      // Supabase Auth 초기화 (앱 시작 시 호출) - 최적화 버전
       initializeAuth: async () => {
+        const startTime = performance.now();
         console.log('[Auth] initializeAuth started');
 
+        // Supabase 미설정 시 즉시 반환
         if (!supabase) {
           console.warn('[Auth] Supabase not configured, using mock auth');
           set({ isLoading: false });
           return;
         }
 
+        // 🚀 낙관적 로딩: persist된 user가 있으면 즉시 표시
+        const persistedUser = get().user;
+        if (persistedUser) {
+          console.log('[Auth] 🚀 Optimistic: Using persisted user:', persistedUser.email);
+          set({ isAuthenticated: true, isLoading: false });
+
+          // 백그라운드에서 세션 검증 (UI 블로킹 없음)
+          verifySessionInBackground(set, get);
+          return;
+        }
+
+        // persist된 user가 없으면 세션 체크 (타임아웃 적용)
         try {
-          // 1. 현재 세션 먼저 확인
-          console.log('[Auth] Checking current session...');
-          const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+          const sessionPromise = supabase.auth.getSession();
+          const timeoutPromise = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), AUTH_TIMEOUT)
+          );
+
+          console.log('[Auth] Checking session with timeout...');
+          const result = await Promise.race([sessionPromise, timeoutPromise]);
+
+          // 타임아웃 발생
+          if (result === null) {
+            console.warn('[Auth] ⏱️ Session check timeout, showing login');
+            set({ isLoading: false, user: null, session: null, isAuthenticated: false });
+            return;
+          }
+
+          const { data: { session }, error: sessionError } = result;
 
           if (sessionError) {
             console.error('[Auth] Session error:', sessionError);
@@ -78,93 +240,31 @@ export const useAuthStore = create<AuthStore>()(
             return;
           }
 
-          // 2. 세션이 있으면 사용자 정보 설정
           if (session?.user) {
             console.log('[Auth] Session found for:', session.user.email);
 
-            let studentId: string | null = null;
-            try {
-              const { data: student } = await supabase
-                .from('students')
-                .select('id')
-                .eq('user_id', session.user.id)
-                .single();
-              studentId = student?.id || null;
-            } catch (e) {
-              console.warn('[Auth] Student lookup failed:', e);
-            }
-
-            const user = mapSupabaseUser(session.user, studentId || undefined);
-            console.log('[Auth] Setting user:', user.email);
-
+            // 즉시 기본 user 정보로 로그인 처리 (studentId는 백그라운드에서)
+            const user = mapSupabaseUser(session.user);
             set({
               user,
               session,
               isAuthenticated: true,
               isLoading: false,
             });
-
-            if (studentId) {
-              localStorage.setItem('questybook_student_id', studentId);
-            }
             localStorage.setItem('questybook_student_name', user.name);
+
+            // studentId는 백그라운드에서 조회
+            fetchStudentIdInBackground(session.user.id, set, get);
           } else {
-            // 3. 세션 없음
             console.log('[Auth] No session found');
             set({ isLoading: false, user: null, session: null, isAuthenticated: false });
           }
 
-          // 4. 이후 인증 상태 변경 리스너 등록
-          const client = supabase; // TypeScript null check
-          client.auth.onAuthStateChange(async (event, newSession) => {
-            console.log('[Auth] State changed:', event);
+          // 인증 상태 변경 리스너 등록
+          setupAuthStateListener(set);
 
-            if (event === 'SIGNED_IN' && newSession?.user) {
-              let studentId: string | null = null;
-              try {
-                const { data: student } = await client
-                  .from('students')
-                  .select('id')
-                  .eq('user_id', newSession.user.id)
-                  .single();
-
-                if (!student) {
-                  // 새 사용자: students 레코드 생성
-                  const userName = newSession.user.user_metadata?.name ||
-                                   newSession.user.email?.split('@')[0] || '학생';
-                  const { data: newStudent } = await client
-                    .from('students')
-                    .insert({ user_id: newSession.user.id, name: userName })
-                    .select('id')
-                    .single();
-                  studentId = newStudent?.id || null;
-                } else {
-                  studentId = student.id;
-                }
-              } catch (e) {
-                console.warn('[Auth] Student handling error:', e);
-              }
-
-              const user = mapSupabaseUser(newSession.user, studentId || undefined);
-              set({
-                user,
-                session: newSession,
-                isAuthenticated: true,
-                isLoading: false,
-              });
-            } else if (event === 'SIGNED_OUT') {
-              set({
-                user: null,
-                session: null,
-                isAuthenticated: false,
-                isLoading: false,
-              });
-              localStorage.removeItem('questybook_student_id');
-              localStorage.removeItem('questybook_student_name');
-            } else if (event === 'TOKEN_REFRESHED' && newSession) {
-              set({ session: newSession });
-            }
-          });
+          const elapsed = performance.now() - startTime;
+          console.log(`[Auth] ✅ Init completed in ${elapsed.toFixed(0)}ms`);
 
         } catch (err) {
           console.error('[Auth] Init error:', err);
