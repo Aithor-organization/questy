@@ -1,0 +1,59 @@
+# 강좌 커리큘럼 자동 업데이트 워크플로우
+# 매주 월요일 새벽 2시(KST)에 실행 = UTC 일요일 17시
+
+name: Weekly Course Update
+
+on:
+  schedule:
+    # UTC 17:00 일요일 = KST 02:00 월요일
+    - cron: '0 17 * * 0'
+
+  # 수동 실행 지원
+  workflow_dispatch:
+    inputs:
+      batch_size:
+        description: '배치 크기 (기본: 5)'
+        required: false
+        default: '5'
+      batch_delay:
+        description: '배치 간 딜레이 ms (기본: 3000)'
+        required: false
+        default: '3000'
+
+jobs:
+  update-courses:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 9
+
+      - name: Install dependencies
+        run: pnpm install
+
+      - name: Run batch update script
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_KEY }}
+          BATCH_SIZE: ${{ github.event.inputs.batch_size || '5' }}
+          BATCH_DELAY: ${{ github.event.inputs.batch_delay || '3000' }}
+        run: npx tsx scripts/batch-update.ts
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-logs-${{ github.run_id }}
+          path: |
+            *.log
+          retention-days: 7

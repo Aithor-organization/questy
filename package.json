@@ -13,7 +13,13 @@
     "build": "pnpm -r run build",
     "lint": "pnpm -r run lint",
     "test": "pnpm -r run test",
-    "clean": "pnpm -r run clean && rm -rf node_modules"
+    "clean": "pnpm -r run clean && rm -rf node_modules",
+    "update:courses": "npx tsx scripts/batch-update.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.3",
+    "@supabase/supabase-js": "^2.90.1",
+    "iconv-lite": "^0.6.3"
   },
   "engines": {
     "node": ">=20.0.0",
