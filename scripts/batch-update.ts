@@ -327,6 +327,10 @@ async function runBatchUpdate() {
   let updated = 0;
   let failed = 0;
 
+  // 업데이트 상세 기록
+  const updateDetails: { name: string; teacher: string; diff: number; newCount: number; isCompleted: boolean }[] = [];
+  const failedCourses: { name: string; teacher: string; error: string }[] = [];
+
   for (let i = 0; i < total; i += BATCH_SIZE) {
     const batch = coursesToUpdate.slice(i, i + BATCH_SIZE);
     const batchNum = Math.floor(i / BATCH_SIZE) + 1;
@@ -390,9 +394,21 @@ async function runBatchUpdate() {
           const diffStr = diff !== undefined ? (diff > 0 ? `+${diff}` : diff === 0 ? '±0' : `${diff}`) : '';
           const completedStr = isCompleted ? ' [완강]' : '';
           log.success(`[${completed}/${total}] ${course.name} (${course.teacher_name}) ${diffStr}${completedStr}`);
+
+          // 상세 기록 저장
+          if (diff !== undefined) {
+            updateDetails.push({
+              name: course.name,
+              teacher: course.teacher_name,
+              diff,
+              newCount: course.lecture_count + diff,
+              isCompleted: isCompleted || false,
+            });
+          }
         } else {
           failed++;
           log.error(`[${completed}/${total}] ${course.name} - ${error}`);
+          failedCourses.push({ name: course.name, teacher: course.teacher_name, error: error || 'Unknown error' });
         }
       } else {
         failed++;
@@ -416,7 +432,40 @@ async function runBatchUpdate() {
   if (failed > 0) {
     log.error(`실패: ${failed}개`);
   }
-  log.info('='.repeat(50));
+
+  // 새 강의 추가된 강좌
+  const coursesWithNewLectures = updateDetails.filter(d => d.diff > 0);
+  if (coursesWithNewLectures.length > 0) {
+    log.info('\n📚 새 강의가 추가된 강좌:');
+    coursesWithNewLectures.forEach(d => {
+      log.info(`  • ${d.name} (${d.teacher}) - +${d.diff}개 (총 ${d.newCount}강)`);
+    });
+  }
+
+  // 완강된 강좌
+  const completedCourses = updateDetails.filter(d => d.isCompleted);
+  if (completedCourses.length > 0) {
+    log.info('\n🎉 완강 처리된 강좌:');
+    completedCourses.forEach(d => {
+      log.info(`  • ${d.name} (${d.teacher}) - 총 ${d.newCount}강`);
+    });
+  }
+
+  // 변경 없는 강좌 수
+  const noChangeCourses = updateDetails.filter(d => d.diff === 0 && !d.isCompleted);
+  if (noChangeCourses.length > 0) {
+    log.info(`\n📋 변경 없음: ${noChangeCourses.length}개 강좌`);
+  }
+
+  // 실패한 강좌
+  if (failedCourses.length > 0) {
+    log.info('\n❌ 실패한 강좌:');
+    failedCourses.forEach(d => {
+      log.error(`  • ${d.name} (${d.teacher}) - ${d.error}`);
+    });
+  }
+
+  log.info('\n' + '='.repeat(50));
 
   // 실패가 있으면 exit code 1
   if (failed > 0) {
