@@ -114,14 +114,17 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
     navigate(`/timer/${quest.planId}/${quest.id}`);
   };
 
-  // 상세 정보 존재 여부 (확장 가능 여부) - 완료된 퀘스트도 확장 가능
+  // 상세 정보 존재 여부 (확장 가능 여부)
+  // - 완료된 퀘스트, 과거 퀘스트도 확장 가능 (읽기 전용 모드)
   const hasDetails =
     quest.tip ||
     (quest.topics && quest.topics.length > 0) ||
     (quest.objectives && quest.objectives.length > 0) ||
     showTimer ||
     quest.timerRecord?.completed ||  // 완료된 타이머 기록 표시
-    quest.practiceNote;  // 메모가 있으면 표시
+    quest.practiceNote ||  // 메모가 있으면 표시
+    isPast ||  // 과거 퀘스트는 항상 확장 가능 (기록 확인용)
+    quest.completed;  // 완료된 퀘스트도 항상 확장 가능
 
   return (
     <div
@@ -130,15 +133,27 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
     >
       {/* === 기본 상태: 한 줄 요약 === */}
       <div className="flex items-center gap-3">
-        {/* 체크박스 */}
-        <button
-          onClick={handleToggleComplete}
-          disabled={!isToday}
-          className={`checkbox-notebook flex-shrink-0 ${quest.completed ? 'checked' : ''} ${!isToday ? 'opacity-50 cursor-not-allowed' : ''}`}
-          title={!isToday ? '오늘 퀘스트만 완료할 수 있어요' : ''}
-        >
-          {quest.completed && <span className="checkmark">✓</span>}
-        </button>
+        {/* 체크박스 또는 상태 아이콘 */}
+        {isToday ? (
+          <button
+            onClick={handleToggleComplete}
+            className={`checkbox-notebook flex-shrink-0 ${quest.completed ? 'checked' : ''}`}
+          >
+            {quest.completed && <span className="checkmark">✓</span>}
+          </button>
+        ) : (
+          // 과거 퀘스트: 읽기 전용 상태 아이콘
+          <div
+            className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center text-sm ${
+              quest.completed
+                ? 'bg-[var(--sticker-mint)] text-white'
+                : 'bg-gray-200 text-gray-500'
+            }`}
+            title={quest.completed ? '완료됨' : '미완료'}
+          >
+            {quest.completed ? '✓' : '−'}
+          </div>
+        )}
 
         {/* 제목 */}
         <div className="flex-1 min-w-0">
@@ -253,18 +268,37 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
                   ({noteText.length}자)
                 </span>
               )}
+              {isPast && noteText && (
+                <span className="text-xs text-[var(--pencil-gray)]">
+                  (읽기 전용)
+                </span>
+              )}
             </div>
-            <textarea
-              value={noteText}
-              onChange={(e) => setNoteText(e.target.value)}
-              onBlur={handleNoteSave}
-              onClick={(e) => e.stopPropagation()}
-              placeholder="학습 중 메모를 남겨보세요..."
-              className="w-full p-3 text-sm border border-[var(--line-light)] rounded-lg
-                bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none
-                resize-none font-['Pretendard']"
-              rows={3}
-            />
+            {isPast ? (
+              // 과거 퀘스트: 읽기 전용 메모 표시
+              noteText ? (
+                <div className="w-full p-3 text-sm border border-[var(--line-light)] rounded-lg bg-gray-50 text-[var(--pencil-gray)]">
+                  {noteText}
+                </div>
+              ) : (
+                <div className="w-full p-3 text-sm text-[var(--pencil-gray)] italic">
+                  작성된 메모가 없습니다
+                </div>
+              )
+            ) : (
+              // 오늘/미래 퀘스트: 편집 가능한 메모
+              <textarea
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+                onBlur={handleNoteSave}
+                onClick={(e) => e.stopPropagation()}
+                placeholder="학습 중 메모를 남겨보세요..."
+                className="w-full p-3 text-sm border border-[var(--line-light)] rounded-lg
+                  bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none
+                  resize-none font-['Pretendard']"
+                rows={3}
+              />
+            )}
           </div>
 
           {/* 학습 타이머 버튼 (자습/교재 퀘스트만) */}
