@@ -1,12 +1,16 @@
 /**
  * Database Initialization
  * 테이블 생성 및 마이그레이션
+ *
+ * NOTE: SQLite는 Bun 환경에서만 초기화됩니다.
  */
 
 import { sqlite, DB_PATH } from './connection.js';
 
 // 기존 테이블에 새 컬럼 추가 (이미 있으면 무시)
 function addColumnsIfNotExist() {
+  if (!sqlite) return;
+
   try {
     sqlite.exec(`ALTER TABLE courses ADD COLUMN is_completed INTEGER DEFAULT 0`);
   } catch {}
@@ -17,6 +21,8 @@ function addColumnsIfNotExist() {
 
 // 테이블 생성 SQL
 function createTables() {
+  if (!sqlite) return;
+
   addColumnsIfNotExist();
 
   sqlite.exec(`
@@ -137,6 +143,11 @@ function createTables() {
 }
 
 export function initializeDatabase() {
+  if (!sqlite) {
+    console.log('[DB] SQLite not available - skipping initialization (Node.js runtime)');
+    return;
+  }
+
   createTables();
   console.log('[DB] Database initialized at:', DB_PATH);
 }
