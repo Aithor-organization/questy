@@ -23,8 +23,12 @@ app.use('*', async (c, next) => {
 });
 app.use('*', logger());
 app.use('*', cors({
-  origin: (origin) => origin, // 개발/데모용으로 모든 Origin 허용
-  credentials: true,
+  origin: '*',
+  allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization', 'ngrok-skip-browser-warning'],
+  exposeHeaders: ['Content-Length'],
+  maxAge: 86400,
+  credentials: false, // origin: '*' 사용 시 credentials: false 필요
 }));
 
 // 헬스 체크
