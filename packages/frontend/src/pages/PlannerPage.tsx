@@ -69,7 +69,7 @@ export function PlannerPage() {
       {/* 새 플랜 추가 버튼 */}
       <Link
         to="/generate"
-        className="fixed bottom-8 right-8 w-14 h-14 bg-[var(--sticker-coral)] text-white rounded-full shadow-lg flex items-center justify-center text-2xl hover:scale-110 transition-transform z-50"
+        className="fixed bottom-24 right-6 w-14 h-14 bg-[var(--sticker-coral)] text-white rounded-full shadow-lg flex items-center justify-center text-2xl hover:scale-110 transition-transform z-50"
       >
         +
       </Link>

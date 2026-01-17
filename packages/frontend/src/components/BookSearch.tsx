@@ -53,21 +53,21 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
   return (
     <div className="space-y-4">
       {/* 검색 입력 */}
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <input
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          placeholder="교재명으로 검색 (예: 마더텅 수능기출문제집)"
+          placeholder="교재명으로 검색"
           className="flex-1 px-4 py-3 border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
         />
         <button
           onClick={handleSearch}
           disabled={loading || !query.trim()}
-          className="px-6 py-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 disabled:bg-gray-300 transition-colors"
+          className="px-4 sm:px-6 py-3 bg-blue-500 text-white rounded-xl font-medium hover:bg-blue-600 disabled:bg-gray-300 transition-colors whitespace-nowrap flex-shrink-0"
         >
-          {loading ? '검색 중...' : '검색'}
+          {loading ? '검색 중...' : '🔍 검색'}
         </button>
       </div>
 
@@ -100,7 +100,7 @@ export function BookSearch({ onSelectBook }: BookSearchProps) {
                 }}
               />
               <div className="flex-1 min-w-0">
-                <h4 className="font-medium text-gray-900 truncate">
+                <h4 className="font-medium text-gray-900 line-clamp-2">
                   {book.title || `상품 #${book.productId}`}
                 </h4>
                 {book.author && (

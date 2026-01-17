@@ -12,7 +12,7 @@ interface InputModeSelectorProps {
 
 export function InputModeSelector({ mode, onChange }: InputModeSelectorProps) {
   return (
-    <div className="flex gap-2 p-1 bg-[var(--paper-lines)] rounded-xl mb-6">
+    <div className="flex gap-2 p-1 bg-[var(--paper-lines)] rounded-xl mb-6" style={{ wordBreak: 'keep-all' }}>
       <button
         type="button"
         onClick={() => onChange('upload')}

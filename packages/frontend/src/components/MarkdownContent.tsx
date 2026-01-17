@@ -116,7 +116,7 @@ const components: Components = {
 
 export function MarkdownContent({ content }: MarkdownContentProps) {
   return (
-    <div className="markdown-content break-words overflow-hidden">
+    <div className="markdown-content break-words overflow-hidden" style={{ wordBreak: 'keep-all' }}>
       <ReactMarkdown components={components}>{content}</ReactMarkdown>
     </div>
   );
