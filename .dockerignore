@@ -1,0 +1,44 @@
+# Dependencies
+node_modules
+**/node_modules
+
+# Build outputs
+dist
+**/dist
+.next
+out
+
+# Development
+.git
+.gitignore
+*.md
+!README.md
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vscode
+.idea
+
+# Test
+coverage
+.nyc_output
+*.test.ts
+*.spec.ts
+
+# Frontend (not needed for backend)
+packages/frontend
+
+# Misc
+*.log
+.DS_Store
+Thumbs.db
+
+# Python cache
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
