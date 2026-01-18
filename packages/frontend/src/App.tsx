@@ -11,6 +11,7 @@ import { useCoachScheduler } from './hooks/useCoachScheduler';
 import {
   LoginPage,
   SignUpPage,
+  OnboardingPage,
   MyPage,
   InquiryPage,
   TodayPage,
@@ -29,11 +30,16 @@ import {
 import { ToastNotification } from './components/ToastNotification';
 
 // 인증이 필요한 라우트를 보호하는 컴포넌트
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated } = useAuthStore();
+function ProtectedRoute({ children, skipOnboarding = false }: { children: React.ReactNode; skipOnboarding?: boolean }) {
+  const { isAuthenticated, user } = useAuthStore();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
+  }
+
+  // 온보딩 체크 (skipOnboarding이 아닌 경우에만)
+  if (!skipOnboarding && user && user.onboardingCompleted === false) {
+    return <Navigate to="/onboarding" replace />;
   }
 
   return <>{children}</>;
@@ -50,13 +56,36 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+// 온보딩 전용 라우트 (로그인 필요, 온보딩 미완료 시만 접근)
+function OnboardingRoute({ children }: { children: React.ReactNode }) {
+  const { isAuthenticated, user } = useAuthStore();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  // 이미 온보딩 완료한 경우 메인으로
+  if (user?.onboardingCompleted === true) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
+}
+
 function App() {
-  const { initializeAuth, isLoading } = useAuthStore();
+  const { initializeAuth, isLoading, isAuthenticated, checkOnboardingStatus } = useAuthStore();
 
   // Supabase Auth 초기화 (세션 복원)
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
+
+  // 온보딩 상태 체크 (로그인 후)
+  useEffect(() => {
+    if (isAuthenticated) {
+      checkOnboardingStatus();
+    }
+  }, [isAuthenticated, checkOnboardingStatus]);
 
   // 예약된 알림 백그라운드 체크 (1분마다)
   useScheduledNotifications();
@@ -85,6 +114,9 @@ function App() {
         {/* 공개 라우트 (로그인/회원가입) */}
         <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
         <Route path="/signup" element={<PublicRoute><SignUpPage /></PublicRoute>} />
+
+        {/* 온보딩 라우트 */}
+        <Route path="/onboarding" element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
 
         {/* 보호된 라우트 */}
         <Route path="/" element={<ProtectedRoute><TodayPage /></ProtectedRoute>} />

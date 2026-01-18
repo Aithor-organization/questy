@@ -6,6 +6,7 @@
 // 인증 페이지
 export { LoginPage } from './LoginPage';
 export { SignUpPage } from './SignUpPage';
+export { OnboardingPage } from './OnboardingPage';
 export { MyPage } from './MyPage';
 export { InquiryPage } from './InquiryPage';
 

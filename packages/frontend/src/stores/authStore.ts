@@ -15,6 +15,7 @@ export interface User {
   name: string;
   studentId: string | null;
   isAdmin?: boolean;
+  onboardingCompleted?: boolean;
 }
 
 interface AuthStore {
@@ -35,6 +36,8 @@ interface AuthStore {
   initializeAuth: () => Promise<void>;
   updateProfile: (updates: { name?: string; password?: string }) => Promise<{ success: boolean; error?: string }>;
   syncName: (name: string) => void;
+  checkOnboardingStatus: () => Promise<boolean>;
+  setOnboardingCompleted: (completed: boolean) => void;
 }
 
 // Supabase User를 앱 User로 변환
@@ -532,6 +535,43 @@ export const useAuthStore = create<AuthStore>()(
         if (currentUser && currentUser.name !== name) {
           console.log('[Auth] 이름 동기화:', currentUser.name, '→', name);
           set({ user: { ...currentUser, name } });
+        }
+      },
+
+      // 온보딩 완료 여부 확인
+      checkOnboardingStatus: async () => {
+        const currentUser = get().user;
+        if (!currentUser || !supabase) {
+          return false;
+        }
+
+        try {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('onboarding_completed')
+            .eq('id', currentUser.id)
+            .single();
+
+          if (error) {
+            // 프로필이 없으면 온보딩 미완료
+            console.log('[Auth] No profile found, onboarding needed');
+            return false;
+          }
+
+          const completed = data?.onboarding_completed || false;
+          set({ user: { ...currentUser, onboardingCompleted: completed } });
+          return completed;
+        } catch (err) {
+          console.error('[Auth] Check onboarding error:', err);
+          return false;
+        }
+      },
+
+      // 온보딩 완료 상태 설정
+      setOnboardingCompleted: (completed: boolean) => {
+        const currentUser = get().user;
+        if (currentUser) {
+          set({ user: { ...currentUser, onboardingCompleted: completed } });
         }
       },
     }),
