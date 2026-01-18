@@ -9,7 +9,6 @@ import {
   UserX,
   Clock,
   CheckCircle,
-  XCircle,
   AlertCircle,
   RefreshCw,
   Search,
@@ -17,13 +16,6 @@ import {
 import type { UserMembership, MembershipType, MembershipStatus } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-// 멤버십 타입 라벨
-const membershipTypeLabels: Record<MembershipType, string> = {
-  pending: '승인 대기',
-  beta_tester: '베타테스터',
-  lab_member: '실험단',
-};
 
 // 멤버십 상태 라벨
 const membershipStatusLabels: Record<MembershipStatus, string> = {
@@ -79,12 +71,12 @@ export function UsersView() {
     fetchUsers();
   }, [fetchUsers]);
 
-  // 멤버십 승인
+  // 멤버십 변경 (대기자/베타테스터/실험단)
   const approveUser = async (userId: string, membershipType: MembershipType) => {
     setApproving(userId);
 
     try {
-      const response = await fetch(`${API_URL}/api/admin/users/${userId}/approve`, {
+      const response = await fetch(`${API_URL}/api/admin/users/${userId}/membership`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,42 +88,13 @@ export function UsersView() {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '승인 실패');
+        throw new Error(data.error || '멤버십 변경 실패');
       }
 
       // 목록 새로고침
       fetchUsers();
     } catch (err: any) {
-      setError(err.message || '승인에 실패했습니다');
-    } finally {
-      setApproving(null);
-    }
-  };
-
-  // 멤버십 철회
-  const revokeUser = async (userId: string) => {
-    if (!confirm('정말 멤버십을 철회하시겠습니까?')) return;
-
-    setApproving(userId);
-
-    try {
-      const response = await fetch(`${API_URL}/api/admin/users/${userId}/revoke`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token') || ''}`,
-        },
-      });
-
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error(data.error || '철회 실패');
-      }
-
-      fetchUsers();
-    } catch (err: any) {
-      setError(err.message || '철회에 실패했습니다');
+      setError(err.message || '멤버십 변경에 실패했습니다');
     } finally {
       setApproving(null);
     }
@@ -260,7 +223,6 @@ export function UsersView() {
               key={user.id}
               user={user}
               onApprove={approveUser}
-              onRevoke={revokeUser}
               isLoading={approving === user.id}
             />
           ))}
@@ -274,18 +236,20 @@ export function UsersView() {
 function UserCard({
   user,
   onApprove,
-  onRevoke,
   isLoading,
 }: {
   user: UserMembership;
   onApprove: (userId: string, type: MembershipType) => void;
-  onRevoke: (userId: string) => void;
   isLoading: boolean;
 }) {
-  const [showApproveOptions, setShowApproveOptions] = useState(false);
   const membership = user.membership;
   const status = membership?.status || 'pending';
-  const type = membership?.type || 'pending';
+  const currentType = membership?.type || 'pending';
+
+  // 선택된 멤버십 타입 (현재 상태로 초기화)
+  const [selectedType, setSelectedType] = useState<MembershipType>(currentType);
+  // 변경 여부 확인
+  const hasChanges = selectedType !== currentType;
 
   // 남은 일수 계산
   const getRemainingDays = () => {
@@ -299,86 +263,101 @@ function UserCard({
 
   const remainingDays = getRemainingDays();
 
+  // 멤버십 타입 버튼 스타일
+  const getMembershipButtonStyle = (type: MembershipType) => {
+    const isSelected = selectedType === type;
+    const baseStyle = 'px-3 py-1.5 rounded-lg text-xs font-medium transition-all border-2';
+
+    if (type === 'pending') {
+      return `${baseStyle} ${isSelected
+        ? 'bg-yellow-500 text-white border-yellow-500'
+        : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:border-yellow-400'}`;
+    }
+    if (type === 'beta_tester') {
+      return `${baseStyle} ${isSelected
+        ? 'bg-blue-500 text-white border-blue-500'
+        : 'bg-blue-50 text-blue-700 border-blue-200 hover:border-blue-400'}`;
+    }
+    if (type === 'lab_member') {
+      return `${baseStyle} ${isSelected
+        ? 'bg-purple-500 text-white border-purple-500'
+        : 'bg-purple-50 text-purple-700 border-purple-200 hover:border-purple-400'}`;
+    }
+    return baseStyle;
+  };
+
   return (
     <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h3 className="font-medium text-gray-800 truncate">{user.name}</h3>
-            <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[status]}`}>
-              {membershipStatusLabels[status]}
-            </span>
-            {type !== 'pending' && (
-              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                {membershipTypeLabels[type]}
+      <div className="flex flex-col gap-3">
+        {/* 사용자 정보 */}
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-1">
+              <h3 className="font-medium text-gray-800 truncate">{user.name}</h3>
+              <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[status]}`}>
+                {membershipStatusLabels[status]}
               </span>
-            )}
-          </div>
+            </div>
 
-          {user.email && (
-            <p className="text-sm text-gray-500 truncate">{user.email}</p>
-          )}
+            {user.email && (
+              <p className="text-sm text-gray-500 truncate">{user.email}</p>
+            )}
 
-          <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
-            <span>가입: {new Date(user.createdAt).toLocaleDateString('ko-KR')}</span>
-            {membership?.approvedAt && (
-              <span>승인: {new Date(membership.approvedAt).toLocaleDateString('ko-KR')}</span>
-            )}
-            {remainingDays !== null && (
-              <span className={remainingDays <= 2 ? 'text-red-500' : ''}>
-                <Clock size={12} className="inline mr-1" />
-                {remainingDays > 0 ? `${remainingDays}일 남음` : '만료됨'}
-              </span>
-            )}
+            <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+              <span>가입: {new Date(user.createdAt).toLocaleDateString('ko-KR')}</span>
+              {membership?.approvedAt && (
+                <span>승인: {new Date(membership.approvedAt).toLocaleDateString('ko-KR')}</span>
+              )}
+              {remainingDays !== null && currentType === 'beta_tester' && (
+                <span className={remainingDays <= 2 ? 'text-red-500' : ''}>
+                  <Clock size={12} className="inline mr-1" />
+                  {remainingDays > 0 ? `${remainingDays}일 남음` : '만료됨'}
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
-        {/* 액션 버튼 */}
-        <div className="flex items-center gap-2">
-          {isLoading ? (
-            <Loader2 size={20} className="animate-spin text-blue-500" />
-          ) : status === 'pending' ? (
-            <div className="relative">
-              <button
-                onClick={() => setShowApproveOptions(!showApproveOptions)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors"
-              >
-                <CheckCircle size={16} />
-                승인
-              </button>
+        {/* 멤버십 선택 버튼 */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-gray-500 mr-1">멤버십:</span>
+          <button
+            onClick={() => setSelectedType('pending')}
+            className={getMembershipButtonStyle('pending')}
+            disabled={isLoading}
+          >
+            대기자
+          </button>
+          <button
+            onClick={() => setSelectedType('beta_tester')}
+            className={getMembershipButtonStyle('beta_tester')}
+            disabled={isLoading}
+          >
+            베타테스터 (7일)
+          </button>
+          <button
+            onClick={() => setSelectedType('lab_member')}
+            className={getMembershipButtonStyle('lab_member')}
+            disabled={isLoading}
+          >
+            실험단
+          </button>
 
-              {showApproveOptions && (
-                <div className="absolute right-0 top-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-10 min-w-[140px]">
-                  <button
-                    onClick={() => {
-                      onApprove(user.id, 'beta_tester');
-                      setShowApproveOptions(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 rounded-t-lg"
-                  >
-                    베타테스터 (7일)
-                  </button>
-                  <button
-                    onClick={() => {
-                      onApprove(user.id, 'lab_member');
-                      setShowApproveOptions(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-gray-50 rounded-b-lg"
-                  >
-                    실험단 (무기한)
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : status === 'active' ? (
+          {/* 적용 버튼 */}
+          {hasChanges && (
             <button
-              onClick={() => onRevoke(user.id)}
-              className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-600 rounded-lg text-sm font-medium hover:bg-red-200 transition-colors"
+              onClick={() => onApprove(user.id, selectedType)}
+              disabled={isLoading}
+              className="ml-auto flex items-center gap-1 px-4 py-1.5 bg-green-500 text-white rounded-lg text-sm font-medium hover:bg-green-600 transition-colors disabled:opacity-50"
             >
-              <XCircle size={16} />
-              철회
+              {isLoading ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <CheckCircle size={14} />
+              )}
+              적용
             </button>
-          ) : null}
+          )}
         </div>
       </div>
     </div>

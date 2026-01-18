@@ -145,7 +145,110 @@ adminUsersRoutes.get('/users', async (c) => {
 });
 
 /**
- * 멤버십 승인
+ * 멤버십 변경 (대기자/베타테스터/실험단)
+ * POST /api/admin/users/:userId/membership
+ */
+adminUsersRoutes.post('/users/:userId/membership', async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    const userId = c.req.param('userId');
+    const body = await c.req.json();
+    const { membershipType, adminNote } = body as {
+      membershipType: MembershipType;
+      adminNote?: string;
+    };
+
+    // 유효한 멤버십 유형 확인
+    if (!['pending', 'beta_tester', 'lab_member'].includes(membershipType)) {
+      return c.json({ success: false, error: '유효하지 않은 멤버십 유형입니다' }, 400);
+    }
+
+    const now = new Date().toISOString();
+
+    // 멤버십 타입에 따른 설정
+    let status: MembershipStatus;
+    let expiresAt: string | null = null;
+    let approvedAt: string | null = null;
+
+    if (membershipType === 'pending') {
+      // 대기자로 변경 (강등)
+      status = 'pending';
+      expiresAt = null;
+      approvedAt = null;
+    } else if (membershipType === 'beta_tester') {
+      // 베타테스터 (7일)
+      status = 'active';
+      expiresAt = calculateBetaTesterExpiry();
+      approvedAt = now;
+    } else {
+      // 실험단 (무기한)
+      status = 'active';
+      expiresAt = null;
+      approvedAt = now;
+    }
+
+    // 멤버십 업데이트
+    const { data, error } = await supabase
+      .from('user_memberships')
+      .update({
+        membership_type: membershipType,
+        status,
+        approved_at: approvedAt,
+        expires_at: expiresAt,
+        admin_note: adminNote || null,
+        updated_at: now,
+      })
+      .eq('user_id', userId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[AdminUsers] Membership update error:', error);
+      return c.json({ success: false, error: '멤버십 변경 실패' }, 500);
+    }
+
+    console.log(`[AdminUsers] Membership changed: ${userId} -> ${membershipType} (${status})`);
+
+    // 베타테스터/실험단 승인 시 알림 이메일 발송
+    if (membershipType !== 'pending') {
+      try {
+        const { data: userData } = await supabase.auth.admin.getUserById(userId);
+        if (userData?.user?.email) {
+          console.log(`[AdminUsers] Sending approval notification to: ${userData.user.email}`);
+          await supabase.auth.admin.generateLink({
+            type: 'magiclink',
+            email: userData.user.email,
+            options: {
+              redirectTo: `${process.env.FRONTEND_URL || 'https://questybook.com'}/`,
+            },
+          });
+        }
+      } catch (emailError) {
+        console.warn('[AdminUsers] Email notification failed:', emailError);
+      }
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        userId,
+        membershipType,
+        status,
+        approvedAt,
+        expiresAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('[AdminUsers] Membership change error:', error);
+    return c.json({ success: false, error: error.message || '멤버십 변경 실패' }, 500);
+  }
+});
+
+/**
+ * 멤버십 승인 (레거시 호환용)
  * POST /api/admin/users/:userId/approve
  */
 adminUsersRoutes.post('/users/:userId/approve', async (c) => {
@@ -190,40 +293,6 @@ adminUsersRoutes.post('/users/:userId/approve', async (c) => {
     }
 
     console.log(`[AdminUsers] Approved: ${userId} as ${membershipType}`);
-
-    // 사용자 이메일 조회 및 승인 알림 이메일 발송
-    let userEmail = '';
-    try {
-      // Supabase Admin API로 사용자 정보 조회
-      const { data: userData, error: userError } = await supabase.auth.admin.getUserById(userId);
-
-      if (userError || !userData?.user?.email) {
-        console.warn('[AdminUsers] Failed to get user email:', userError?.message);
-      } else {
-        userEmail = userData.user.email;
-        console.log(`[AdminUsers] Sending approval notification to: ${userEmail}`);
-
-        // 승인 완료 마법 링크 생성 및 발송
-        // Supabase의 magiclink 이메일 발송
-        const { error: magicLinkError } = await supabase.auth.admin.generateLink({
-          type: 'magiclink',
-          email: userEmail,
-          options: {
-            redirectTo: `${process.env.FRONTEND_URL || 'https://questybook.com'}/`,
-          },
-        });
-
-        if (magicLinkError) {
-          console.warn('[AdminUsers] Magic link generation warning:', magicLinkError.message);
-          // 대안: 일반 이메일 발송 서비스 사용 가능
-        } else {
-          console.log(`[AdminUsers] Approval email sent to: ${userEmail}`);
-        }
-      }
-    } catch (emailError) {
-      console.warn('[AdminUsers] Email notification failed:', emailError);
-      // 이메일 발송 실패해도 승인은 완료
-    }
 
     return c.json({
       success: true,
@@ -343,6 +412,8 @@ adminUsersRoutes.get('/membership/status', async (c) => {
     // 만료 여부 확인 및 남은 일수 계산
     let isExpired = false;
     let remainingDays: number | null = null;
+    let currentType = membership.membership_type;
+    let currentStatus = membership.status;
 
     if (membership.expires_at) {
       const expiresAt = new Date(membership.expires_at);
@@ -355,22 +426,31 @@ adminUsersRoutes.get('/membership/status', async (c) => {
       }
     }
 
-    // 만료된 경우 상태 업데이트
-    if (isExpired && membership.status === 'active') {
+    // 만료된 베타테스터는 대기자로 강등
+    if (isExpired && membership.status === 'active' && membership.membership_type === 'beta_tester') {
       await supabase
         .from('user_memberships')
-        .update({ status: 'expired', updated_at: new Date().toISOString() })
+        .update({
+          membership_type: 'pending',
+          status: 'pending',
+          expires_at: null,
+          updated_at: new Date().toISOString(),
+        })
         .eq('user_id', user.id);
+
+      currentType = 'pending';
+      currentStatus = 'pending';
+      console.log(`[AdminUsers] Beta tester expired, demoted to pending: ${user.id}`);
     }
 
     return c.json({
       success: true,
       data: {
-        type: membership.membership_type,
-        status: isExpired ? 'expired' : membership.status,
+        type: currentType,
+        status: currentStatus,
         approvedAt: membership.approved_at,
         expiresAt: membership.expires_at,
-        remainingDays,
+        remainingDays: isExpired ? null : remainingDays,
         isExpired,
       },
     });
