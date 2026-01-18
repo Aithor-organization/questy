@@ -167,6 +167,7 @@ function setupAuthStateListener(set: SetState): void {
 
     if (event === 'SIGNED_IN' && newSession?.user) {
       let studentId: string | null = null;
+      let isNewUser = false; // 신규 사용자 여부 추적
       try {
         const { data: student } = await client
           .from('students')
@@ -176,6 +177,7 @@ function setupAuthStateListener(set: SetState): void {
 
         if (!student) {
           // 새 사용자: students 레코드 생성
+          isNewUser = true;
           const userName = newSession.user.user_metadata?.name ||
                            newSession.user.email?.split('@')[0] || '학생';
           const { data: newStudent } = await client
@@ -184,6 +186,14 @@ function setupAuthStateListener(set: SetState): void {
             .select('id')
             .single();
           studentId = newStudent?.id || null;
+
+          // 신규 사용자: student_progress 초기화 (이메일 회원가입과 동일)
+          if (studentId) {
+            await client.from('student_progress').insert({
+              student_id: studentId,
+            });
+            console.log('[Auth] New OAuth user: student_progress created');
+          }
         } else {
           studentId = student.id;
         }
@@ -192,6 +202,10 @@ function setupAuthStateListener(set: SetState): void {
       }
 
       const user = mapSupabaseUser(newSession.user, studentId || undefined);
+      // 신규 사용자는 온보딩 미완료 상태로 설정
+      if (isNewUser) {
+        user.onboardingCompleted = false;
+      }
       set({
         user,
         session: newSession,
