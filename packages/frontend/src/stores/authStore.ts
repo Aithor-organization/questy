@@ -479,11 +479,10 @@ export const useAuthStore = create<AuthStore>()(
         set({ user: null, session: null, isAuthenticated: false, error: null });
         localStorage.removeItem('questybook_student_id');
         localStorage.removeItem('questybook_student_name');
-        // 채팅 데이터 삭제 (사용자별 데이터 격리)
-        localStorage.removeItem('questybook-chat-storage-v2');
-        localStorage.removeItem('questybook-quest-storage');
-        // 마지막 사용자 ID 삭제 (다음 로그인 시 사용자 변경 감지)
-        localStorage.removeItem('questybook_last_user_id');
+        // 사용자별 데이터 격리 - 로그아웃 시 모든 캐시 삭제
+        localStorage.removeItem('questybook-chat-storage-v2');  // 채팅 데이터
+        localStorage.removeItem('questybook-storage');          // 퀘스트 데이터
+        localStorage.removeItem('questybook_last_user_id');     // 마지막 사용자 ID
       },
 
       clearError: () => {
