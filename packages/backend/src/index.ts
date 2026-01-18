@@ -1,5 +1,5 @@
 // QuestyBook Backend Server
-// Build: 2026-01-18-v3 - Include questyCoachAgent in Docker build
+// Build: 2026-01-18-v4 - Fix TypeScript error in coach-agent
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';

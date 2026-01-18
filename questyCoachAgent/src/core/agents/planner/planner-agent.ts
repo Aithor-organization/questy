@@ -166,7 +166,7 @@ export class PlannerAgent extends BaseAgent {
   async recordPlanPerformance(
     performance: Omit<PlanPerformanceMemory, 'id' | 'type' | 'createdAt'>
   ): Promise<void> {
-    return recordPlanPerformance(performance);
+    await recordPlanPerformance(performance);
   }
 }
 
