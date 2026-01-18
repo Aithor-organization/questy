@@ -21,10 +21,12 @@
     "hono": "^4.7.10",
     "iconv-lite": "^0.6.3",
     "openai": "^4.103.0",
+    "uuid": "^11.1.0",
     "zod": "^3.25.67"
   },
   "devDependencies": {
     "@types/node": "^24.10.1",
+    "@types/uuid": "^10.0.0",
     "drizzle-kit": "^0.31.8",
     "eslint": "^9.39.1",
     "tsup": "^8.5.0",

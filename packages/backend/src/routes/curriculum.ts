@@ -2,9 +2,6 @@
 // 로컬 DB를 사용한 인강 강좌 검색 및 퀘스트 생성
 
 import { Hono } from 'hono';
-import { spawn } from 'child_process';
-import path from 'path';
-import { fileURLToPath } from 'url';
 import {
   searchCourses as searchCoursesFromDB,
   getCourse,
@@ -14,71 +11,13 @@ import {
 import { getMegastudyCrawler } from '../crawlers/index.js';
 import { detectCompletion } from '../crawlers/megastudy/models.js';
 import { getCurriculumUpdater } from '../services/curriculum-updater.js';
+import {
+  createCurriculumAgentService,
+  type CourseContent,
+  type ExistingPlan,
+} from '../services/curriculum-agent/index.js';
 
 export const curriculumRoutes = new Hono();
-
-// ES Modules에서 __dirname 대체
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Python 에이전트 호출 헬퍼
-async function callPythonAgent(action: string, params: object): Promise<any> {
-  return new Promise((resolve, reject) => {
-    // Python 경로 탐색 (Railway/Nix 환경 지원)
-    const pythonPath = process.env.PYTHON_PATH || 'python3';
-    const agentDir = path.resolve(__dirname, '../../../curriculum-agent');
-    const agentScript = path.join(agentDir, 'main.py');
-
-    console.log(`[curriculum] Calling Python agent: ${action}`);
-    console.log(`[curriculum] Python path: ${pythonPath}`);
-    console.log(`[curriculum] Agent path: ${agentScript}`);
-
-    const proc = spawn(pythonPath, [
-      agentScript,
-      '--action', action,
-      '--params', JSON.stringify(params)
-    ], {
-      cwd: agentDir,
-      env: { ...process.env }
-    });
-
-    let stdout = '';
-    let stderr = '';
-
-    proc.stdout.on('data', (data) => {
-      stdout += data.toString();
-    });
-
-    proc.stderr.on('data', (data) => {
-      stderr += data.toString();
-      // Python 경고 로그 (info level)
-      if (!stderr.includes('Error') && !stderr.includes('error')) {
-        console.log(`[curriculum] Python info: ${data.toString().trim()}`);
-      }
-    });
-
-    proc.on('close', (code) => {
-      if (code === 0) {
-        try {
-          // JSON 응답 파싱
-          const result = JSON.parse(stdout);
-          resolve(result);
-        } catch (parseError) {
-          console.error('[curriculum] JSON parse error:', parseError);
-          resolve({ raw: stdout });
-        }
-      } else {
-        console.error(`[curriculum] Python error (code ${code}):`, stderr);
-        reject(new Error(stderr || `Process exited with code ${code}`));
-      }
-    });
-
-    proc.on('error', (err) => {
-      console.error('[curriculum] Spawn error:', err);
-      reject(err);
-    });
-  });
-}
 
 // 1. 강좌 검색 API (Bun: SQLite, Node.js: Supabase)
 curriculumRoutes.post('/search-courses', async (c) => {
@@ -193,36 +132,35 @@ curriculumRoutes.post('/generate-quests', async (c) => {
       }, 400);
     }
 
-    const result = await callPythonAgent('generate_quests', {
-      course_ids: selectedCourseIds || [],
-      course_contents: courseContents || [],
-      target_date: targetDate,
-      daily_study_hours: dailyStudyHours || 10,  // 기본 10시간
-      subject_ratio: subjectRatio || {
+    // TypeScript 커리큘럼 에이전트 서비스 사용
+    const agentService = createCurriculumAgentService();
+    const result = agentService.generateQuests({
+      courseIds: selectedCourseIds || [],
+      courseContents: (courseContents || []) as CourseContent[],
+      targetDate,
+      dailyStudyHours: dailyStudyHours || 10,
+      subjectRatio: subjectRatio || {
         '국어': 20,
         '영어': 25,
         '수학': 35,
         '한국사': 5,
-        '탐구': 15
+        '탐구': 15,
       },
-      // 새로운 옵션들 전달
-      subject_hours: subjectHours || null,
-      options: options || {
-        include_ot: false,
-        review_settings: {
-          enabled: true,
-          same_day_review: true,
-          review_duration: 15,
+      subjectHours: subjectHours || undefined,
+      options: {
+        includeOt: options?.includeOT ?? options?.include_ot ?? false,
+        reviewSettings: {
+          enabled: options?.reviewSettings?.enabled ?? true,
+          sameDayReview: options?.reviewSettings?.same_day_review ?? options?.reviewSettings?.sameDayReview ?? true,
+          reviewDuration: options?.reviewSettings?.review_duration ?? options?.reviewSettings?.reviewDuration ?? 15,
         },
-        custom_schedule: [],
+        customSchedule: options?.customSchedule || options?.custom_schedule || [],
       },
-      // 학습 전략 옵션 (PlannerAgent 전략 통합)
-      learning_strategies: learningStrategies || {
-        apply_buffer: true,     // 80% 법칙: 가용 시간의 80%만 계획
-        five_day_cycle: false,  // 5일 단위 운영법
+      learningStrategies: {
+        applyBuffer: learningStrategies?.applyBuffer ?? learningStrategies?.apply_buffer ?? true,
+        fiveDayCycle: learningStrategies?.fiveDayCycle ?? learningStrategies?.five_day_cycle ?? false,
       },
-      // 기존 플랜 정보 (가용 시간 계산용)
-      existing_plans: existingPlans || [],
+      existingPlans: (existingPlans || []) as ExistingPlan[],
     });
 
     if (!result.success) {
@@ -264,13 +202,14 @@ curriculumRoutes.post('/reschedule', async (c) => {
     console.log(`[curriculum] Reschedule: ${questIds?.length || 0} quests, strategy=${strategy}`);
     console.log(`[curriculum] Existing plans for reschedule: ${existingPlans?.length || 0} plans`);
 
-    const result = await callPythonAgent('reschedule_quests', {
-      quest_ids: questIds || [],
-      target_date: targetDate,
-      daily_study_hours: dailyStudyHours || 10,  // 기본 10시간
+    // TypeScript 커리큘럼 에이전트 서비스 사용
+    const agentService = createCurriculumAgentService();
+    const result = agentService.rescheduleQuests({
+      questIds: questIds || [],
+      targetDate,
+      dailyStudyHours: dailyStudyHours || 10,
       strategy,
-      // 다른 플랜 정보 전달 (스마트 스케줄링)
-      existing_plans: existingPlans || [],
+      existingPlans: (existingPlans || []) as ExistingPlan[],
     });
 
     if (!result.success) {
