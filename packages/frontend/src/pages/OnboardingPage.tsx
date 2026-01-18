@@ -9,8 +9,25 @@ import { ChevronRight, ChevronLeft, Sparkles, User, Target, BookOpen, Clock } fr
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 
-// 과목 목록
-const SUBJECTS = ['국어', '수학', '영어', '한국사', '탐구1', '탐구2'] as const;
+// authStore에서 setOnboardingCompleted 직접 접근용
+const getSetOnboardingCompleted = () => useAuthStore.getState().setOnboardingCompleted;
+
+// 고정 과목 (필수)
+const FIXED_SUBJECTS = ['국어', '수학', '영어', '한국사'] as const;
+
+// 탐구 과목 옵션
+const SOCIAL_SUBJECTS = [
+  '생활과윤리', '윤리와사상', '한국지리', '세계지리',
+  '동아시아사', '세계사', '경제', '정치와법', '사회문화'
+] as const;
+
+const SCIENCE_SUBJECTS = [
+  '물리학Ⅰ', '물리학Ⅱ', '화학Ⅰ', '화학Ⅱ',
+  '생명과학Ⅰ', '생명과학Ⅱ', '지구과학Ⅰ', '지구과학Ⅱ'
+] as const;
+
+// ALL_TAMGU_SUBJECTS는 추후 확장용으로 유지
+// const ALL_TAMGU_SUBJECTS = [...SOCIAL_SUBJECTS, ...SCIENCE_SUBJECTS];
 
 // 등급 옵션
 const GRADES = [1, 2, 3, 4, 5, 6, 7, 8, 9] as const;
@@ -41,6 +58,8 @@ interface OnboardingData {
   targetUniversity: string;
   targetGrades: Record<string, number>;
   currentGrades: Record<string, number>;
+  selectedTamgu1: string; // 탐구1 선택 과목
+  selectedTamgu2: string; // 탐구2 선택 과목
   subscribedPlatforms: string[];
   dailyStudyHours: number;
 }
@@ -51,6 +70,8 @@ const INITIAL_DATA: OnboardingData = {
   targetUniversity: '',
   targetGrades: {},
   currentGrades: {},
+  selectedTamgu1: '',
+  selectedTamgu2: '',
   subscribedPlatforms: [],
   dailyStudyHours: 8,
 };
@@ -65,15 +86,27 @@ export function OnboardingPage() {
 
   const totalSteps = 4;
 
+  // 선택된 과목 목록 (고정 과목 + 선택한 탐구)
+  const getSelectedSubjects = (): string[] => {
+    const subjects: string[] = [...FIXED_SUBJECTS];
+    if (data.selectedTamgu1) subjects.push(data.selectedTamgu1);
+    if (data.selectedTamgu2) subjects.push(data.selectedTamgu2);
+    return subjects;
+  };
+
   // 단계별 유효성 검사
   const isStepValid = (stepNum: number): boolean => {
     switch (stepNum) {
       case 1:
         return data.age !== null && data.age >= 15 && data.age <= 30;
       case 2:
-        return data.targetUniversity.trim().length > 0;
+        // 탐구 과목 2개 선택 + 필수 과목 등급 입력 (최소 4과목)
+        return data.selectedTamgu1 !== '' &&
+               data.selectedTamgu2 !== '' &&
+               data.selectedTamgu1 !== data.selectedTamgu2 &&
+               Object.keys(data.currentGrades).length >= 4;
       case 3:
-        return Object.keys(data.currentGrades).length >= 3; // 최소 3과목
+        return data.targetUniversity.trim().length > 0;
       case 4:
         return data.subscribedPlatforms.length > 0;
       default:
@@ -144,6 +177,8 @@ export function OnboardingPage() {
           target_university: data.targetUniversity,
           target_grades: data.targetGrades,
           current_grades: data.currentGrades,
+          selected_tamgu1: data.selectedTamgu1,
+          selected_tamgu2: data.selectedTamgu2,
           subscribed_platforms: data.subscribedPlatforms,
           daily_study_hours: data.dailyStudyHours,
           onboarding_completed: true,
@@ -156,7 +191,8 @@ export function OnboardingPage() {
         return;
       }
 
-      // 성공 - 메인 페이지로 이동
+      // 성공 - 로컬 상태 업데이트 후 메인 페이지로 이동
+      getSetOnboardingCompleted()(true);
       navigate('/', { replace: true });
     } catch (err) {
       console.error('[Onboarding] Error:', err);
@@ -251,8 +287,108 @@ export function OnboardingPage() {
               </div>
             )}
 
-            {/* Step 2: 목표 설정 */}
+            {/* Step 2: 현재 실력 (탐구 과목 선택 + 현재 등급) */}
             {step === 2 && (
+              <div className="space-y-5">
+                <div className="flex items-center gap-2 text-[var(--ink-blue)] font-medium mb-4">
+                  <BookOpen className="w-5 h-5" />
+                  <span>현재 실력</span>
+                </div>
+
+                {/* 탐구 과목 선택 */}
+                <div>
+                  <label className="block text-sm font-medium text-[var(--ink-black)] mb-2">
+                    탐구 과목 선택
+                  </label>
+                  <p className="text-xs text-[var(--pencil-gray)] mb-3">
+                    응시할 탐구 과목 2개를 선택해주세요
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs text-[var(--pencil-gray)] mb-1">탐구 1</label>
+                      <select
+                        value={data.selectedTamgu1}
+                        onChange={(e) => setData(prev => ({ ...prev, selectedTamgu1: e.target.value }))}
+                        className="w-full px-3 py-2 border-2 border-[var(--paper-lines)] rounded-lg bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none text-sm"
+                      >
+                        <option value="">선택하세요</option>
+                        <optgroup label="사회탐구">
+                          {SOCIAL_SUBJECTS.map(subj => (
+                            <option key={subj} value={subj} disabled={subj === data.selectedTamgu2}>
+                              {subj}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="과학탐구">
+                          {SCIENCE_SUBJECTS.map(subj => (
+                            <option key={subj} value={subj} disabled={subj === data.selectedTamgu2}>
+                              {subj}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs text-[var(--pencil-gray)] mb-1">탐구 2</label>
+                      <select
+                        value={data.selectedTamgu2}
+                        onChange={(e) => setData(prev => ({ ...prev, selectedTamgu2: e.target.value }))}
+                        className="w-full px-3 py-2 border-2 border-[var(--paper-lines)] rounded-lg bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none text-sm"
+                      >
+                        <option value="">선택하세요</option>
+                        <optgroup label="사회탐구">
+                          {SOCIAL_SUBJECTS.map(subj => (
+                            <option key={subj} value={subj} disabled={subj === data.selectedTamgu1}>
+                              {subj}
+                            </option>
+                          ))}
+                        </optgroup>
+                        <optgroup label="과학탐구">
+                          {SCIENCE_SUBJECTS.map(subj => (
+                            <option key={subj} value={subj} disabled={subj === data.selectedTamgu1}>
+                              {subj}
+                            </option>
+                          ))}
+                        </optgroup>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 현재 등급 */}
+                <div>
+                  <label className="block text-sm font-medium text-[var(--ink-black)] mb-2">
+                    현재 등급 (최근 모의고사 기준)
+                  </label>
+                  <div className="space-y-2">
+                    {getSelectedSubjects().map(subject => (
+                      <div key={subject} className="flex items-center gap-3">
+                        <span className="w-20 text-sm text-[var(--pencil-gray)] truncate">{subject}</span>
+                        <div className="flex gap-1 flex-wrap">
+                          {GRADES.map(grade => (
+                            <button
+                              key={grade}
+                              type="button"
+                              onClick={() => handleGradeChange('current', subject, grade)}
+                              className={`w-8 h-8 rounded-full text-xs font-medium transition-all ${
+                                data.currentGrades[subject] === grade
+                                  ? 'bg-[var(--sticker-coral)] text-white'
+                                  : 'bg-[var(--paper-cream)] border border-[var(--paper-lines)] hover:border-[var(--pencil-gray)]'
+                              }`}
+                            >
+                              {grade}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Step 3: 목표 설정 */}
+            {step === 3 && (
               <div className="space-y-5">
                 <div className="flex items-center gap-2 text-[var(--ink-blue)] font-medium mb-4">
                   <Target className="w-5 h-5" />
@@ -278,10 +414,13 @@ export function OnboardingPage() {
                   <label className="block text-sm font-medium text-[var(--ink-black)] mb-2">
                     목표 등급 (과목별)
                   </label>
+                  <p className="text-xs text-[var(--pencil-gray)] mb-3">
+                    선택한 과목: {getSelectedSubjects().join(', ')}
+                  </p>
                   <div className="space-y-2">
-                    {SUBJECTS.map(subject => (
+                    {getSelectedSubjects().map(subject => (
                       <div key={subject} className="flex items-center gap-3">
-                        <span className="w-16 text-sm text-[var(--pencil-gray)]">{subject}</span>
+                        <span className="w-20 text-sm text-[var(--pencil-gray)] truncate">{subject}</span>
                         <div className="flex gap-1 flex-wrap">
                           {GRADES.map(grade => (
                             <button
@@ -291,49 +430,6 @@ export function OnboardingPage() {
                               className={`w-8 h-8 rounded-full text-xs font-medium transition-all ${
                                 data.targetGrades[subject] === grade
                                   ? 'bg-[var(--sticker-mint)] text-white'
-                                  : 'bg-[var(--paper-cream)] border border-[var(--paper-lines)] hover:border-[var(--pencil-gray)]'
-                              }`}
-                            >
-                              {grade}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Step 3: 현재 실력 */}
-            {step === 3 && (
-              <div className="space-y-5">
-                <div className="flex items-center gap-2 text-[var(--ink-blue)] font-medium mb-4">
-                  <BookOpen className="w-5 h-5" />
-                  <span>현재 실력</span>
-                </div>
-
-                {/* 현재 등급 */}
-                <div>
-                  <label className="block text-sm font-medium text-[var(--ink-black)] mb-2">
-                    현재 등급 (최근 모의고사 기준)
-                  </label>
-                  <p className="text-xs text-[var(--pencil-gray)] mb-3">
-                    최소 3과목 이상 선택해주세요
-                  </p>
-                  <div className="space-y-2">
-                    {SUBJECTS.map(subject => (
-                      <div key={subject} className="flex items-center gap-3">
-                        <span className="w-16 text-sm text-[var(--pencil-gray)]">{subject}</span>
-                        <div className="flex gap-1 flex-wrap">
-                          {GRADES.map(grade => (
-                            <button
-                              key={grade}
-                              type="button"
-                              onClick={() => handleGradeChange('current', subject, grade)}
-                              className={`w-8 h-8 rounded-full text-xs font-medium transition-all ${
-                                data.currentGrades[subject] === grade
-                                  ? 'bg-[var(--sticker-coral)] text-white'
                                   : 'bg-[var(--paper-cream)] border border-[var(--paper-lines)] hover:border-[var(--pencil-gray)]'
                               }`}
                             >

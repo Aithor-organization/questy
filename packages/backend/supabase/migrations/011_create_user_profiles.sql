@@ -8,10 +8,14 @@ CREATE TABLE IF NOT EXISTS public.user_profiles (
   age INTEGER,
   exam_year INTEGER DEFAULT 0,  -- 0=현역, 1=재수, 2=삼수, 3=그 이상
 
+  -- 과목 선택
+  selected_tamgu1 TEXT,  -- 탐구1 선택 과목 (예: '생활과윤리', '물리학Ⅰ')
+  selected_tamgu2 TEXT,  -- 탐구2 선택 과목
+
   -- 목표 정보
   target_university TEXT,
-  target_grades JSONB DEFAULT '{}',  -- {"국어": 1, "수학": 1, "영어": 2, ...}
-  current_grades JSONB DEFAULT '{}', -- {"국어": 3, "수학": 2, "영어": 3, ...}
+  target_grades JSONB DEFAULT '{}',  -- {"국어": 1, "수학": 1, "생활과윤리": 2, ...}
+  current_grades JSONB DEFAULT '{}', -- {"국어": 3, "수학": 2, "생활과윤리": 3, ...}
 
   -- 학습 환경
   subscribed_platforms TEXT[] DEFAULT '{}',  -- ['megastudy', 'etoos', 'daesung', ...]
@@ -66,6 +70,8 @@ CREATE TRIGGER trigger_user_profiles_updated_at
 -- 코멘트
 COMMENT ON TABLE public.user_profiles IS '사용자 프로필 (온보딩 정보)';
 COMMENT ON COLUMN public.user_profiles.exam_year IS 'N수생 여부: 0=현역, 1=재수, 2=삼수, 3=그 이상';
+COMMENT ON COLUMN public.user_profiles.selected_tamgu1 IS '탐구1 선택 과목';
+COMMENT ON COLUMN public.user_profiles.selected_tamgu2 IS '탐구2 선택 과목';
 COMMENT ON COLUMN public.user_profiles.target_grades IS '과목별 목표 등급 (JSON)';
 COMMENT ON COLUMN public.user_profiles.current_grades IS '과목별 현재 등급 (JSON)';
 COMMENT ON COLUMN public.user_profiles.subscribed_platforms IS '구독 중인 인강 사이트 목록';

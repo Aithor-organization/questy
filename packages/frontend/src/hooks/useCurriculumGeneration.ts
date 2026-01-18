@@ -2,10 +2,11 @@
 // 인강 강좌 검색 및 퀘스트 생성 (questStore 통합)
 // 강좌 검색: Supabase 직접 호출 (Railway 부하 감소)
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useQuestStore, type QuestPlan } from '../stores/questStore';
+import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../config';
 import type {
@@ -48,6 +49,7 @@ export function useCurriculumGeneration() {
   const navigate = useNavigate();
   const addPlan = useQuestStore((state) => state.addPlan);
   const existingPlans = useQuestStore((state) => state.plans);
+  const userId = useAuthStore((state) => state.user?.id);
 
   // 임시 상태 (Hook 내부에서 관리)
   const [searchResults, setSearchResults] = useState<Course[]>([]);
@@ -56,7 +58,38 @@ export function useCurriculumGeneration() {
   const [subjectHours, setSubjectHours] = useState<SubjectHours>(DEFAULT_SUBJECT_HOURS);
   const [curriculumOptions, setCurriculumOptions] = useState<CurriculumOptions>(DEFAULT_CURRICULUM_OPTIONS);
   const [targetDate, setTargetDate] = useState<string>('');
-  const [dailyStudyHours, setDailyStudyHours] = useState<number>(10);  // 기본 10시간
+  const [dailyStudyHours, setDailyStudyHours] = useState<number>(8);  // 기본값 (프로필에서 로드 전)
+  const [profileStudyHours, setProfileStudyHours] = useState<number>(8);  // 프로필에서 로드된 초기값 (reset용)
+
+  // 사용자 프로필에서 순공시간 로드
+  useEffect(() => {
+    async function loadUserStudyHours() {
+      if (!userId || !supabase) return;
+
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('daily_study_hours')
+          .eq('id', userId)
+          .single();
+
+        if (error) {
+          console.log('[useCurriculumGeneration] No profile found, using default');
+          return;
+        }
+
+        if (data?.daily_study_hours) {
+          console.log('[useCurriculumGeneration] Loaded study hours from profile:', data.daily_study_hours);
+          setDailyStudyHours(data.daily_study_hours);
+          setProfileStudyHours(data.daily_study_hours);  // 초기값 저장
+        }
+      } catch (err) {
+        console.error('[useCurriculumGeneration] Failed to load study hours:', err);
+      }
+    }
+
+    loadUserStudyHours();
+  }, [userId]);
   const [showTimeExceededWarning, setShowTimeExceededWarning] = useState(false);
   const [requiredHoursPerDay, setRequiredHoursPerDay] = useState<number>(0);
   const [generatedQuests, setGeneratedQuests] = useState<CurriculumQuest[]>([]);
@@ -449,12 +482,12 @@ export function useCurriculumGeneration() {
     setSubjectHours(DEFAULT_SUBJECT_HOURS);
     setCurriculumOptions(DEFAULT_CURRICULUM_OPTIONS);
     setTargetDate('');
-    setDailyStudyHours(10);
+    setDailyStudyHours(profileStudyHours);  // 프로필에서 로드된 값으로 리셋
     setShowTimeExceededWarning(false);
     setRequiredHoursPerDay(0);
     setGeneratedQuests([]);
     setQuestSummary(null);
-  }, []);
+  }, [profileStudyHours]);
 
   return {
     // 상태

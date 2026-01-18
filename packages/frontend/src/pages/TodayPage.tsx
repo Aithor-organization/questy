@@ -214,49 +214,6 @@ export function TodayPage() {
     }
   };
 
-  // 학습 리마인더 요청
-  const requestReminder = async () => {
-    if (!studentId) return;
-
-    // 오늘 완료되지 않은 첫 번째 퀘스트 찾기
-    const incompleteQuest = quests.find(q => !q.completed);
-    const questName = incompleteQuest?.unitTitle || '오늘의 학습';
-    const estimatedMinutes = incompleteQuest?.estimatedMinutes || 30;
-    const questId = incompleteQuest ? `${incompleteQuest.planId}-${incompleteQuest.day}` : 'default';
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/coach/students/${studentId}/reminder`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questId,
-          questName,
-          estimatedMinutes,
-          reminderType: 'first',
-        }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        // 채팅 페이지로 이동하면서 메시지 추가
-        addMessage(DEFAULT_ROOM_ID, {
-          role: 'assistant',
-          content: data.data.reminderMessage,
-          agentRole: 'COACH',
-        });
-        navigate('/chat/' + DEFAULT_ROOM_ID);
-      }
-    } catch (error) {
-      addMessage(DEFAULT_ROOM_ID, {
-        role: 'assistant',
-        content: `📚 ${studentName}님, 오늘의 퀘스트가 기다리고 있어요!\n\n작은 것부터 시작해볼까요? 한 문제만 풀어봐요! 💪`,
-        agentRole: 'COACH',
-      });
-      navigate('/chat/' + DEFAULT_ROOM_ID);
-    }
-  };
-
   // 위기 개입 요청
   const requestCrisisIntervention = async () => {
     if (!studentId) return;
@@ -876,25 +833,6 @@ export function TodayPage() {
           />
         )}
       </NotebookPage>
-
-      {/* 학습 시작 리마인더 (퀘스트가 있지만 하나도 완료 안됐을 때) */}
-      {isToday && quests.length > 0 && quests.every(q => !q.completed) && currentHour >= 10 && (
-        <div className="notebook-page-lined p-4 bg-[var(--highlight-yellow)] mt-4">
-          <div className="flex items-center gap-3">
-            <span className="text-2xl">⏰</span>
-            <div className="flex-1">
-              <p className="text-[var(--ink-black)] font-medium">아직 오늘 퀘스트를 시작 안 했어요!</p>
-              <p className="text-sm text-[var(--pencil-gray)]">작은 것부터 시작해볼까요?</p>
-            </div>
-            <button
-              onClick={requestReminder}
-              className="px-4 py-2 bg-[var(--ink-blue)] text-white rounded-lg text-sm"
-            >
-              동기부여 받기
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* 진행 중인 플랜 미리보기 */}
       <div className="mt-6">

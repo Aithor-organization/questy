@@ -9,6 +9,6 @@ export interface ImageData {
   preview: string;
 }
 
-export type InputMode = 'upload' | 'search';
+export type InputMode = 'upload' | 'search' | 'manual';
 
 export type GenerateStep = 'upload' | 'result';

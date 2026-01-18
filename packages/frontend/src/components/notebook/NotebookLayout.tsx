@@ -35,10 +35,10 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
     };
   }, [isMenuOpen]);
 
-  // 페이지 이동 시 메뉴 닫기
+  // 페이지 이동 시 메뉴 닫기 (pathname 또는 search 변경 시)
   useEffect(() => {
     setIsMenuOpen(false);
-  }, [location.pathname]);
+  }, [location.pathname, location.search]);
 
   return (
     <div className="min-h-screen notebook-bg">
@@ -80,10 +80,10 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
                 <MenuNavTab to="/planner" active={location.pathname === '/planner'}>
                   📋 플래너
                 </MenuNavTab>
-                <MenuNavTab to="/generate" active={location.pathname === '/generate'}>
+                <MenuNavTab to="/generate" active={location.pathname === '/generate' && !location.search.includes('tab=curriculum')}>
                   ✨ 새플랜
                 </MenuNavTab>
-                <MenuNavTab to="/curriculum" active={location.pathname === '/curriculum'}>
+                <MenuNavTab to="/generate?tab=curriculum" active={location.pathname === '/generate' && location.search.includes('tab=curriculum')}>
                   📚 커리큘럼
                 </MenuNavTab>
                 <MenuNavTab to="/tips" active={location.pathname === '/tips'}>
@@ -111,8 +111,8 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
         <div className="max-w-2xl mx-auto flex justify-around">
           <BottomNavItem to="/" icon="📅" label="오늘" active={location.pathname === '/'} />
           <BottomNavItem to="/planner" icon="📋" label="플래너" active={location.pathname === '/planner'} />
+          <BottomNavItem to="/generate" icon="✨" label="새플랜" active={location.pathname === '/generate'} />
           <BottomNavItem to="/chat" icon="💬" label="코치" active={location.pathname === '/chat'} badge={unreadCount} />
-          <BottomNavItem to="/report" icon="📊" label="리포트" active={location.pathname === '/report'} />
           <BottomNavItem to="/mypage" icon="👤" label="MY" active={location.pathname === '/mypage'} />
         </div>
       </nav>

@@ -11,6 +11,7 @@ import { useQuestStore } from '../../stores/questStore';
 import { API_BASE_URL } from '../../config';
 import type { Yes24Book, PreviewImage } from '@questybook/shared';
 import type { ImageData, InputMode, GenerateStep } from './types';
+import type { ManualUnit } from './components';
 
 export function useGeneratePage() {
   const navigate = useNavigate();
@@ -34,6 +35,9 @@ export function useGeneratePage() {
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [zoomedImage, setZoomedImage] = useState<PreviewImage | null>(null);
   const [analyzingBook, setAnalyzingBook] = useState(false);
+
+  // 직접 만들기 관련 상태
+  const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
 
   // 플랜 상세 보기 상태
   const [viewingPlan, setViewingPlan] = useState<GeneratedPlan | null>(null);
@@ -144,6 +148,69 @@ export function useGeneratePage() {
     setStep('result');
   };
 
+  // 직접 만들기 모드에서 플랜 생성
+  const handleManualGenerate = () => {
+    if (manualUnits.length === 0 || !materialName.trim()) return;
+
+    // 시작 날짜 계산
+    const startDate = new Date();
+    const getNextDate = (baseDate: Date, daysToAdd: number): Date => {
+      const result = new Date(baseDate);
+      let added = 0;
+      while (added < daysToAdd) {
+        result.setDate(result.getDate() + 1);
+        if (!excludeWeekends || (result.getDay() !== 0 && result.getDay() !== 6)) {
+          added++;
+        }
+      }
+      return result;
+    };
+
+    // 단원들을 일별로 분배 (totalDays 기준으로)
+    const unitsPerDay = Math.ceil(manualUnits.length / totalDays);
+    const dailyQuests = manualUnits.map((unit, index) => {
+      const dayIndex = Math.floor(index / unitsPerDay);
+      const questDate = dayIndex === 0 ? startDate : getNextDate(startDate, dayIndex);
+
+      return {
+        id: unit.id,
+        day: dayIndex + 1,
+        date: questDate.toISOString().split('T')[0],
+        unitNumber: index + 1,
+        unitTitle: unit.title,
+        range: unit.range || unit.title,
+        estimatedMinutes: unit.estimatedMinutes,
+        completed: false,
+        topics: [unit.title],
+        objectives: [`${unit.title} 학습 완료`],
+        studyTips: {
+          importance: '일반',
+          keyPoints: [unit.title],
+          studyMethod: '학습',
+        },
+      };
+    });
+
+    const totalMinutes = dailyQuests.reduce((sum, q) => sum + q.estimatedMinutes, 0);
+    const actualDays = Math.max(...dailyQuests.map(q => q.day));
+
+    // questStore에 직접 추가
+    addPlan({
+      materialName: materialName.trim(),
+      dailyQuests,
+      summary: {
+        totalDays: actualDays,
+        totalUnits: manualUnits.length,
+        averageMinutesPerDay: Math.round(totalMinutes / actualDays),
+        totalEstimatedHours: Math.round(totalMinutes / 60),
+      },
+      aiMessage: `${manualUnits.length}개 단원의 학습 계획이 생성되었습니다.`,
+    });
+
+    // 플래너 페이지로 이동
+    navigate('/planner');
+  };
+
   // 플랜 저장
   const handleSavePlan = (plan: GeneratedPlan) => {
     if (!result) return;
@@ -183,6 +250,7 @@ export function useGeneratePage() {
     setSelectedBook(null);
     setPreviewImages([]);
     setSelectedPages([]);
+    setManualUnits([]);
     reset();
   };
 
@@ -204,6 +272,8 @@ export function useGeneratePage() {
     result,
     isLoading,
     error,
+    // 직접 만들기
+    manualUnits,
     // 액션
     setInputMode,
     setImages,
@@ -212,10 +282,12 @@ export function useGeneratePage() {
     setExcludeWeekends,
     setZoomedImage,
     setViewingPlan,
+    setManualUnits,
     handleBookSelect,
     togglePageSelection,
     handleAnalyzeBook,
     handleGenerate,
+    handleManualGenerate,
     handleSavePlan,
     handleReset,
   };

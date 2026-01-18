@@ -22,7 +22,6 @@ import {
   ChatListPage,
   ChatRoomPage,
   ReportPage,
-  CurriculumPage,
   TipsPage,
   AdminPage,
   TimerPage,
@@ -132,7 +131,7 @@ function App() {
         <Route path="/inquiry" element={<ProtectedRoute><InquiryPage /></ProtectedRoute>} />
         <Route path="/planner" element={<ProtectedRoute><PlannerPage /></ProtectedRoute>} />
         <Route path="/generate" element={<ProtectedRoute><GeneratePage /></ProtectedRoute>} />
-        <Route path="/curriculum" element={<ProtectedRoute><CurriculumPage /></ProtectedRoute>} />
+        <Route path="/curriculum" element={<Navigate to="/generate?tab=curriculum" replace />} />
         <Route path="/tips" element={<ProtectedRoute><TipsPage /></ProtectedRoute>} />
         <Route path="/admin" element={<AdminPage />} />
         <Route path="/plan/:planId" element={<ProtectedRoute><PlanDetailPage /></ProtectedRoute>} />

@@ -6,6 +6,7 @@
 export { InputModeSelector } from './InputModeSelector';
 export { UploadForm } from './UploadForm';
 export { SearchForm } from './SearchForm';
+export { ManualForm, type ManualUnit } from './ManualForm';
 export { ImageZoomModal } from './ImageZoomModal';
 export { DaysSelector } from './DaysSelector';
 export { GenerateButton } from './GenerateButton';
