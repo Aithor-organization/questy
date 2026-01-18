@@ -112,7 +112,8 @@ export class Supervisor {
       this.memoryLane,
       this.questTracker,
       this.scheduleDelayHandler,
-      conversationHistory
+      conversationHistory,
+      metadata?.userProfile  // 학습 프로필 (온보딩에서 수집한 정보)
     );
 
     // 5. 에이전트 선택 및 실행
@@ -224,7 +225,8 @@ export class Supervisor {
       this.memoryLane,
       this.questTracker,
       this.scheduleDelayHandler,
-      conversationHistory
+      conversationHistory,
+      metadata?.userProfile  // 학습 프로필 (온보딩에서 수집한 정보)
     );
 
     // 5. 에이전트 선택

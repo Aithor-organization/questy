@@ -9,7 +9,26 @@ import type { Teacher, Course } from '../../hooks/useAdminCourses';
 export type ModalType = 'none' | 'add-teacher' | 'add-course' | 'batch-update' | 'edit-teacher' | 'edit-course';
 
 // 뷰 탭 타입
-export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries';
+export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries' | 'users';
+
+// 멤버십 타입
+export type MembershipType = 'pending' | 'beta_tester' | 'lab_member';
+export type MembershipStatus = 'pending' | 'active' | 'expired' | 'revoked';
+
+// 사용자 멤버십 정보
+export interface UserMembership {
+  id: string;
+  name: string;
+  email?: string;
+  createdAt: string;
+  membership: {
+    type: MembershipType;
+    status: MembershipStatus;
+    approvedAt: string | null;
+    expiresAt: string | null;
+    adminNote: string | null;
+  } | null;
+}
 
 // 문의 타입
 export interface Inquiry {

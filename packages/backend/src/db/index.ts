@@ -46,8 +46,13 @@ export { getStudentStats } from './queries/stats.js';
 // Inquiry queries
 export {
   getAllInquiries, getInquiry, getUserInquiries,
-  createInquiry, updateInquiryStatus, deleteInquiry
+  createInquiry, updateInquiryStatus, deleteInquiry,
+  getAllInquiriesAsync, getInquiryAsync, getUserInquiriesAsync,
+  createInquiryAsync, updateInquiryStatusAsync, deleteInquiryAsync
 } from './queries/inquiries.js';
+
+// User profile queries (for coach)
+export { getUserProfileForCoach, getUserBasicInfo } from './queries/userProfiles.js';
 
 // Re-export schema
 export * from './schema.js';

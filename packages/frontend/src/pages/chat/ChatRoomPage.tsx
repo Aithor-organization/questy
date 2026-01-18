@@ -6,10 +6,11 @@
  */
 
 import { useState, useRef, useEffect, useLayoutEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { NotebookLayout } from '../../components/notebook/NotebookLayout';
 import { useChatStore, DEFAULT_ROOM_ID } from '../../stores/chatStore';
 import { useQuestStore, getTodayDateString } from '../../stores/questStore';
+import { useAuthStore } from '../../stores/authStore';
 import { useStreamingChat } from '../../hooks/useStreamingChat';
 import { MessageList } from './components/MessageList';
 import { ChatInput } from './components/ChatInput';
@@ -19,7 +20,9 @@ import { ChatHeader } from './components/ChatHeader';
 export function ChatRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const autoSendProcessedRef = useRef(false); // 자동 전송 처리 여부 추적
 
   const {
     getRoomById,
@@ -46,8 +49,12 @@ export function ChatRoomPage() {
   const { plans, getQuestsByDate } = useQuestStore();
   const todayQuests = getQuestsByDate(getTodayDateString());
 
+  // Auth store에서 사용자 프로필 가져오기 (온보딩 데이터)
+  const { userProfile, loadUserProfile } = useAuthStore();
+
   const [inputValue, setInputValue] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
+  const [pendingAutoMessage, setPendingAutoMessage] = useState<string | null>(null);
   const initRef = useRef(false);
   const prevRoomIdRef = useRef(targetRoomId);
   const isFirstScrollRef = useRef(true); // 첫 스크롤 여부 추적
@@ -114,6 +121,28 @@ export function ChatRoomPage() {
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [targetRoomId, markRoomAsRead]);
+
+  // 사용자 프로필이 없으면 로드 (온보딩 데이터)
+  useEffect(() => {
+    if (!userProfile) {
+      loadUserProfile();
+    }
+  }, [userProfile, loadUserProfile]);
+
+  // 자동 메시지 전송: state에서 메시지 추출 (최초 1회)
+  useEffect(() => {
+    const state = location.state as { autoSendMessage?: string } | null;
+    if (
+      isInitialized &&
+      !autoSendProcessedRef.current &&
+      state?.autoSendMessage
+    ) {
+      autoSendProcessedRef.current = true;
+      setPendingAutoMessage(state.autoSendMessage);
+      // state 초기화 (뒤로가기 시 중복 전송 방지)
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [isInitialized, location.state, navigate, location.pathname]);
 
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
@@ -198,13 +227,26 @@ export function ChatRoomPage() {
     };
 
     // 스트리밍으로 메시지 전송 (실시간 응답 표시)
-    await sendMessageStream(message, questContext);
+    // userProfile이 null이면 undefined로 전달 (있는 경우에만 AI에게 전달)
+    await sendMessageStream(message, questContext, userProfile ?? undefined);
     setInputValue('');
   };
 
   const handleQuickAction = (label: string) => {
     handleSendMessage(label);
   };
+
+  // pendingAutoMessage가 있으면 자동 전송
+  useEffect(() => {
+    if (pendingAutoMessage && !isStreaming) {
+      const message = pendingAutoMessage;
+      setPendingAutoMessage(null);
+      // 약간의 딜레이 후 전송 (초기화 완료 보장)
+      setTimeout(() => {
+        handleSendMessage(message);
+      }, 300);
+    }
+  }, [pendingAutoMessage, isStreaming]);
 
   const handleBack = () => {
     navigate('/chat');

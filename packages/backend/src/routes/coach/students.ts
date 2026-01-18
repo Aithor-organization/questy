@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { getSupervisor } from './singletons.js';
 import { CreateStudentSchema } from './types.js';
 import * as db from '../../db/index.js';
+import { getUserProfileForCoach } from '../../db/index.js';
 import type { Subject } from '@questy/coach-agent';
 
 export const studentRoutes = new Hono();
@@ -104,4 +105,31 @@ studentRoutes.patch('/:studentId', async (c) => {
   });
 
   return c.json({ success: true, data: updated });
+});
+
+// 학생 상세 프로필 조회 (코치용) - Supabase user_profiles 포함
+studentRoutes.get('/:studentId/profile', async (c) => {
+  const studentId = c.req.param('studentId');
+
+  try {
+    const profile = await getUserProfileForCoach(studentId);
+
+    if (!profile) {
+      return c.json({
+        success: false,
+        error: { message: '학생 프로필을 찾을 수 없습니다' },
+      }, 404);
+    }
+
+    return c.json({
+      success: true,
+      data: profile,
+    });
+  } catch (error) {
+    console.error('[Coach/Students] Profile fetch error:', error);
+    return c.json({
+      success: false,
+      error: { message: '프로필 조회 중 오류가 발생했습니다' },
+    }, 500);
+  }
 });

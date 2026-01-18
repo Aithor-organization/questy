@@ -23,6 +23,7 @@ import {
 import { useAdminCourses } from '../../hooks/useAdminCourses';
 import { CourseCard } from './CourseCard';
 import { InquiriesView } from './InquiriesView';
+import { UsersView } from './UsersView';
 import {
   AddTeacherModal,
   AddCourseModal,
@@ -262,6 +263,11 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
           <InquiriesView />
         )}
 
+        {/* 사용자 관리 탭 내용 */}
+        {viewTab === 'users' && (
+          <UsersView />
+        )}
+
         {/* 모달 */}
         {modalType === 'add-teacher' && (
           <AddTeacherModal
@@ -339,7 +345,7 @@ function Header({
     <div className="flex items-center justify-between mb-6">
       <div className="flex items-center gap-2">
         <Users size={24} className="text-blue-600" />
-        <h1 className="text-xl font-bold text-gray-800">강좌 관리</h1>
+        <h1 className="text-xl font-bold text-gray-800">관리자페이지</h1>
       </div>
       <div className="flex gap-2 flex-wrap justify-end">
         <button
@@ -447,6 +453,17 @@ function ViewTabs({
           문의 관리
         </button>
       )}
+      <button
+        onClick={() => setViewTab('users')}
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+          viewTab === 'users'
+            ? 'bg-indigo-500 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        <Users size={16} />
+        사용자 관리
+      </button>
     </div>
   );
 }

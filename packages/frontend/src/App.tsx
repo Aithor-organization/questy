@@ -3,11 +3,15 @@
  * AI 학습 코치 + 노트북 스타일 플래너 앱
  */
 
-import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { useEffect, useRef } from 'react';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
+import { useQuestStore } from './stores/questStore';
+import { useChatStore } from './stores/chatStore';
+import { syncFromSupabase } from './lib/supabase-storage';
 import { useScheduledNotifications } from './hooks/useScheduledNotifications';
 import { useCoachScheduler } from './hooks/useCoachScheduler';
+import { useMembership } from './hooks/useMembership';
 import {
   LoginPage,
   SignUpPage,
@@ -26,11 +30,17 @@ import {
   AdminPage,
   TimerPage,
 } from './pages';
+import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { ToastNotification } from './components/ToastNotification';
 
 // 인증이 필요한 라우트를 보호하는 컴포넌트
-function ProtectedRoute({ children, skipOnboarding = false }: { children: React.ReactNode; skipOnboarding?: boolean }) {
+function ProtectedRoute({ children, skipOnboarding = false, skipMembershipCheck = false }: {
+  children: React.ReactNode;
+  skipOnboarding?: boolean;
+  skipMembershipCheck?: boolean;
+}) {
   const { isAuthenticated, user } = useAuthStore();
+  const { isPending, isExpired, isLoading: isMembershipLoading } = useMembership();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -39,6 +49,18 @@ function ProtectedRoute({ children, skipOnboarding = false }: { children: React.
   // 온보딩 체크 (skipOnboarding이 아닌 경우에만)
   if (!skipOnboarding && user && user.onboardingCompleted === false) {
     return <Navigate to="/onboarding" replace />;
+  }
+
+  // 멤버십 체크 (skipMembershipCheck가 아닌 경우에만)
+  if (!skipMembershipCheck && !isMembershipLoading) {
+    // 승인 대기 중인 경우 대기 페이지로
+    if (isPending) {
+      return <Navigate to="/pending" replace />;
+    }
+    // 멤버십 만료된 경우도 대기 페이지로 (만료 메시지 표시)
+    if (isExpired) {
+      return <Navigate to="/pending" replace />;
+    }
   }
 
   return <>{children}</>;
@@ -53,6 +75,17 @@ function PublicRoute({ children }: { children: React.ReactNode }) {
   }
 
   return <>{children}</>;
+}
+
+// 페이지 이동 시 스크롤을 맨 위로 올리는 컴포넌트
+function ScrollToTop() {
+  const { pathname } = useLocation();
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [pathname]);
+
+  return null;
 }
 
 // 온보딩 전용 라우트 (로그인 필요, 온보딩 미완료 시만 접근)
@@ -73,18 +106,65 @@ function OnboardingRoute({ children }: { children: React.ReactNode }) {
 
 function App() {
   const { initializeAuth, isLoading, isAuthenticated, checkOnboardingStatus } = useAuthStore();
+  const hasSyncedRef = useRef(false);
 
   // Supabase Auth 초기화 (세션 복원)
   useEffect(() => {
     initializeAuth();
   }, [initializeAuth]);
 
-  // 온보딩 상태 체크 (로그인 후)
+  // 온보딩 상태 체크, 학습 프로필 및 멤버십 로드 (로그인 후)
+  const loadUserProfile = useAuthStore((state) => state.loadUserProfile);
+  const loadMembership = useAuthStore((state) => state.loadMembership);
+
   useEffect(() => {
     if (isAuthenticated) {
       checkOnboardingStatus();
+      // 학습 프로필 및 멤버십 로드 (authStore에 캐시)
+      loadUserProfile();
+      loadMembership();
     }
-  }, [isAuthenticated, checkOnboardingStatus]);
+  }, [isAuthenticated, checkOnboardingStatus, loadUserProfile, loadMembership]);
+
+  // 로그인 후 스토어 동기화 (Supabase → localStorage → Zustand)
+  useEffect(() => {
+    async function syncStoresFromSupabase() {
+      if (!isAuthenticated) {
+        // 로그아웃 시 플래그 리셋
+        hasSyncedRef.current = false;
+        return;
+      }
+
+      if (hasSyncedRef.current) return;
+      hasSyncedRef.current = true;
+
+      console.log('[App] 로그인 후 스토어 동기화 시작');
+
+      try {
+        // Supabase에서 localStorage로 데이터 동기화
+        const [questSynced, chatSynced] = await Promise.all([
+          syncFromSupabase('quest'),
+          syncFromSupabase('chat'),
+        ]);
+
+        // Supabase에서 데이터를 가져온 경우에만 rehydrate (기존 localStorage 보존)
+        if (questSynced > 0) {
+          await useQuestStore.persist.rehydrate();
+          console.log('[App] Quest 스토어 rehydrate 완료');
+        }
+        if (chatSynced > 0) {
+          await useChatStore.persist.rehydrate();
+          console.log('[App] Chat 스토어 rehydrate 완료');
+        }
+
+        console.log('[App] 스토어 동기화 완료');
+      } catch (error) {
+        console.error('[App] 스토어 동기화 실패:', error);
+      }
+    }
+
+    syncStoresFromSupabase();
+  }, [isAuthenticated]);
 
   // 예약된 알림 백그라운드 체크 (1분마다)
   useScheduledNotifications();
@@ -106,6 +186,9 @@ function App() {
 
   return (
     <BrowserRouter>
+      {/* 페이지 이동 시 스크롤 맨 위로 */}
+      <ScrollToTop />
+
       {/* 전역 토스트 알림 */}
       <ToastNotification />
 
@@ -117,6 +200,9 @@ function App() {
         {/* 온보딩 라우트 */}
         <Route path="/onboarding" element={<OnboardingRoute><OnboardingPage /></OnboardingRoute>} />
 
+        {/* 승인 대기 페이지 */}
+        <Route path="/pending" element={<ProtectedRoute skipOnboarding skipMembershipCheck><PendingApprovalPage /></ProtectedRoute>} />
+
         {/* 보호된 라우트 */}
         <Route path="/" element={<ProtectedRoute><TodayPage /></ProtectedRoute>} />
         <Route path="/admission" element={<ProtectedRoute><AdmissionPage /></ProtectedRoute>} />
@@ -126,8 +212,8 @@ function App() {
         <Route path="/chat/:roomId" element={<ProtectedRoute><ChatRoomPage /></ProtectedRoute>} />
 
         <Route path="/report" element={<ProtectedRoute><ReportPage /></ProtectedRoute>} />
-        <Route path="/mypage" element={<ProtectedRoute><MyPage /></ProtectedRoute>} />
-        <Route path="/my" element={<ProtectedRoute><MyPage /></ProtectedRoute>} />
+        <Route path="/mypage" element={<ProtectedRoute skipMembershipCheck><MyPage /></ProtectedRoute>} />
+        <Route path="/my" element={<ProtectedRoute skipMembershipCheck><MyPage /></ProtectedRoute>} />
         <Route path="/inquiry" element={<ProtectedRoute><InquiryPage /></ProtectedRoute>} />
         <Route path="/planner" element={<ProtectedRoute><PlannerPage /></ProtectedRoute>} />
         <Route path="/generate" element={<ProtectedRoute><GeneratePage /></ProtectedRoute>} />

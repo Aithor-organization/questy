@@ -9,6 +9,8 @@ export { QuickActions } from './QuickActions';
 export { TodayHeader } from './TodayHeader';
 export { QuestList } from './QuestList';
 export { ActivePlans } from './ActivePlans';
+export { IntegratedQuestSection } from './IntegratedQuestSection';
+export { LargeQuestItem } from './LargeQuestItem';
 export {
   MissedStudyModal,
   CrisisModal,

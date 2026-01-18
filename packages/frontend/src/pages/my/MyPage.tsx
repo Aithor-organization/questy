@@ -11,6 +11,7 @@ import {
   EditLearningModal,
   UserInfoCard,
   LearningProfileCard,
+  MembershipCard,
 } from './components';
 
 export function MyPage() {
@@ -44,6 +45,9 @@ export function MyPage() {
           studentId={user?.studentId}
           onEdit={openEditModal}
         />
+
+        {/* 멤버십 정보 카드 */}
+        <MembershipCard />
 
         {/* 학습 프로필 카드 */}
         <LearningProfileCard

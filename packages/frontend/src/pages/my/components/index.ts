@@ -6,3 +6,4 @@ export { EditProfileModal } from './EditProfileModal';
 export { EditLearningModal } from './EditLearningModal';
 export { UserInfoCard } from './UserInfoCard';
 export { LearningProfileCard } from './LearningProfileCard';
+export { MembershipCard } from './MembershipCard';

@@ -75,6 +75,19 @@ export function convertFrontendQuestContext(
   };
 }
 
+// 학습 프로필 타입
+interface UserProfile {
+  age?: number | null;
+  examYear?: number;
+  targetUniversity?: string;
+  targetGrades?: Record<string, number>;
+  currentGrades?: Record<string, number>;
+  selectedTamgu1?: string;
+  selectedTamgu2?: string;
+  subscribedPlatforms?: string[];
+  dailyStudyHours?: number;
+}
+
 /**
  * 컨텍스트 구성
  */
@@ -88,7 +101,8 @@ export async function buildContext(
   memoryLane: MemoryLane,
   questTracker: QuestTracker,
   scheduleDelayHandler: ScheduleDelayHandler,
-  conversationHistory?: DirectorContext['recentConversations']
+  conversationHistory?: DirectorContext['recentConversations'],
+  userProfile?: UserProfile  // 학습 프로필 (온보딩에서 수집한 정보)
 ): Promise<DirectorContext> {
   // 학생 프로필
   const studentProfile = studentRegistry.getStudent(studentId) ??
@@ -133,6 +147,11 @@ export async function buildContext(
     console.log(`[Supervisor] Upcoming quests: ${fullScheduleContext.upcomingQuests.length} days scheduled`);
   }
 
+  // userProfile 로그
+  if (userProfile?.targetUniversity) {
+    console.log(`[Supervisor] User profile: 목표대학=${userProfile.targetUniversity}`);
+  }
+
   return {
     studentProfile,
     activePlans,
@@ -142,5 +161,6 @@ export async function buildContext(
     delayAnalysis,
     questStats,
     fullScheduleContext,
+    userProfile,  // 학습 프로필 (온보딩에서 수집한 정보)
   };
 }

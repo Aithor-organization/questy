@@ -13,8 +13,7 @@ interface OverdueQuestsProps {
   onRescheduleToToday: (quest: QuestWithPlan) => void;
   onOpenRescheduleModal: (quest: QuestWithPlan) => void;
   onOpenBulkRescheduleModal: (planId: string) => void;
-  onAskCoach: (message: string) => void;
-  onNavigate: (path: string) => void;
+  onNavigate: (path: string, options?: { state?: Record<string, unknown> }) => void;
 }
 
 export function OverdueQuests({
@@ -23,7 +22,6 @@ export function OverdueQuests({
   onRescheduleToToday,
   onOpenRescheduleModal,
   onOpenBulkRescheduleModal,
-  onAskCoach,
   onNavigate,
 }: OverdueQuestsProps) {
   if (overdueQuests.length === 0) return null;
@@ -69,15 +67,15 @@ export function OverdueQuests({
                   key={quest.id}
                   className="flex items-center justify-between bg-white rounded px-3 py-2 text-sm"
                 >
-                  <div className="flex-1 min-w-0">
-                    <span className="text-[var(--pencil-gray)] mr-2">
+                  <div className="flex-1 min-w-0 flex items-center">
+                    <span className="text-[var(--pencil-gray)] mr-2 flex-shrink-0">
                       {quest.date.slice(5).replace('-', '/')}
                     </span>
-                    <span className="text-[var(--ink-black)] truncate">
+                    <span className="text-[var(--ink-black)] truncate block">
                       {quest.unitTitle}
                     </span>
                   </div>
-                  <div className="flex items-center gap-1 ml-2">
+                  <div className="flex items-center gap-1 ml-2 flex-shrink-0">
                     <button
                       onClick={() => onRescheduleToToday(quest)}
                       className="text-xs px-2 py-1 bg-[var(--ink-blue)] text-white rounded hover:bg-blue-600"
@@ -106,8 +104,9 @@ export function OverdueQuests({
       <div className="mt-3 pt-3 border-t border-[var(--sticker-coral)]/30">
         <button
           onClick={() => {
-            onAskCoach(`밀린 퀘스트 ${overdueQuests.length}개를 어떻게 처리하면 좋을까요?`);
-            onNavigate('/chat/' + DEFAULT_ROOM_ID);
+            const message = `밀린 퀘스트 ${overdueQuests.length}개를 어떻게 처리하면 좋을까요?`;
+            // navigate 시 state로 메시지 전달 → ChatRoomPage에서 자동 전송
+            onNavigate('/chat/' + DEFAULT_ROOM_ID, { state: { autoSendMessage: message } });
           }}
           className="w-full py-2 text-sm text-[var(--ink-blue)] hover:underline"
         >

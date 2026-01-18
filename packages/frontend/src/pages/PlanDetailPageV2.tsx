@@ -12,7 +12,7 @@ import { NotebookLayout, NotebookPage, QuestCheckItem } from '../components/note
 export function PlanDetailPageV2() {
   const { planId } = useParams<{ planId: string }>();
   const navigate = useNavigate();
-  const { getPlanById, toggleQuestComplete, removePlan, smartRescheduleQuests } = useQuestStore();
+  const { getPlanById, toggleQuestComplete, removePlan, smartRescheduleQuests, rescheduleQuest } = useQuestStore();
   const { addMessage } = useChatStore();
 
   // 재조정 모달 상태
@@ -20,6 +20,9 @@ export function PlanDetailPageV2() {
   const [rescheduleTargetDate, setRescheduleTargetDate] = useState(getTodayDateString());
   const [isRescheduling, setIsRescheduling] = useState(false);
   const [rescheduleStrategy, setRescheduleStrategy] = useState<string>('smart');
+
+  // 개발중 메시지 표시 상태
+  const [showDevMessage, setShowDevMessage] = useState(false);
 
   const plan = planId ? getPlanById(planId) : undefined;
 
@@ -98,8 +101,43 @@ export function PlanDetailPageV2() {
     }
   };
 
+  // 개별 퀘스트 날짜 변경
+  const handleQuestReschedule = (questId: string, newDate: string) => {
+    if (!planId) return;
+    const success = rescheduleQuest(planId, questId, newDate);
+    if (success) {
+      addMessage(DEFAULT_ROOM_ID, {
+        role: 'assistant',
+        content: `📅 퀘스트 날짜를 ${newDate}로 변경했어요!`,
+        agentRole: 'COACH',
+      });
+    }
+  };
+
   return (
     <NotebookLayout>
+      {/* 개발중 메시지 모달 */}
+      {showDevMessage && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 max-w-sm w-full text-center">
+            <div className="text-5xl mb-4">🔧</div>
+            <h3 className="font-bold text-lg text-[var(--ink-black)] mb-2">
+              기능 개발 중
+            </h3>
+            <p className="text-[var(--pencil-gray)] mb-4 text-sm">
+              현재 이 기능은 개발중입니다.<br />
+              조금만 기다려주세요!
+            </p>
+            <button
+              onClick={() => setShowDevMessage(false)}
+              className="w-full py-3 bg-[var(--ink-blue)] text-white rounded-lg"
+            >
+              확인
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 재조정 모달 */}
       {showRescheduleModal && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
@@ -198,10 +236,10 @@ export function PlanDetailPageV2() {
             </h1>
           </div>
           <div className="flex items-center gap-2">
-            {/* 재조정 버튼 (미완료 퀘스트가 있을 때만) */}
+            {/* 재조정 버튼 (미완료 퀘스트가 있을 때만) - 개발중 메시지 표시 */}
             {incompleteCount > 0 && (
               <button
-                onClick={() => setShowRescheduleModal(true)}
+                onClick={() => setShowDevMessage(true)}
                 className="text-[var(--ink-blue)] text-sm hover:underline flex items-center gap-1"
               >
                 🧠 재조정
@@ -260,7 +298,7 @@ export function PlanDetailPageV2() {
                 </div>
               </div>
               <button
-                onClick={() => setShowRescheduleModal(true)}
+                onClick={() => setShowDevMessage(true)}
                 className="px-3 py-1.5 bg-[var(--ink-blue)] text-white text-sm rounded-full hover:bg-blue-600"
               >
                 재조정
@@ -289,6 +327,7 @@ export function PlanDetailPageV2() {
                 planName: plan.materialName,
               }}
               onToggle={() => toggleQuestComplete(plan.id, quest.id)}
+              onReschedule={handleQuestReschedule}
             />
           ))}
         </div>

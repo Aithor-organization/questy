@@ -1,6 +1,8 @@
 /**
  * Inquiry Routes
  * 1:1 문의 API
+ *
+ * SQLite (Bun) 및 Supabase (Node.js) 환경 모두 지원
  */
 
 import { Hono } from 'hono';
@@ -10,6 +12,12 @@ import {
   createInquiry,
   updateInquiryStatus,
   deleteInquiry,
+  getAllInquiriesAsync,
+  getInquiryAsync,
+  createInquiryAsync,
+  updateInquiryStatusAsync,
+  deleteInquiryAsync,
+  useSupabase,
 } from '../db/index.js';
 
 // 간단한 ID 생성 함수
@@ -22,7 +30,9 @@ export const inquiryRoutes = new Hono();
 // 모든 문의 조회 (관리자용)
 inquiryRoutes.get('/', async (c) => {
   try {
-    const inquiries = getAllInquiries();
+    const inquiries = useSupabase
+      ? await getAllInquiriesAsync()
+      : getAllInquiries();
     return c.json({ success: true, data: inquiries });
   } catch (error) {
     console.error('[Inquiries] Get all error:', error);
@@ -34,7 +44,9 @@ inquiryRoutes.get('/', async (c) => {
 inquiryRoutes.get('/:id', async (c) => {
   try {
     const id = c.req.param('id');
-    const inquiry = getInquiry(id);
+    const inquiry = useSupabase
+      ? await getInquiryAsync(id)
+      : getInquiry(id);
 
     if (!inquiry) {
       return c.json({ success: false, error: '문의를 찾을 수 없습니다' }, 404);
@@ -66,7 +78,7 @@ inquiryRoutes.post('/', async (c) => {
       return c.json({ success: false, error: '내용은 최소 10자 이상이어야 합니다' }, 400);
     }
 
-    const inquiry = createInquiry({
+    const inquiryData = {
       id: generateId(),
       userId: userId || null,
       userEmail,
@@ -75,7 +87,11 @@ inquiryRoutes.post('/', async (c) => {
       title,
       content,
       status: 'pending',
-    });
+    };
+
+    const inquiry = useSupabase
+      ? await createInquiryAsync(inquiryData)
+      : createInquiry(inquiryData);
 
     console.log(`[Inquiries] New inquiry created: ${inquiry.id} from ${userEmail}`);
 
@@ -99,7 +115,9 @@ inquiryRoutes.patch('/:id/status', async (c) => {
       return c.json({ success: false, error: '유효하지 않은 상태입니다' }, 400);
     }
 
-    const inquiry = updateInquiryStatus(id, status, adminNote);
+    const inquiry = useSupabase
+      ? await updateInquiryStatusAsync(id, status, adminNote)
+      : updateInquiryStatus(id, status, adminNote);
 
     if (!inquiry) {
       return c.json({ success: false, error: '문의를 찾을 수 없습니다' }, 404);
@@ -119,12 +137,19 @@ inquiryRoutes.delete('/:id', async (c) => {
   try {
     const id = c.req.param('id');
 
-    const inquiry = getInquiry(id);
+    const inquiry = useSupabase
+      ? await getInquiryAsync(id)
+      : getInquiry(id);
+
     if (!inquiry) {
       return c.json({ success: false, error: '문의를 찾을 수 없습니다' }, 404);
     }
 
-    deleteInquiry(id);
+    if (useSupabase) {
+      await deleteInquiryAsync(id);
+    } else {
+      deleteInquiry(id);
+    }
 
     console.log(`[Inquiries] Deleted: ${id}`);
 

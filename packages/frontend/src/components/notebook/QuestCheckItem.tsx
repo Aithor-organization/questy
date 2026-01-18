@@ -15,6 +15,7 @@ import { getTodayDateString, useQuestStore } from '../../stores/questStore';
 interface QuestCheckItemProps {
   quest: QuestWithPlan;
   onToggle: () => void;
+  onReschedule?: (questId: string, newDate: string) => void;
 }
 
 // 날짜를 한국어 형식으로 포맷
@@ -64,16 +65,21 @@ function isVideoLectureQuest(quest: QuestWithPlan): boolean {
   return false;
 }
 
-export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
+export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItemProps) {
   const navigate = useNavigate();
   const [isAnimating, setIsAnimating] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
   const [noteText, setNoteText] = useState(quest.practiceNote || '');
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [newDate, setNewDate] = useState('');
   const updatePracticeNote = useQuestStore((state) => state.updatePracticeNote);
 
   const todayStr = getTodayDateString();
   const isToday = quest.date === todayStr;
   const isPast = quest.date < todayStr;
+
+  // 날짜 변경 가능 여부: 밀린(과거) 미완료 퀘스트만
+  const canReschedule = isPast && !quest.completed && onReschedule;
 
   // 타이머 표시 여부: 인강/복습이 아닌 퀘스트만 (자습, 문제풀이, 교재)
   const showTimer = !isVideoLectureQuest(quest) &&
@@ -112,6 +118,27 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
   const handleStartTimer = (e: React.MouseEvent) => {
     e.stopPropagation(); // 카드 확장/축소 방지
     navigate(`/timer/${quest.planId}/${quest.id}`);
+  };
+
+  // 날짜 변경 핸들러
+  const handleDateChange = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setNewDate(todayStr); // 기본값: 오늘
+    setShowDatePicker(true);
+  };
+
+  const handleConfirmDateChange = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (newDate && onReschedule) {
+      onReschedule(quest.id, newDate);
+      setShowDatePicker(false);
+    }
+  };
+
+  const handleCancelDateChange = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setShowDatePicker(false);
+    setNewDate('');
   };
 
   // 상세 정보 존재 여부 (확장 가능 여부)
@@ -214,6 +241,48 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
               </span>
             )}
           </div>
+
+          {/* 밀린 퀘스트 날짜 변경 */}
+          {canReschedule && (
+            <div className="mb-3 p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-amber-600 text-sm">⏰ 밀린 퀘스트</span>
+              </div>
+              {showDatePicker ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    type="date"
+                    value={newDate}
+                    min={todayStr}
+                    onChange={(e) => setNewDate(e.target.value)}
+                    onClick={(e) => e.stopPropagation()}
+                    className="flex-1 min-w-[140px] px-3 py-1.5 text-sm border border-amber-300 rounded-lg focus:outline-none focus:border-amber-500"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      onClick={handleConfirmDateChange}
+                      className="px-3 py-1.5 bg-[var(--ink-blue)] text-white text-sm rounded-lg hover:opacity-90"
+                    >
+                      변경
+                    </button>
+                    <button
+                      onClick={handleCancelDateChange}
+                      className="px-3 py-1.5 bg-gray-200 text-gray-600 text-sm rounded-lg hover:opacity-90"
+                    >
+                      취소
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <button
+                  onClick={handleDateChange}
+                  className="w-full py-2 text-sm text-amber-700 bg-amber-100 hover:bg-amber-200 rounded-lg transition-colors"
+                >
+                  📅 날짜 변경하기
+                </button>
+              )}
+            </div>
+          )}
 
           {/* 범위 */}
           {quest.range && (

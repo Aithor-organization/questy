@@ -27,7 +27,7 @@ chatRoutes.post('/', async (c) => {
       }, 400);
     }
 
-    const { studentId, message, conversationId, userName, metadata } = parsed.data;
+    const { studentId, message, conversationId, userName, metadata, userProfile } = parsed.data;
 
     const supervisor = getSupervisor();
     const registry = supervisor.getStudentRegistry();
@@ -90,10 +90,22 @@ chatRoutes.post('/', async (c) => {
           completedToday: questContext.completedToday || 0,
           totalToday: questContext.totalToday || 0,
         } : undefined,
+        // 학습 프로필 (온보딩에서 수집한 목표 대학, 목표 등급 등)
+        userProfile: userProfile ? {
+          age: userProfile.age,
+          examYear: userProfile.examYear,
+          targetUniversity: userProfile.targetUniversity,
+          targetGrades: userProfile.targetGrades,
+          currentGrades: userProfile.currentGrades,
+          selectedTamgu1: userProfile.selectedTamgu1,
+          selectedTamgu2: userProfile.selectedTamgu2,
+          subscribedPlatforms: userProfile.subscribedPlatforms,
+          dailyStudyHours: userProfile.dailyStudyHours,
+        } : undefined,
       },
     };
 
-    console.log(`[Coach/Chat] Processing: "${message.slice(0, 50)}..." for ${student.name}`);
+    console.log(`[Coach/Chat] Processing: "${message.slice(0, 50)}..." for ${student.name}${userProfile?.targetUniversity ? ` (목표: ${userProfile.targetUniversity})` : ''}`);
 
     // Supervisor를 통한 처리
     const response = await supervisor.process(request);
@@ -145,7 +157,7 @@ chatRoutes.post('/stream', async (c) => {
       }, 400);
     }
 
-    const { studentId, message, conversationId, userName, metadata } = parsed.data;
+    const { studentId, message, conversationId, userName, metadata, userProfile } = parsed.data;
 
     const supervisor = getSupervisor();
     const registry = supervisor.getStudentRegistry();
@@ -206,15 +218,28 @@ chatRoutes.post('/stream', async (c) => {
           completedToday: questContext.completedToday || 0,
           totalToday: questContext.totalToday || 0,
         } : undefined,
+        // 학습 프로필 (온보딩에서 수집한 목표 대학, 목표 등급 등)
+        userProfile: userProfile ? {
+          age: userProfile.age,
+          examYear: userProfile.examYear,
+          targetUniversity: userProfile.targetUniversity,
+          targetGrades: userProfile.targetGrades,
+          currentGrades: userProfile.currentGrades,
+          selectedTamgu1: userProfile.selectedTamgu1,
+          selectedTamgu2: userProfile.selectedTamgu2,
+          subscribedPlatforms: userProfile.subscribedPlatforms,
+          dailyStudyHours: userProfile.dailyStudyHours,
+        } : undefined,
       },
     };
 
-    console.log(`[Coach/Stream] Starting stream for: "${message.slice(0, 50)}..."`);
+    console.log(`[Coach/Stream] Starting stream for: "${message.slice(0, 50)}..."${userProfile?.targetUniversity ? ` (목표: ${userProfile.targetUniversity})` : ''}`);
 
     // SSE 스트리밍 응답
     return streamSSE(c, async (stream) => {
       let fullMessage = '';
       let agentRole = 'COACH';
+      let lastChunk: { actions?: unknown[]; messageActions?: unknown[]; rescheduleOptions?: unknown[] } | null = null;
 
       try {
         // 메타데이터 먼저 전송
@@ -243,26 +268,32 @@ chatRoutes.post('/stream', async (c) => {
             });
           }
 
+          // done 청크에서 actions 캡처
           if (chunk.done) {
-            // AI 응답 DB에 저장
-            db.addConversation({
-              id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-              studentId: finalStudentId,
-              role: 'assistant',
-              agentRole,
-              content: fullMessage,
-            });
-
-            // 완료 이벤트 전송
-            await stream.writeSSE({
-              event: 'done',
-              data: JSON.stringify({
-                agentRole,
-                messageLength: fullMessage.length,
-              }),
-            });
+            lastChunk = chunk as { actions?: unknown[]; messageActions?: unknown[]; rescheduleOptions?: unknown[] };
           }
         }
+
+        // 스트리밍 완료 후 최종 처리
+        // AI 응답 DB에 저장
+        db.addConversation({
+          id: `msg-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
+          studentId: finalStudentId,
+          role: 'assistant',
+          agentRole,
+          content: fullMessage,
+        });
+
+        // 완료 이벤트 전송 (actions 포함)
+        await stream.writeSSE({
+          event: 'done',
+          data: JSON.stringify({
+            agentRole,
+            messageLength: fullMessage.length,
+            actions: lastChunk?.actions || lastChunk?.messageActions || [],
+            rescheduleOptions: lastChunk?.rescheduleOptions || [],
+          }),
+        });
       } catch (streamError) {
         console.error('[Coach/Stream] Stream error:', streamError);
         // 스트리밍 중 오류 발생 시 오류 이벤트 전송

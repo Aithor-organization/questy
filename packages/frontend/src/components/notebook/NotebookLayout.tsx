@@ -3,11 +3,15 @@
  * 노트북/플래너 스타일의 레이아웃 컴포넌트
  * AI 학습 코치 시스템 통합
  * - 코칭 탭에 읽지 않은 알림 배지 표시
+ * - 알림 버튼으로 미완료 퀘스트 및 코치 메시지 확인
  */
 
 import { useState, useEffect, useRef, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { Bell } from 'lucide-react';
 import { useChatStore } from '../../stores/chatStore';
+import { useQuestStore, getTodayDateString } from '../../stores/questStore';
+import { NotificationModal } from '../NotificationModal';
 
 interface NotebookLayoutProps {
   children: ReactNode;
@@ -16,8 +20,15 @@ interface NotebookLayoutProps {
 export function NotebookLayout({ children }: NotebookLayoutProps) {
   const location = useLocation();
   const unreadCount = useChatStore((state) => state.getTotalUnreadCount());
+  const unreadNotifications = useChatStore((state) => state.notifications.filter(n => !n.isRead).length);
+  const getIncompleteQuests = useQuestStore((state) => state.getIncompleteQuests);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // 총 알림 개수 (미완료 퀘스트 + 읽지 않은 메시지 + 알림)
+  const incompleteQuestsCount = getIncompleteQuests(getTodayDateString()).length;
+  const totalNotificationCount = incompleteQuestsCount + unreadCount + unreadNotifications;
 
   // 외부 클릭 시 메뉴 닫기
   useEffect(() => {
@@ -53,7 +64,24 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
             </span>
           </Link>
 
-          {/* 햄버거 메뉴 버튼 */}
+          {/* 오른쪽 버튼들 */}
+          <div className="flex items-center gap-1">
+            {/* 알림 버튼 */}
+            <button
+              onClick={() => setIsNotificationOpen(true)}
+              className="w-10 h-10 flex items-center justify-center rounded-lg hover:bg-[var(--highlight-yellow)] transition-colors relative"
+              aria-label="알림"
+            >
+              <Bell size={20} className="text-[var(--ink-black)]" />
+              {/* 알림 배지 */}
+              {totalNotificationCount > 0 && (
+                <span className="absolute top-1 right-1 min-w-[16px] h-[16px] bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center px-0.5">
+                  {totalNotificationCount > 99 ? '99+' : totalNotificationCount}
+                </span>
+              )}
+            </button>
+
+            {/* 햄버거 메뉴 버튼 */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
@@ -98,8 +126,15 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
               </div>
             )}
           </div>
+          </div>
         </div>
       </nav>
+
+      {/* 알림 모달 */}
+      <NotificationModal
+        isOpen={isNotificationOpen}
+        onClose={() => setIsNotificationOpen(false)}
+      />
 
       {/* 메인 콘텐츠 - 하단 네비게이션 높이만큼 패딩 추가 */}
       <main className="max-w-2xl mx-auto px-4 py-6 pb-24">

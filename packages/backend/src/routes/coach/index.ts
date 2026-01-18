@@ -69,7 +69,7 @@ coachRoutes.get('/students/:studentId/plans', async (c) => {
 coachRoutes.get('/students/:studentId/today', async (c) => {
   const studentId = c.req.param('studentId');
   return questRoutes.fetch(
-    new Request(new URL(`/quests/today/${studentId}`, c.req.url), c.req.raw)
+    new Request(new URL(`/today/${studentId}`, c.req.url), c.req.raw)
   );
 });
 

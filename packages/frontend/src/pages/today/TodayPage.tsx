@@ -1,43 +1,34 @@
 /**
  * TodayPage
- * 오늘의 퀘스트 페이지 - 노트북 스타일 + AI 코치 통합
- * - 저녁 리뷰 (FR-025)
- * - 학습 리마인더 (FR-021)
- * - 미학습 대응 (FR-024)
- * - 위기 개입 트리거 (FR-026)
+ * 오늘의 퀘스트 페이지 - 노트북 스타일
+ * 간소화된 UI: 날짜 헤더 + 퀘스트 목록 + 빠른 액션
  */
 
-import { DEFAULT_ROOM_ID } from '../../stores/chatStore';
 import { NotebookLayout } from '../../components/notebook';
 import { useTodayPage } from './hooks/useTodayPage';
 import {
-  CoachMessage,
-  OverdueQuests,
   EmptyState,
   QuickActions,
-  TodayHeader,
-  QuestList,
-  ActivePlans,
   MissedStudyModal,
   CrisisModal,
   RescheduleModal,
   EveningReviewModal,
+  IntegratedQuestSection,
 } from './components';
 
 export function TodayPage() {
   const {
     // 상태
     plans, quests, selectedDate, coachData, showEveningReview, eveningReview,
-    isLoadingReview, showMissedStudyAlert, showCrisisModal, rescheduleModal,
+    showMissedStudyAlert, showCrisisModal, rescheduleModal,
     isRescheduling, rescheduleTargetDate,
     // 계산값
-    todayStr, isToday, isEvening, isNewUser, overdueQuests, overdueByPlan,
+    todayStr, isToday, isNewUser,
     // 액션
     setSelectedDate, setShowEveningReview, setShowMissedStudyAlert, setShowCrisisModal,
     setRescheduleModal, setRescheduleTargetDate, toggleQuestComplete,
-    requestEveningReview, requestCrisisIntervention, handleMissedStudy,
-    handleRescheduleToToday, openRescheduleModal, openBulkRescheduleModal,
-    handleRescheduleConfirm, changeDate, navigate, addMessage,
+    requestCrisisIntervention, handleMissedStudy,
+    handleRescheduleConfirm, changeDate, navigate,
   } = useTodayPage();
 
   // 플랜이 없을 때
@@ -74,52 +65,17 @@ export function TodayPage() {
         onClose={() => setShowEveningReview(false)}
       />
 
-      {/* 코치 인사 메시지 */}
-      {coachData && isToday && (
-        <CoachMessage
-          coachData={coachData}
-          isEvening={isEvening}
-          isLoadingReview={isLoadingReview}
-          onChat={() => navigate('/chat')}
-          onEveningReview={requestEveningReview}
-        />
-      )}
-
-      {/* 미완료 퀘스트 섹션 */}
-      {isToday && (
-        <OverdueQuests
-          overdueQuests={overdueQuests}
-          overdueByPlan={overdueByPlan}
-          onRescheduleToToday={handleRescheduleToToday}
-          onOpenRescheduleModal={openRescheduleModal}
-          onOpenBulkRescheduleModal={openBulkRescheduleModal}
-          onAskCoach={(message) => addMessage(DEFAULT_ROOM_ID, { role: 'user', content: message })}
-          onNavigate={navigate}
-        />
-      )}
-
-      {/* 날짜 헤더 */}
-      <TodayHeader
-        selectedDate={selectedDate}
+      {/* 통합 퀘스트 섹션 (날짜 헤더 + 퀘스트 목록) */}
+      <IntegratedQuestSection
         quests={quests}
+        selectedDate={selectedDate}
         todayStr={todayStr}
         isToday={isToday}
         onPrevDay={() => changeDate(-1)}
         onNextDay={() => changeDate(1)}
         onGoToToday={() => setSelectedDate(todayStr)}
-      />
-
-      {/* 퀘스트 목록 */}
-      <QuestList
-        quests={quests}
-        selectedDate={selectedDate}
-        isToday={isToday}
         onToggleComplete={toggleQuestComplete}
-        onGoToToday={() => setSelectedDate(todayStr)}
       />
-
-      {/* 진행 중인 플랜 */}
-      <ActivePlans plans={plans} />
 
       {/* 빠른 액션 */}
       <QuickActions

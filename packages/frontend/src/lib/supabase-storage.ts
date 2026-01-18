@@ -109,19 +109,17 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
 
       try {
         // 4. Supabase에서 최신 데이터 가져오기 (사용자별 데이터)
+        // maybeSingle() 사용: 결과가 없어도 에러 발생하지 않음 (406 에러 방지)
         const { data, error } = await supabase
           .from(STORAGE_TABLE)
           .select('value, updated_at')
           .eq('user_id', userId)
           .eq('store_name', storeName)
           .eq('key', key)
-          .single();
+          .maybeSingle();
 
         if (error) {
-          // PGRST116은 "no rows" 에러 - 정상 케이스
-          if (error.code !== 'PGRST116') {
-            console.warn('[SupabaseStorage] 조회 실패:', error.message);
-          }
+          console.warn('[SupabaseStorage] 조회 실패:', error.message);
           // 캐시가 초기화되었으면 null 반환 (이전 사용자 데이터 방지)
           if (cacheCleared) {
             return null;
@@ -247,7 +245,7 @@ export async function migrateLocalStorageToSupabase(
       .eq('user_id', userId)
       .eq('store_name', storeName)
       .eq('key', localStorageKey)
-      .single();
+      .maybeSingle();
 
     if (existingData) {
       console.log('[SupabaseStorage] 마이그레이션 스킵 - 이미 Supabase에 데이터 존재');
@@ -281,11 +279,12 @@ export async function migrateLocalStorageToSupabase(
 /**
  * 모든 스토어 데이터를 Supabase에서 localStorage로 동기화
  * 로그인 후 호출하여 서버 데이터를 로컬에 반영
+ * @returns 동기화된 항목 수 (0이면 데이터 없음)
  */
-export async function syncFromSupabase(storeName: string): Promise<void> {
+export async function syncFromSupabase(storeName: string): Promise<number> {
   const userId = await getUserId();
   if (!userId || !supabase) {
-    return;
+    return 0;
   }
 
   try {
@@ -297,16 +296,21 @@ export async function syncFromSupabase(storeName: string): Promise<void> {
 
     if (error) {
       console.error('[SupabaseStorage] 동기화 조회 실패:', error.message);
-      return;
+      return 0;
     }
 
-    if (data) {
+    if (data && data.length > 0) {
       for (const item of data) {
         setLocalStorage(item.key, item.value);
       }
       console.log(`[SupabaseStorage] 동기화 완료: ${storeName} (${data.length}개 항목)`);
+      return data.length;
     }
+
+    console.log(`[SupabaseStorage] 동기화: ${storeName}에 서버 데이터 없음`);
+    return 0;
   } catch (error) {
     console.error('[SupabaseStorage] 동기화 에러:', error);
+    return 0;
   }
 }

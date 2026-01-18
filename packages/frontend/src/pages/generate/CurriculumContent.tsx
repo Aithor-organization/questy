@@ -469,11 +469,11 @@ function CourseSelectionStep(props: {
             return (
               <div
                 key={course.id}
-                className={`p-3 rounded-lg mb-2 flex justify-between items-center transition-colors ${
+                className={`p-3 rounded-lg mb-2 flex justify-between items-start transition-colors ${
                   isSelected ? 'bg-[var(--highlight-blue)]' : 'hover:bg-gray-50'
                 }`}
               >
-                <div>
+                <div className="flex-1 min-w-0 pr-3">
                   <div className="font-medium text-sm">{course.courseName}</div>
                   <div className="text-xs text-gray-500">
                     {course.lecturer} · {course.subject} · {course.chapters?.length || 0}강
@@ -481,7 +481,7 @@ function CourseSelectionStep(props: {
                 </div>
                 <button
                   onClick={() => isSelected ? props.onDeselect(course.id) : props.onSelect(course)}
-                  className={`px-3 py-1 text-sm rounded transition-colors ${
+                  className={`px-3 py-1 text-sm rounded transition-colors flex-shrink-0 self-center ${
                     isSelected
                       ? 'bg-red-100 text-red-600 hover:bg-red-200'
                       : 'bg-[var(--ink-blue)] text-white hover:bg-[var(--ink-blue)]/90'
@@ -496,40 +496,63 @@ function CourseSelectionStep(props: {
       </div>
 
       {props.selectedCourses.length > 0 && (
-        <div className="notebook-card p-3">
-          <h3 className="text-sm font-medium mb-2">✅ 선택한 강좌 ({props.selectedCourses.length}개)</h3>
-          <div className="space-y-2">
+        <div className="notebook-card p-4">
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <span className="w-5 h-5 bg-[var(--ink-blue)] text-white rounded-full flex items-center justify-center text-xs">
+              {props.selectedCourses.length}
+            </span>
+            선택한 강좌
+          </h3>
+          <div className="space-y-3">
             {props.selectedCourses.map((course) => (
               <div
                 key={course.id}
-                className="flex flex-col sm:flex-row sm:items-center gap-2 p-2 bg-[var(--highlight-blue)] rounded"
+                className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 border border-blue-100 shadow-sm"
               >
-                <div className="flex items-center gap-2 flex-1">
-                  <span className="text-[var(--ink-blue)] text-sm font-medium">{course.courseName}</span>
+                {/* 강좌 헤더 */}
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-[var(--ink-black)] text-sm leading-tight">
+                      {course.courseName}
+                    </h4>
+                    <p className="text-xs text-[var(--pencil-gray)] mt-1">
+                      {course.lecturer} · {course.subject} · {course.chapters?.length || 0}강
+                    </p>
+                  </div>
                   <button
                     onClick={() => props.onDeselect(course.id)}
-                    className="text-[var(--ink-blue)] hover:text-red-500 text-sm"
+                    className="flex-shrink-0 w-6 h-6 rounded-full bg-white border border-gray-200 flex items-center justify-center text-gray-400 hover:bg-red-50 hover:border-red-200 hover:text-red-500 transition-colors"
                   >
                     ×
                   </button>
                 </div>
+
+                {/* 이어듣기 선택 */}
                 {course.chapters && course.chapters.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-[var(--pencil-gray)]">이어듣기:</span>
+                  <div className="bg-white/70 rounded-lg p-3 border border-blue-100">
+                    <label className="text-xs text-[var(--pencil-gray)] mb-1.5 block">
+                      이어듣기 시작점
+                    </label>
                     <select
                       value={course.startFromChapter ?? ''}
                       onChange={(e) => {
                         const value = e.target.value;
                         props.onUpdateStartChapter(course.id, value === '' ? undefined : parseInt(value, 10));
                       }}
-                      className="text-xs px-2 py-1 border border-[var(--paper-lines)] rounded bg-white focus:outline-none focus:ring-1 focus:ring-[var(--ink-blue)]"
+                      className="w-full text-sm px-3 py-2 border border-[var(--paper-lines)] rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-[var(--ink-blue)] focus:border-transparent"
                     >
                       {course.chapters.map((chapter, idx) => (
                         <option key={idx} value={idx === 0 ? '' : idx}>
-                          {chapter.title.slice(0, 25)}{chapter.title.length > 25 ? '...' : ''}{idx > 0 ? ' 부터' : ''}
+                          {idx + 1}강. {chapter.title.slice(0, 30)}{chapter.title.length > 30 ? '...' : ''}{idx > 0 ? ' 부터' : ' (처음부터)'}
                         </option>
                       ))}
                     </select>
+                    {course.startFromChapter && course.startFromChapter > 0 && (
+                      <p className="text-xs text-[var(--ink-blue)] mt-2 flex items-center gap-1">
+                        <span>→</span>
+                        {course.startFromChapter}강 건너뛰고 {course.startFromChapter + 1}강부터 시작
+                      </p>
+                    )}
                   </div>
                 )}
               </div>

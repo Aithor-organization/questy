@@ -168,6 +168,18 @@ export interface AgentRequest {
       completedToday?: number;
       totalToday?: number;
     };
+    // 학습 프로필 (온보딩에서 수집한 정보)
+    userProfile?: {
+      age?: number | null;
+      examYear?: number;           // 0=현역, 1=재수, 2=삼수, 3=그 이상
+      targetUniversity?: string;   // 목표 대학
+      targetGrades?: Record<string, number>;  // 목표 등급 {"국어": 1, "수학": 2, ...}
+      currentGrades?: Record<string, number>; // 현재 등급
+      selectedTamgu1?: string;     // 선택 탐구1
+      selectedTamgu2?: string;     // 선택 탐구2
+      subscribedPlatforms?: string[];  // 구독 인강 사이트
+      dailyStudyHours?: number;    // 하루 순공 시간
+    };
   };
 }
 
@@ -260,6 +272,18 @@ export interface DirectorContext {
       streakDays: number;
       averageMinutesPerDay: number;
     };
+  };
+  // 학습 프로필 (온보딩에서 수집한 정보)
+  userProfile?: {
+    age?: number | null;
+    examYear?: number;           // 0=현역, 1=재수, 2=삼수, 3=그 이상
+    targetUniversity?: string;   // 목표 대학
+    targetGrades?: Record<string, number>;  // 목표 등급
+    currentGrades?: Record<string, number>; // 현재 등급
+    selectedTamgu1?: string;     // 선택 탐구1
+    selectedTamgu2?: string;     // 선택 탐구2
+    subscribedPlatforms?: string[];  // 구독 인강 사이트
+    dailyStudyHours?: number;    // 하루 순공 시간
   };
 }
 

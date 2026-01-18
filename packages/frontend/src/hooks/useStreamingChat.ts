@@ -6,7 +6,7 @@
  */
 
 import { useState, useCallback, useRef } from 'react';
-import { useChatStore } from '../stores/chatStore';
+import { useChatStore, type MessageAction } from '../stores/chatStore';
 import { API_BASE_URL } from '../config';
 
 interface QuestContext {
@@ -48,6 +48,19 @@ interface QuestContext {
   totalToday: number;
 }
 
+// 학습 프로필 (온보딩에서 수집한 정보)
+interface UserProfile {
+  age: number | null;
+  examYear: number;
+  targetUniversity: string;
+  targetGrades: Record<string, number>;
+  currentGrades: Record<string, number>;
+  selectedTamgu1: string;
+  selectedTamgu2: string;
+  subscribedPlatforms: string[];
+  dailyStudyHours: number;
+}
+
 export function useStreamingChat(roomId: string) {
   const [isStreaming, setIsStreaming] = useState(false);
   const [streamingContent, setStreamingContent] = useState('');
@@ -61,7 +74,7 @@ export function useStreamingChat(roomId: string) {
   } = useChatStore();
 
   const sendMessageStream = useCallback(
-    async (message: string, questContext?: QuestContext) => {
+    async (message: string, questContext?: QuestContext, userProfile?: UserProfile) => {
       if (!message.trim()) return;
 
       // 세션 ID 가져오기/생성
@@ -104,6 +117,7 @@ export function useStreamingChat(roomId: string) {
             message,
             userName,
             questContext,
+            userProfile,  // 학습 프로필 추가 (목표 대학, 목표 등급 등)
             conversationId,
           }),
           signal: abortController.signal,
@@ -123,6 +137,7 @@ export function useStreamingChat(roomId: string) {
         let buffer = '';
         let fullContent = '';
         let agentRole = 'COACH';
+        let actions: MessageAction[] = [];
 
         while (true) {
           const { done, value } = await reader.read();
@@ -168,6 +183,11 @@ export function useStreamingChat(roomId: string) {
                 if (data.studentId) {
                   localStorage.setItem('questybook_session_id', data.studentId);
                 }
+
+                // done 이벤트에서 actions 캡처
+                if (currentEvent === 'done' && data.actions) {
+                  actions = data.actions;
+                }
               } catch (parseError) {
                 // 오류 이벤트 처리 중 throw된 경우 상위로 전파
                 if ((parseError as Error).message !== '서버 오류') {
@@ -187,6 +207,7 @@ export function useStreamingChat(roomId: string) {
           role: 'assistant',
           content: finalContent,
           agentRole,
+          actions: actions.length > 0 ? actions : undefined,
         });
 
         // 현재 보고 있는 채팅방이면 읽음 처리

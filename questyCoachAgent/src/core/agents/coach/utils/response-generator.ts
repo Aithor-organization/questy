@@ -33,6 +33,9 @@ export function buildCoachingPrompt(
 - 감정: ${state.emotion}
 - 번아웃 레벨: ${state.burnoutLevel}`;
 
+  // 사용자 프로필 컨텍스트 구성
+  const userProfileInfo = buildUserProfileContext(metadata?.userProfile);
+
   // 퀘스트 컨텍스트 추출
   const questInfo = buildQuestContext(metadata?.questContext);
 
@@ -44,6 +47,7 @@ export function buildCoachingPrompt(
     systemPrompt,
     memoryContext,
     conversationHistory,
+    userProfileInfo,
     stateInfo,
     questInfo,
     `\n## 이번 응답 가이드라인\n${RESPONSE_GUIDELINES[responseType]}`,
@@ -69,6 +73,82 @@ function buildConversationHistory(conversations?: ConversationMessage[]): string
 ${historyText}
 
 위 대화에서 학생이 언급한 이름, 정보, 요청 사항을 기억하고 자연스럽게 대화를 이어가세요.`;
+}
+
+/**
+ * 사용자 프로필 컨텍스트 구성 (온보딩에서 수집한 정보)
+ */
+function buildUserProfileContext(userProfile?: {
+  age?: number | null;
+  examYear?: number;
+  targetUniversity?: string;
+  targetGrades?: Record<string, number>;
+  currentGrades?: Record<string, number>;
+  selectedTamgu1?: string;
+  selectedTamgu2?: string;
+  subscribedPlatforms?: string[];
+  dailyStudyHours?: number;
+}): string {
+  if (!userProfile) return '';
+
+  const parts: string[] = ['## 학생 프로필 (개인화된 코칭에 활용)'];
+
+  // 수험 상태
+  if (userProfile.examYear !== undefined) {
+    const examYearLabels: Record<number, string> = {
+      0: '현역 수험생',
+      1: '재수생',
+      2: '삼수생',
+      3: 'N수생',
+    };
+    parts.push(`- 수험 상태: ${examYearLabels[userProfile.examYear] || '수험생'}`);
+  }
+
+  // 목표 대학
+  if (userProfile.targetUniversity) {
+    parts.push(`- 목표 대학: ${userProfile.targetUniversity}`);
+  }
+
+  // 선택 탐구
+  const tamguList: string[] = [];
+  if (userProfile.selectedTamgu1) tamguList.push(userProfile.selectedTamgu1);
+  if (userProfile.selectedTamgu2) tamguList.push(userProfile.selectedTamgu2);
+  if (tamguList.length > 0) {
+    parts.push(`- 선택 탐구: ${tamguList.join(', ')}`);
+  }
+
+  // 목표 등급
+  if (userProfile.targetGrades && Object.keys(userProfile.targetGrades).length > 0) {
+    const targetList = Object.entries(userProfile.targetGrades)
+      .map(([subject, grade]) => `${subject} ${grade}등급`)
+      .join(', ');
+    parts.push(`- 목표 등급: ${targetList}`);
+  }
+
+  // 현재 등급
+  if (userProfile.currentGrades && Object.keys(userProfile.currentGrades).length > 0) {
+    const currentList = Object.entries(userProfile.currentGrades)
+      .map(([subject, grade]) => `${subject} ${grade}등급`)
+      .join(', ');
+    parts.push(`- 현재 등급: ${currentList}`);
+  }
+
+  // 하루 순공 시간
+  if (userProfile.dailyStudyHours) {
+    parts.push(`- 하루 목표 공부시간: ${userProfile.dailyStudyHours}시간`);
+  }
+
+  // 구독 인강
+  if (userProfile.subscribedPlatforms && userProfile.subscribedPlatforms.length > 0) {
+    parts.push(`- 구독 중인 인강: ${userProfile.subscribedPlatforms.join(', ')}`);
+  }
+
+  // 프로필 정보가 있는 경우에만 반환
+  if (parts.length <= 1) return '';
+
+  parts.push('\n학생의 프로필을 참고하여 맞춤형 코칭을 제공하세요. 목표 대학과 등급을 고려한 조언을 하면 좋습니다.');
+
+  return parts.join('\n');
 }
 
 /**

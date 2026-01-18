@@ -16,6 +16,19 @@ export const CreateStudentSchema = z.object({
 
 // ===================== 채팅 =====================
 
+// 학습 프로필 스키마 (온보딩에서 수집한 정보)
+export const UserProfileSchema = z.object({
+  age: z.number().nullable().optional(),
+  examYear: z.number().optional(),  // 0=현역, 1=재수, 2=삼수, 3=그 이상
+  targetUniversity: z.string().optional(),
+  targetGrades: z.record(z.string(), z.number()).optional(),  // {"국어": 1, "수학": 2, ...}
+  currentGrades: z.record(z.string(), z.number()).optional(),
+  selectedTamgu1: z.string().optional(),
+  selectedTamgu2: z.string().optional(),
+  subscribedPlatforms: z.array(z.string()).optional(),
+  dailyStudyHours: z.number().optional(),
+});
+
 export const ChatSchema = z.object({
   studentId: z.string().optional(),
   message: z.string().min(1).max(2000),
@@ -24,6 +37,7 @@ export const ChatSchema = z.object({
   metadata: z.object({
     currentSubject: z.enum(['MATH', 'KOREAN', 'ENGLISH', 'SCIENCE', 'SOCIAL', 'GENERAL']).optional(),
   }).optional(),
+  userProfile: UserProfileSchema.optional(),  // 학습 프로필 (목표 대학, 목표 등급 등)
   questContext: z.object({
     todayQuests: z.array(z.object({
       unitTitle: z.string(),

@@ -11,7 +11,7 @@ import type { ProfileData } from '../types';
 
 export function useMyPage() {
   const navigate = useNavigate();
-  const { user, logout, updateProfile } = useAuthStore();
+  const { user, logout, updateProfile, userProfile, loadUserProfile, setUserProfile } = useAuthStore();
 
   // 기본 정보 수정 상태
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -22,43 +22,69 @@ export function useMyPage() {
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [updateSuccess, setUpdateSuccess] = useState(false);
 
-  // 학습 프로필 상태
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  // 학습 프로필 상태 (authStore에서 가져옴)
+  const [profile, setProfile] = useState<ProfileData | null>(userProfile);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(!userProfile);
   const [showEditLearning, setShowEditLearning] = useState(false);
   const [editProfile, setEditProfile] = useState<ProfileData | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [profileSuccess, setProfileSuccess] = useState(false);
 
-  // 프로필 데이터 로드
+  // authStore의 userProfile이 변경되면 로컬 상태도 업데이트
+  useEffect(() => {
+    if (userProfile) {
+      setProfile(userProfile);
+      setIsLoadingProfile(false);
+    }
+  }, [userProfile]);
+
+  // 프로필 데이터 로드 (authStore에 없을 때만 Supabase에서 가져옴)
   useEffect(() => {
     async function loadProfile() {
+      // 이미 authStore에 프로필이 있으면 스킵
+      if (userProfile) {
+        setProfile(userProfile);
+        setIsLoadingProfile(false);
+        return;
+      }
+
       if (!user || !supabase) {
         setIsLoadingProfile(false);
         return;
       }
-      try {
-        const { data, error } = await supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', user.id)
-          .single();
 
-        if (error) {
-          setProfile(null);
-        } else if (data) {
-          setProfile({
-            age: data.age,
-            examYear: data.exam_year || 0,
-            targetUniversity: data.target_university || '',
-            targetGrades: data.target_grades || {},
-            currentGrades: data.current_grades || {},
-            selectedTamgu1: data.selected_tamgu1 || '',
-            selectedTamgu2: data.selected_tamgu2 || '',
-            subscribedPlatforms: data.subscribed_platforms || [],
-            dailyStudyHours: data.daily_study_hours || 8,
-          });
+      try {
+        // authStore의 loadUserProfile 사용 (persist됨)
+        const loadedProfile = await loadUserProfile();
+        if (loadedProfile) {
+          setProfile(loadedProfile);
+        } else {
+          // Supabase에서 직접 가져오기 (폴백)
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          if (error) {
+            setProfile(null);
+          } else if (data) {
+            const profileData: ProfileData = {
+              age: data.age,
+              examYear: data.exam_year || 0,
+              targetUniversity: data.target_university || '',
+              targetGrades: data.target_grades || {},
+              currentGrades: data.current_grades || {},
+              selectedTamgu1: data.selected_tamgu1 || '',
+              selectedTamgu2: data.selected_tamgu2 || '',
+              subscribedPlatforms: data.subscribed_platforms || [],
+              dailyStudyHours: data.daily_study_hours || 8,
+            };
+            setProfile(profileData);
+            // authStore에도 저장 (persist)
+            setUserProfile(profileData);
+          }
         }
       } catch (err) {
         console.error('[MyPage] Profile load error:', err);
@@ -67,7 +93,7 @@ export function useMyPage() {
       }
     }
     loadProfile();
-  }, [user]);
+  }, [user, userProfile, loadUserProfile, setUserProfile]);
 
   const handleLogout = () => {
     logout();
@@ -191,6 +217,8 @@ export function useMyPage() {
       }
 
       setProfile({ ...editProfile });
+      // authStore에도 저장 (persist)
+      setUserProfile({ ...editProfile });
       setProfileSuccess(true);
       setTimeout(() => {
         setShowEditLearning(false);

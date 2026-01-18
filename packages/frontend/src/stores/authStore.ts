@@ -18,10 +18,38 @@ export interface User {
   onboardingCompleted?: boolean;
 }
 
+// 학습 프로필 인터페이스 (온보딩에서 수집한 정보)
+export interface UserProfile {
+  age: number | null;
+  examYear: number;  // 0=현역, 1=재수, 2=삼수, 3=그 이상
+  targetUniversity: string;
+  targetGrades: Record<string, number>;  // {"국어": 1, "수학": 2, ...}
+  currentGrades: Record<string, number>;
+  selectedTamgu1: string;
+  selectedTamgu2: string;
+  subscribedPlatforms: string[];
+  dailyStudyHours: number;
+}
+
+// 멤버십 데이터 인터페이스
+export type MembershipType = 'pending' | 'beta_tester' | 'lab_member';
+export type MembershipStatus = 'pending' | 'active' | 'expired' | 'revoked';
+
+export interface MembershipData {
+  type: MembershipType;
+  status: MembershipStatus;
+  approvedAt: string | null;
+  expiresAt: string | null;
+  remainingDays: number | null;
+  isExpired: boolean;
+}
+
 interface AuthStore {
   // 상태
   user: User | null;
   session: Session | null;
+  userProfile: UserProfile | null;  // 학습 프로필 (온보딩 데이터)
+  membershipData: MembershipData | null;  // 멤버십 정보
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
@@ -38,6 +66,10 @@ interface AuthStore {
   syncName: (name: string) => void;
   checkOnboardingStatus: () => Promise<boolean>;
   setOnboardingCompleted: (completed: boolean) => void;
+  loadUserProfile: () => Promise<UserProfile | null>;  // 학습 프로필 로드
+  setUserProfile: (profile: UserProfile | null) => void;  // 프로필 업데이트
+  loadMembership: () => Promise<MembershipData | null>;  // 멤버십 로드
+  setMembershipData: (data: MembershipData | null) => void;  // 멤버십 업데이트
 }
 
 // Supabase User를 앱 User로 변환
@@ -191,6 +223,8 @@ export const useAuthStore = create<AuthStore>()(
     (set, get) => ({
       user: null,
       session: null,
+      userProfile: null,
+      membershipData: null,
       isAuthenticated: false,
       isLoading: true,
       error: null,
@@ -476,7 +510,7 @@ export const useAuthStore = create<AuthStore>()(
           await supabase.auth.signOut();
         }
 
-        set({ user: null, session: null, isAuthenticated: false, error: null });
+        set({ user: null, session: null, userProfile: null, membershipData: null, isAuthenticated: false, error: null });
         localStorage.removeItem('questybook_student_id');
         localStorage.removeItem('questybook_student_name');
         // 사용자별 데이터 격리 - 로그아웃 시 모든 캐시 삭제
@@ -598,12 +632,94 @@ export const useAuthStore = create<AuthStore>()(
           set({ user: { ...currentUser, onboardingCompleted: completed } });
         }
       },
+
+      // 학습 프로필 로드 (온보딩 데이터)
+      loadUserProfile: async () => {
+        const currentUser = get().user;
+        if (!currentUser || !supabase) {
+          return null;
+        }
+
+        try {
+          const { data, error } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .single();
+
+          if (error) {
+            console.log('[Auth] No user profile found');
+            return null;
+          }
+
+          const profile: UserProfile = {
+            age: data.age,
+            examYear: data.exam_year || 0,
+            targetUniversity: data.target_university || '',
+            targetGrades: data.target_grades || {},
+            currentGrades: data.current_grades || {},
+            selectedTamgu1: data.selected_tamgu1 || '',
+            selectedTamgu2: data.selected_tamgu2 || '',
+            subscribedPlatforms: data.subscribed_platforms || [],
+            dailyStudyHours: data.daily_study_hours || 8,
+          };
+
+          set({ userProfile: profile });
+          console.log('[Auth] User profile loaded:', profile.targetUniversity);
+          return profile;
+        } catch (err) {
+          console.error('[Auth] Load user profile error:', err);
+          return null;
+        }
+      },
+
+      // 프로필 업데이트 (로컬 상태만)
+      setUserProfile: (profile: UserProfile | null) => {
+        set({ userProfile: profile });
+      },
+
+      // 멤버십 정보 로드
+      loadMembership: async () => {
+        const session = get().session;
+        if (!session?.access_token || !supabase) {
+          return null;
+        }
+
+        try {
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+          const response = await fetch(`${API_URL}/api/admin/membership/status`, {
+            headers: {
+              'Authorization': `Bearer ${session.access_token}`,
+            },
+          });
+
+          const data = await response.json();
+
+          if (data.success) {
+            const membership: MembershipData = data.data;
+            set({ membershipData: membership });
+            console.log('[Auth] Membership loaded:', membership.type);
+            return membership;
+          }
+          return null;
+        } catch (err) {
+          console.error('[Auth] Load membership error:', err);
+          return null;
+        }
+      },
+
+      // 멤버십 데이터 업데이트 (로컬 상태만)
+      setMembershipData: (data: MembershipData | null) => {
+        set({ membershipData: data });
+      },
     }),
     {
       name: 'questybook-auth',
       // isAuthenticated는 저장하지 않음 - 항상 Supabase 세션 기준으로 판단
       partialize: (state) => ({
         user: state.user,
+        userProfile: state.userProfile,  // 학습 프로필도 persist
+        membershipData: state.membershipData,  // 멤버십 데이터도 persist
       }),
     }
   )
