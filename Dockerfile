@@ -1,4 +1,5 @@
 # Node.js only Dockerfile (Python agents converted to TypeScript)
+# Build: 2026-01-18
 FROM node:20-slim AS builder
 
 # Install pnpm
@@ -6,21 +7,21 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files first for better caching
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY packages/shared/package.json ./packages/shared/
 COPY packages/backend/package.json ./packages/backend/
 
-# Install dependencies
+# Install all dependencies
 RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY packages/shared/ ./packages/shared/
 COPY packages/backend/ ./packages/backend/
 
-# Build
-RUN pnpm --filter @questybook/shared build
-RUN pnpm --filter @questybook/backend build
+# Build packages
+RUN pnpm --filter @questybook/shared build && \
+    pnpm --filter @questybook/backend build
 
 # Production image
 FROM node:20-slim AS runner
@@ -29,15 +30,19 @@ RUN corepack enable && corepack prepare pnpm@latest --activate
 
 WORKDIR /app
 
-# Copy built files
+# Copy package files
 COPY --from=builder /app/package.json /app/pnpm-lock.yaml /app/pnpm-workspace.yaml ./
 COPY --from=builder /app/packages/shared/package.json ./packages/shared/
-COPY --from=builder /app/packages/shared/dist/ ./packages/shared/dist/
 COPY --from=builder /app/packages/backend/package.json ./packages/backend/
+
+# Copy built dist files
+COPY --from=builder /app/packages/shared/dist/ ./packages/shared/dist/
 COPY --from=builder /app/packages/backend/dist/ ./packages/backend/dist/
 
-# Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile
+# Copy node_modules from builder
+COPY --from=builder /app/node_modules/ ./node_modules/
+COPY --from=builder /app/packages/shared/node_modules/ ./packages/shared/node_modules/
+COPY --from=builder /app/packages/backend/node_modules/ ./packages/backend/node_modules/
 
 # Set environment
 ENV NODE_ENV=production
