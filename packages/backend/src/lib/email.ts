@@ -7,8 +7,8 @@ import { Resend } from 'resend';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-// 발신자 이메일 (Resend에서 도메인 인증 필요, 테스트는 onboarding@resend.dev 사용 가능)
-const FROM_EMAIL = process.env.FROM_EMAIL || 'Questy <aithor@aithor.com>';
+// 발신자 이메일 (도메인 인증 전에는 onboarding@resend.dev 사용)
+const FROM_EMAIL = process.env.FROM_EMAIL || 'QuestyBook <onboarding@resend.dev>';
 
 interface SendEmailOptions {
   to: string;
