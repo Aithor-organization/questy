@@ -1,0 +1,364 @@
+/**
+ * Chat API Service
+ * Supabase chat_rooms, chat_messages 테이블과 직접 연동
+ * user_storage 대신 정규화된 테이블 사용
+ */
+
+import { supabase } from './supabase';
+
+// 타입 정의
+export interface DbChatRoom {
+  id: string;
+  student_id: string;
+  name: string;
+  emoji: string;
+  description: string | null;
+  is_default: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbChatMessage {
+  id: string;
+  room_id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  agent_role: string | null;
+  is_read: boolean;
+  reschedule_options: unknown[];
+  actions: unknown[];
+  created_at: string;
+}
+
+// 사용자의 student_id 가져오기
+async function getStudentId(): Promise<string | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    // students 테이블에서 user_id로 student_id 조회
+    const { data: student, error } = await supabase
+      .from('students')
+      .select('id')
+      .eq('user_id', user.id)
+      .single();
+
+    if (error || !student) {
+      console.error('[ChatAPI] student 조회 실패:', error?.message);
+      return null;
+    }
+
+    return student.id;
+  } catch (error) {
+    console.error('[ChatAPI] getStudentId 에러:', error);
+    return null;
+  }
+}
+
+/**
+ * 모든 채팅방 조회
+ */
+export async function fetchChatRooms(): Promise<DbChatRoom[]> {
+  if (!supabase) {
+    console.log('[ChatAPI] Supabase 미설정');
+    return [];
+  }
+
+  const studentId = await getStudentId();
+  if (!studentId) {
+    console.log('[ChatAPI] studentId 없음');
+    return [];
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_rooms')
+      .select('*')
+      .eq('student_id', studentId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[ChatAPI] fetchChatRooms 실패:', error.message);
+      return [];
+    }
+
+    console.log(`[ChatAPI] 채팅방 ${data?.length || 0}개 조회됨`);
+    return data || [];
+  } catch (error) {
+    console.error('[ChatAPI] fetchChatRooms 에러:', error);
+    return [];
+  }
+}
+
+/**
+ * 기본 채팅방 조회 또는 생성
+ */
+export async function getOrCreateDefaultRoom(): Promise<DbChatRoom | null> {
+  if (!supabase) return null;
+
+  const studentId = await getStudentId();
+  if (!studentId) return null;
+
+  try {
+    // 기본 채팅방 조회
+    const { data: existingRoom } = await supabase
+      .from('chat_rooms')
+      .select('*')
+      .eq('student_id', studentId)
+      .eq('is_default', true)
+      .single();
+
+    if (existingRoom) {
+      console.log('[ChatAPI] 기본 채팅방 조회됨:', existingRoom.id);
+      return existingRoom;
+    }
+
+    // 없으면 생성
+    console.log('[ChatAPI] 기본 채팅방 생성 중...');
+    const { data: newRoom, error: createError } = await supabase
+      .from('chat_rooms')
+      .insert({
+        student_id: studentId,
+        name: 'AI 학습 코치',
+        emoji: '🤖',
+        description: '언제든 물어보세요!',
+        is_default: true,
+      })
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('[ChatAPI] 기본 채팅방 생성 실패:', createError.message);
+      return null;
+    }
+
+    console.log('[ChatAPI] 기본 채팅방 생성됨:', newRoom.id);
+    return newRoom;
+  } catch (error) {
+    console.error('[ChatAPI] getOrCreateDefaultRoom 에러:', error);
+    return null;
+  }
+}
+
+/**
+ * 채팅방 생성
+ */
+export async function createChatRoom(
+  name: string,
+  emoji: string,
+  description?: string
+): Promise<DbChatRoom | null> {
+  if (!supabase) return null;
+
+  const studentId = await getStudentId();
+  if (!studentId) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_rooms')
+      .insert({
+        student_id: studentId,
+        name,
+        emoji,
+        description: description || null,
+        is_default: false,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[ChatAPI] createChatRoom 실패:', error.message);
+      return null;
+    }
+
+    console.log('[ChatAPI] 채팅방 생성됨:', data.id);
+    return data;
+  } catch (error) {
+    console.error('[ChatAPI] createChatRoom 에러:', error);
+    return null;
+  }
+}
+
+/**
+ * 채팅방 삭제
+ */
+export async function deleteChatRoom(roomId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('chat_rooms')
+      .delete()
+      .eq('id', roomId);
+
+    if (error) {
+      console.error('[ChatAPI] deleteChatRoom 실패:', error.message);
+      return false;
+    }
+
+    console.log('[ChatAPI] 채팅방 삭제됨:', roomId);
+    return true;
+  } catch (error) {
+    console.error('[ChatAPI] deleteChatRoom 에러:', error);
+    return false;
+  }
+}
+
+/**
+ * 채팅방의 메시지 조회
+ */
+export async function fetchMessages(roomId: string): Promise<DbChatMessage[]> {
+  if (!supabase) return [];
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .select('*')
+      .eq('room_id', roomId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      console.error('[ChatAPI] fetchMessages 실패:', error.message);
+      return [];
+    }
+
+    console.log(`[ChatAPI] 메시지 ${data?.length || 0}개 조회됨 (room: ${roomId})`);
+    return data || [];
+  } catch (error) {
+    console.error('[ChatAPI] fetchMessages 에러:', error);
+    return [];
+  }
+}
+
+/**
+ * 메시지 추가
+ */
+export async function addMessage(
+  roomId: string,
+  role: 'user' | 'assistant',
+  content: string,
+  agentRole?: string,
+  rescheduleOptions?: unknown[],
+  actions?: unknown[]
+): Promise<DbChatMessage | null> {
+  if (!supabase) return null;
+
+  try {
+    const { data, error } = await supabase
+      .from('chat_messages')
+      .insert({
+        room_id: roomId,
+        role,
+        content,
+        agent_role: agentRole || null,
+        is_read: role === 'user', // user 메시지는 자동 읽음 처리
+        reschedule_options: rescheduleOptions || [],
+        actions: actions || [],
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('[ChatAPI] addMessage 실패:', error.message);
+      return null;
+    }
+
+    console.log(`[ChatAPI] 메시지 추가됨: ${data.id} (${role})`);
+    return data;
+  } catch (error) {
+    console.error('[ChatAPI] addMessage 에러:', error);
+    return null;
+  }
+}
+
+/**
+ * 메시지 읽음 처리
+ */
+export async function markMessagesAsRead(roomId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('chat_messages')
+      .update({ is_read: true })
+      .eq('room_id', roomId)
+      .eq('is_read', false);
+
+    if (error) {
+      console.error('[ChatAPI] markMessagesAsRead 실패:', error.message);
+      return false;
+    }
+
+    return true;
+  } catch (error) {
+    console.error('[ChatAPI] markMessagesAsRead 에러:', error);
+    return false;
+  }
+}
+
+/**
+ * 채팅방의 모든 메시지 삭제
+ */
+export async function clearRoomMessages(roomId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { error } = await supabase
+      .from('chat_messages')
+      .delete()
+      .eq('room_id', roomId);
+
+    if (error) {
+      console.error('[ChatAPI] clearRoomMessages 실패:', error.message);
+      return false;
+    }
+
+    console.log('[ChatAPI] 채팅방 메시지 삭제됨:', roomId);
+    return true;
+  } catch (error) {
+    console.error('[ChatAPI] clearRoomMessages 에러:', error);
+    return false;
+  }
+}
+
+/**
+ * 읽지 않은 메시지 개수 조회
+ */
+export async function getUnreadCount(roomId?: string): Promise<number> {
+  if (!supabase) return 0;
+
+  const studentId = await getStudentId();
+  if (!studentId) return 0;
+
+  try {
+    let query = supabase
+      .from('chat_messages')
+      .select('id', { count: 'exact', head: true })
+      .eq('is_read', false)
+      .eq('role', 'assistant');
+
+    if (roomId) {
+      query = query.eq('room_id', roomId);
+    } else {
+      // 모든 채팅방의 읽지 않은 메시지
+      const rooms = await fetchChatRooms();
+      const roomIds = rooms.map(r => r.id);
+      if (roomIds.length === 0) return 0;
+      query = query.in('room_id', roomIds);
+    }
+
+    const { count, error } = await query;
+
+    if (error) {
+      console.error('[ChatAPI] getUnreadCount 실패:', error.message);
+      return 0;
+    }
+
+    return count || 0;
+  } catch (error) {
+    console.error('[ChatAPI] getUnreadCount 에러:', error);
+    return 0;
+  }
+}

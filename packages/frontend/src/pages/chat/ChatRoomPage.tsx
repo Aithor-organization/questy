@@ -71,26 +71,30 @@ export function ChatRoomPage() {
 
   // 초기화: 환영 메시지 및 읽음 처리 (최초 1회만)
   useEffect(() => {
-    if (initRef.current) return;
+    async function initializeRoom() {
+      if (initRef.current) return;
 
-    const currentRoom = getRoomById(targetRoomId) || getDefaultRoom();
-    if (!currentRoom) return;
+      const currentRoom = getRoomById(targetRoomId) || getDefaultRoom();
+      if (!currentRoom) return;
 
-    initRef.current = true;
+      initRef.current = true;
 
-    // 페이지 진입 시 읽음 처리
-    markRoomAsRead(targetRoomId);
+      // 페이지 진입 시 읽음 처리 (async)
+      await markRoomAsRead(targetRoomId);
 
-    // 기본 채팅방이고 메시지가 없으면 환영 메시지
-    if (currentRoom.isDefault && currentRoom.messages.length === 0) {
-      addMessage(targetRoomId, {
-        role: 'assistant',
-        content: `안녕하세요! 저는 AI 학습 코치예요! 🌟\n\n무엇을 도와드릴까요? 학습 질문, 계획 상담, 아니면 그냥 수다도 좋아요! 😊`,
-        agentRole: 'COACH',
-      });
+      // 기본 채팅방이고 메시지가 없으면 환영 메시지 (async)
+      if (currentRoom.isDefault && currentRoom.messages.length === 0) {
+        await addMessage(targetRoomId, {
+          role: 'assistant',
+          content: `안녕하세요! 저는 AI 학습 코치예요! 🌟\n\n무엇을 도와드릴까요? 학습 질문, 계획 상담, 아니면 그냥 수다도 좋아요! 😊`,
+          agentRole: 'COACH',
+        });
+      }
+
+      setIsInitialized(true);
     }
 
-    setIsInitialized(true);
+    initializeRoom();
   }, [targetRoomId, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
 
   // 첫 진입 시 스크롤: useLayoutEffect로 paint 전에 실행
@@ -115,9 +119,11 @@ export function ChatRoomPage() {
     }
   }, [streamingContent]);
 
-  // 포커스 시 읽음 처리
+  // 포커스 시 읽음 처리 (async)
   useEffect(() => {
-    const handleFocus = () => markRoomAsRead(targetRoomId);
+    const handleFocus = () => {
+      markRoomAsRead(targetRoomId);
+    };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
   }, [targetRoomId, markRoomAsRead]);

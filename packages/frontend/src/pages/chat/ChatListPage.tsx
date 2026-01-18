@@ -43,10 +43,12 @@ export function ChatListPage() {
     navigate(`/chat/${roomId}`);
   };
 
-  const handleCreateRoom = (name: string, emoji: string, description?: string) => {
-    const newRoomId = createRoom(name, emoji, description);
+  const handleCreateRoom = async (name: string, emoji: string, description?: string) => {
+    const newRoomId = await createRoom(name, emoji, description);
     setShowNewChatModal(false);
-    navigate(`/chat/${newRoomId}`);
+    if (newRoomId) {
+      navigate(`/chat/${newRoomId}`);
+    }
   };
 
   return (

@@ -1,14 +1,13 @@
 /**
  * Chat Store
- * 여러 채팅방 지원 + 백그라운드 응답 + 알림 시스템
- * - 카카오톡 스타일 채팅 목록
- * - localStorage에 메시지 영구 저장
- * - 백그라운드에서 AI 응답 생성 유지
+ * Supabase chat_rooms, chat_messages 테이블과 직접 연동
+ * - 정규화된 테이블 구조 사용
+ * - 새로고침 후에도 데이터 유지
  */
 
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { createSupabaseStorage } from '../lib/supabase-storage';
+import * as chatApi from '../lib/chat-api';
+import type { DbChatRoom, DbChatMessage } from '../lib/chat-api';
 
 // 일정 재조정 옵션
 export interface RescheduleOption {
@@ -28,28 +27,24 @@ export interface MessageAction {
   type: 'POSTPONE_TODAY' | 'RESCHEDULE_QUEST' | 'NAVIGATE' | 'CUSTOM' | 'SMART_RESCHEDULE' | 'GENERATE_CURRICULUM' | 'COMPLETE_QUEST' | 'DELETE_PLAN';
   label: string;
   icon?: string;
-  // 액션별 데이터
   data?: {
-    daysToAdd?: number;       // POSTPONE_TODAY용
-    planId?: string;          // RESCHEDULE_QUEST용, SMART_RESCHEDULE용, DELETE_PLAN용
-    questId?: string;         // RESCHEDULE_QUEST용, COMPLETE_QUEST용 (고유 식별자)
-    newDate?: string;         // RESCHEDULE_QUEST용
-    navigateTo?: string;      // NAVIGATE용
-    customHandler?: string;   // CUSTOM용
-    // SMART_RESCHEDULE용
+    daysToAdd?: number;
+    planId?: string;
+    questId?: string;
+    newDate?: string;
+    navigateTo?: string;
+    customHandler?: string;
     targetDate?: string;
     strategy?: 'smart' | 'spread' | 'front_load' | 'back_load' | 'priority_first';
-    // GENERATE_CURRICULUM용
     materialName?: string;
     targetDays?: number;
     dailyStudyHours?: number;
     units?: Array<{ unitNumber: number; unitTitle: string; estimatedMinutes?: number }>;
-    // COMPLETE_QUEST용
-    completed?: boolean;      // true면 완료, false면 미완료로 변경
+    completed?: boolean;
   };
 }
 
-// 메시지 인터페이스
+// 메시지 인터페이스 (프론트엔드용)
 export interface ChatMessage {
   id: string;
   role: 'assistant' | 'user';
@@ -58,10 +53,10 @@ export interface ChatMessage {
   agentRole?: string;
   isRead: boolean;
   rescheduleOptions?: RescheduleOption[];
-  actions?: MessageAction[];  // 액션 버튼
+  actions?: MessageAction[];
 }
 
-// 채팅방 인터페이스
+// 채팅방 인터페이스 (프론트엔드용)
 export interface ChatRoom {
   id: string;
   name: string;
@@ -69,7 +64,7 @@ export interface ChatRoom {
   description?: string;
   createdAt: string;
   messages: ChatMessage[];
-  isDefault?: boolean; // 기본 AI 코치 채팅방
+  isDefault?: boolean;
 }
 
 // 알림 인터페이스
@@ -93,25 +88,27 @@ export interface PendingResponse {
 }
 
 interface ChatStore {
-  // 채팅방
+  // 상태
   rooms: ChatRoom[];
-
-  // 알림
   notifications: ChatNotification[];
-
-  // 백그라운드 응답 대기열
   pendingResponses: PendingResponse[];
+  isLoading: boolean;
+  isInitialized: boolean;
+
+  // 초기화
+  initializeChat: () => Promise<void>;
+  resetChat: () => void;
 
   // 채팅방 액션
-  createRoom: (name: string, emoji: string, description?: string) => string;
-  deleteRoom: (roomId: string) => void;
+  createRoom: (name: string, emoji: string, description?: string) => Promise<string | null>;
+  deleteRoom: (roomId: string) => Promise<void>;
   getRoomById: (roomId: string) => ChatRoom | undefined;
-  getDefaultRoom: () => ChatRoom;
+  getDefaultRoom: () => ChatRoom | undefined;
 
   // 메시지 액션
-  addMessage: (roomId: string, message: Omit<ChatMessage, 'id' | 'timestamp' | 'isRead'>) => string;
-  markRoomAsRead: (roomId: string) => void;
-  clearRoomMessages: (roomId: string) => void;
+  addMessage: (roomId: string, message: Omit<ChatMessage, 'id' | 'timestamp' | 'isRead'>) => Promise<string | null>;
+  markRoomAsRead: (roomId: string) => Promise<void>;
+  clearRoomMessages: (roomId: string) => Promise<void>;
 
   // 백그라운드 응답 액션
   addPendingResponse: (roomId: string, userMessageId: string) => void;
@@ -130,297 +127,283 @@ interface ChatStore {
   getUnreadNotificationCount: () => number;
 }
 
-// 기본 AI 코치 채팅방 ID
-export const DEFAULT_ROOM_ID = 'ai-coach-default';
-
-// 이전 버전 localStorage 키
-const OLD_STORAGE_KEY = 'questybook-chat-storage';
-const NEW_STORAGE_KEY = 'questybook-chat-storage-v2';
-
-// 기존 v1 데이터를 v2로 마이그레이션
-function migrateFromOldStorage(): void {
-  try {
-    const oldData = localStorage.getItem(OLD_STORAGE_KEY);
-    const newData = localStorage.getItem(NEW_STORAGE_KEY);
-
-    // 이미 새 데이터가 있거나 기존 데이터가 없으면 스킵
-    if (!oldData) return;
-
-    const parsed = JSON.parse(oldData);
-    const oldState = parsed?.state;
-
-    // 기존 메시지가 있는 경우만 마이그레이션
-    if (oldState?.messages && oldState.messages.length > 0) {
-      // 새 데이터가 없거나 기본 채팅방에 메시지가 없으면 마이그레이션
-      let shouldMigrate = false;
-
-      if (!newData) {
-        shouldMigrate = true;
-      } else {
-        const newParsed = JSON.parse(newData);
-        const newRooms = newParsed?.state?.rooms || [];
-        const defaultRoom = newRooms.find((r: ChatRoom) => r.isDefault);
-        // 새 기본 채팅방이 비어있으면 마이그레이션
-        if (!defaultRoom || defaultRoom.messages.length === 0) {
-          shouldMigrate = true;
-        }
-      }
-
-      if (shouldMigrate) {
-        const migratedRoom: ChatRoom = {
-          id: DEFAULT_ROOM_ID,
-          name: 'AI 학습 코치',
-          emoji: '🤖',
-          description: '언제든 물어보세요!',
-          createdAt: new Date().toISOString(),
-          messages: oldState.messages,
-          isDefault: true,
-        };
-
-        const newState = {
-          state: {
-            rooms: [migratedRoom],
-            notifications: [],
-            pendingResponses: [],
-          },
-          version: 2,
-        };
-
-        localStorage.setItem(NEW_STORAGE_KEY, JSON.stringify(newState));
-        console.log(`[ChatStore] 기존 대화 ${oldState.messages.length}개 마이그레이션 완료`);
-      }
-    }
-
-    // 마이그레이션 후 기존 데이터 삭제
-    localStorage.removeItem(OLD_STORAGE_KEY);
-  } catch (error) {
-    console.error('[ChatStore] 마이그레이션 실패:', error);
-  }
+// DB 메시지 → 프론트엔드 메시지 변환
+function dbMessageToFrontend(dbMsg: DbChatMessage): ChatMessage {
+  return {
+    id: dbMsg.id,
+    role: dbMsg.role,
+    content: dbMsg.content,
+    timestamp: dbMsg.created_at,
+    agentRole: dbMsg.agent_role || undefined,
+    isRead: dbMsg.is_read,
+    rescheduleOptions: dbMsg.reschedule_options as RescheduleOption[] | undefined,
+    actions: dbMsg.actions as MessageAction[] | undefined,
+  };
 }
 
-// 앱 시작 시 마이그레이션 실행
-migrateFromOldStorage();
+// DB 채팅방 → 프론트엔드 채팅방 변환
+function dbRoomToFrontend(dbRoom: DbChatRoom, messages: ChatMessage[]): ChatRoom {
+  return {
+    id: dbRoom.id,
+    name: dbRoom.name,
+    emoji: dbRoom.emoji,
+    description: dbRoom.description || undefined,
+    createdAt: dbRoom.created_at,
+    messages,
+    isDefault: dbRoom.is_default,
+  };
+}
 
-// 기본 채팅방 생성
-const createDefaultRoom = (): ChatRoom => ({
-  id: DEFAULT_ROOM_ID,
-  name: 'AI 학습 코치',
-  emoji: '🤖',
-  description: '언제든 물어보세요!',
-  createdAt: new Date().toISOString(),
-  messages: [],
-  isDefault: true,
-});
+// 기본 채팅방 ID (로컬 폴백용)
+export const DEFAULT_ROOM_ID = 'ai-coach-default';
 
-export const useChatStore = create<ChatStore>()(
-  persist(
-    (set, get) => ({
-      rooms: [createDefaultRoom()],
+export const useChatStore = create<ChatStore>()((set, get) => ({
+  rooms: [],
+  notifications: [],
+  pendingResponses: [],
+  isLoading: false,
+  isInitialized: false,
+
+  // Supabase에서 채팅 데이터 로드
+  initializeChat: async () => {
+    const { isInitialized, isLoading } = get();
+    if (isInitialized || isLoading) {
+      console.log('[ChatStore] 이미 초기화됨 또는 로딩 중');
+      return;
+    }
+
+    set({ isLoading: true });
+    console.log('[ChatStore] 초기화 시작...');
+
+    try {
+      // 1. 기본 채팅방 가져오기 또는 생성
+      const defaultRoom = await chatApi.getOrCreateDefaultRoom();
+      if (!defaultRoom) {
+        console.log('[ChatStore] 기본 채팅방 생성 실패 (로그인 필요)');
+        set({ isLoading: false });
+        return;
+      }
+
+      // 2. 모든 채팅방 조회
+      const dbRooms = await chatApi.fetchChatRooms();
+
+      // 3. 각 채팅방의 메시지 조회
+      const roomsWithMessages: ChatRoom[] = await Promise.all(
+        dbRooms.map(async (dbRoom) => {
+          const dbMessages = await chatApi.fetchMessages(dbRoom.id);
+          const messages = dbMessages.map(dbMessageToFrontend);
+          return dbRoomToFrontend(dbRoom, messages);
+        })
+      );
+
+      console.log(`[ChatStore] ${roomsWithMessages.length}개 채팅방 로드 완료`);
+
+      set({
+        rooms: roomsWithMessages,
+        isLoading: false,
+        isInitialized: true,
+      });
+    } catch (error) {
+      console.error('[ChatStore] 초기화 실패:', error);
+      set({ isLoading: false });
+    }
+  },
+
+  // 채팅 상태 초기화 (로그아웃 시)
+  resetChat: () => {
+    set({
+      rooms: [],
       notifications: [],
       pendingResponses: [],
+      isLoading: false,
+      isInitialized: false,
+    });
+    console.log('[ChatStore] 상태 초기화됨');
+  },
 
-      // 채팅방 생성
-      createRoom: (name, emoji, description) => {
-        const newRoom: ChatRoom = {
-          id: `room-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          name,
-          emoji,
-          description,
-          createdAt: new Date().toISOString(),
-          messages: [],
-        };
+  // 채팅방 생성
+  createRoom: async (name, emoji, description) => {
+    const dbRoom = await chatApi.createChatRoom(name, emoji, description);
+    if (!dbRoom) return null;
 
-        set((state) => ({
-          rooms: [...state.rooms, newRoom],
-        }));
+    const newRoom = dbRoomToFrontend(dbRoom, []);
 
-        return newRoom.id;
-      },
+    set((state) => ({
+      rooms: [...state.rooms, newRoom],
+    }));
 
-      // 채팅방 삭제 (기본 채팅방은 삭제 불가)
-      deleteRoom: (roomId) => {
-        set((state) => ({
-          rooms: state.rooms.filter((r) => r.id !== roomId || r.isDefault),
-        }));
-      },
+    return newRoom.id;
+  },
 
-      // 채팅방 조회
-      getRoomById: (roomId) => {
-        return get().rooms.find((r) => r.id === roomId);
-      },
+  // 채팅방 삭제 (기본 채팅방은 삭제 불가)
+  deleteRoom: async (roomId) => {
+    const room = get().rooms.find((r) => r.id === roomId);
+    if (!room || room.isDefault) return;
 
-      // 기본 채팅방 조회 (없으면 생성)
-      getDefaultRoom: () => {
-        const { rooms } = get();
-        let defaultRoom = rooms.find((r) => r.isDefault);
-
-        if (!defaultRoom) {
-          defaultRoom = createDefaultRoom();
-          set((state) => ({
-            rooms: [defaultRoom!, ...state.rooms],
-          }));
-        }
-
-        return defaultRoom;
-      },
-
-      // 메시지 추가
-      addMessage: (roomId, message) => {
-        const messageId = `msg-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-        const newMessage: ChatMessage = {
-          ...message,
-          id: messageId,
-          timestamp: new Date().toISOString(),
-          isRead: message.role === 'user',
-        };
-
-        set((state) => ({
-          rooms: state.rooms.map((room) =>
-            room.id === roomId
-              ? {
-                  ...room,
-                  messages: [...room.messages, newMessage].slice(-100),
-                }
-              : room
-          ),
-        }));
-
-        return messageId;
-      },
-
-      // 채팅방 읽음 처리
-      markRoomAsRead: (roomId) => {
-        set((state) => ({
-          rooms: state.rooms.map((room) =>
-            room.id === roomId
-              ? {
-                  ...room,
-                  messages: room.messages.map((m) => ({ ...m, isRead: true })),
-                }
-              : room
-          ),
-        }));
-      },
-
-      // 채팅방 메시지 삭제
-      clearRoomMessages: (roomId) => {
-        set((state) => ({
-          rooms: state.rooms.map((room) =>
-            room.id === roomId ? { ...room, messages: [] } : room
-          ),
-        }));
-      },
-
-      // 대기 중인 응답 추가
-      addPendingResponse: (roomId, userMessageId) => {
-        const pending: PendingResponse = {
-          roomId,
-          userMessageId,
-          status: 'pending',
-          startedAt: new Date().toISOString(),
-        };
-
-        set((state) => ({
-          pendingResponses: [...state.pendingResponses, pending],
-        }));
-      },
-
-      // 대기 중인 응답 상태 업데이트
-      updatePendingResponse: (userMessageId, status) => {
-        set((state) => ({
-          pendingResponses: state.pendingResponses.map((p) =>
-            p.userMessageId === userMessageId ? { ...p, status } : p
-          ),
-        }));
-      },
-
-      // 대기 중인 응답 제거
-      removePendingResponse: (userMessageId) => {
-        set((state) => ({
-          pendingResponses: state.pendingResponses.filter(
-            (p) => p.userMessageId !== userMessageId
-          ),
-        }));
-      },
-
-      // 채팅방의 대기 중인 응답 조회
-      getPendingResponseForRoom: (roomId) => {
-        return get().pendingResponses.find((p) => p.roomId === roomId);
-      },
-
-      // 알림 추가
-      addNotification: (notification) => {
-        const newNotification: ChatNotification = {
-          ...notification,
-          id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-          timestamp: new Date().toISOString(),
-          isRead: false,
-        };
-
-        set((state) => ({
-          notifications: [newNotification, ...state.notifications].slice(0, 50),
-        }));
-      },
-
-      // 알림 읽음 처리
-      markNotificationAsRead: (id) => {
-        set((state) => ({
-          notifications: state.notifications.map((n) =>
-            n.id === id ? { ...n, isRead: true } : n
-          ),
-        }));
-      },
-
-      // 알림 전체 삭제
-      clearNotifications: () => {
-        set({ notifications: [] });
-      },
-
-      // 채팅방별 읽지 않은 메시지 개수
-      getUnreadCountForRoom: (roomId) => {
-        const room = get().rooms.find((r) => r.id === roomId);
-        if (!room) return 0;
-        return room.messages.filter((m) => !m.isRead && m.role === 'assistant').length;
-      },
-
-      // 전체 읽지 않은 메시지 개수
-      getTotalUnreadCount: () => {
-        const { rooms } = get();
-        return rooms.reduce((total, room) => {
-          return total + room.messages.filter((m) => !m.isRead && m.role === 'assistant').length;
-        }, 0);
-      },
-
-      // 읽지 않은 알림 개수
-      getUnreadNotificationCount: () => {
-        return get().notifications.filter((n) => !n.isRead).length;
-      },
-    }),
-    {
-      name: NEW_STORAGE_KEY,
-      // Supabase 스토리지 사용 (localStorage 폴백 지원)
-      storage: createSupabaseStorage('chat'),
-      // 마이그레이션: 기존 데이터가 있으면 기본 채팅방으로 이관
-      migrate: (persistedState: unknown, _version: number) => {
-        const state = persistedState as Partial<ChatStore> & { messages?: ChatMessage[] };
-
-        // v1에서 v2로 마이그레이션 (단일 messages → rooms 구조)
-        if (state.messages && !state.rooms) {
-          const defaultRoom = createDefaultRoom();
-          defaultRoom.messages = state.messages;
-          return {
-            ...state,
-            rooms: [defaultRoom],
-            messages: undefined,
-          };
-        }
-
-        return state;
-      },
-      version: 2,
+    const success = await chatApi.deleteChatRoom(roomId);
+    if (success) {
+      set((state) => ({
+        rooms: state.rooms.filter((r) => r.id !== roomId),
+      }));
     }
-  )
-);
+  },
+
+  // 채팅방 조회
+  getRoomById: (roomId) => {
+    return get().rooms.find((r) => r.id === roomId);
+  },
+
+  // 기본 채팅방 조회
+  getDefaultRoom: () => {
+    return get().rooms.find((r) => r.isDefault);
+  },
+
+  // 메시지 추가 (Supabase에 저장)
+  addMessage: async (roomId, message) => {
+    // Supabase에 저장
+    const dbMessage = await chatApi.addMessage(
+      roomId,
+      message.role,
+      message.content,
+      message.agentRole,
+      message.rescheduleOptions,
+      message.actions
+    );
+
+    if (!dbMessage) {
+      console.error('[ChatStore] 메시지 저장 실패');
+      return null;
+    }
+
+    const newMessage = dbMessageToFrontend(dbMessage);
+
+    // 로컬 상태 업데이트
+    set((state) => ({
+      rooms: state.rooms.map((room) =>
+        room.id === roomId
+          ? {
+              ...room,
+              messages: [...room.messages, newMessage].slice(-100),
+            }
+          : room
+      ),
+    }));
+
+    return newMessage.id;
+  },
+
+  // 채팅방 읽음 처리
+  markRoomAsRead: async (roomId) => {
+    await chatApi.markMessagesAsRead(roomId);
+
+    set((state) => ({
+      rooms: state.rooms.map((room) =>
+        room.id === roomId
+          ? {
+              ...room,
+              messages: room.messages.map((m) => ({ ...m, isRead: true })),
+            }
+          : room
+      ),
+    }));
+  },
+
+  // 채팅방 메시지 삭제
+  clearRoomMessages: async (roomId) => {
+    await chatApi.clearRoomMessages(roomId);
+
+    set((state) => ({
+      rooms: state.rooms.map((room) =>
+        room.id === roomId ? { ...room, messages: [] } : room
+      ),
+    }));
+  },
+
+  // 대기 중인 응답 추가
+  addPendingResponse: (roomId, userMessageId) => {
+    const pending: PendingResponse = {
+      roomId,
+      userMessageId,
+      status: 'pending',
+      startedAt: new Date().toISOString(),
+    };
+
+    set((state) => ({
+      pendingResponses: [...state.pendingResponses, pending],
+    }));
+  },
+
+  // 대기 중인 응답 상태 업데이트
+  updatePendingResponse: (userMessageId, status) => {
+    set((state) => ({
+      pendingResponses: state.pendingResponses.map((p) =>
+        p.userMessageId === userMessageId ? { ...p, status } : p
+      ),
+    }));
+  },
+
+  // 대기 중인 응답 제거
+  removePendingResponse: (userMessageId) => {
+    set((state) => ({
+      pendingResponses: state.pendingResponses.filter(
+        (p) => p.userMessageId !== userMessageId
+      ),
+    }));
+  },
+
+  // 채팅방의 대기 중인 응답 조회
+  getPendingResponseForRoom: (roomId) => {
+    return get().pendingResponses.find((p) => p.roomId === roomId);
+  },
+
+  // 알림 추가
+  addNotification: (notification) => {
+    const newNotification: ChatNotification = {
+      ...notification,
+      id: `notif-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      timestamp: new Date().toISOString(),
+      isRead: false,
+    };
+
+    set((state) => ({
+      notifications: [newNotification, ...state.notifications].slice(0, 50),
+    }));
+  },
+
+  // 알림 읽음 처리
+  markNotificationAsRead: (id) => {
+    set((state) => ({
+      notifications: state.notifications.map((n) =>
+        n.id === id ? { ...n, isRead: true } : n
+      ),
+    }));
+  },
+
+  // 알림 전체 삭제
+  clearNotifications: () => {
+    set({ notifications: [] });
+  },
+
+  // 채팅방별 읽지 않은 메시지 개수
+  getUnreadCountForRoom: (roomId) => {
+    const room = get().rooms.find((r) => r.id === roomId);
+    if (!room) return 0;
+    return room.messages.filter((m) => !m.isRead && m.role === 'assistant').length;
+  },
+
+  // 전체 읽지 않은 메시지 개수
+  getTotalUnreadCount: () => {
+    const { rooms } = get();
+    return rooms.reduce((total, room) => {
+      return total + room.messages.filter((m) => !m.isRead && m.role === 'assistant').length;
+    }, 0);
+  },
+
+  // 읽지 않은 알림 개수
+  getUnreadNotificationCount: () => {
+    return get().notifications.filter((n) => !n.isRead).length;
+  },
+}));
 
 // 총 읽지 않은 개수 (메시지 + 알림) - 하위 호환성
 export function getTotalUnreadCount(): number {

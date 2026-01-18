@@ -86,8 +86,8 @@ export function useStreamingChat(roomId: string) {
 
       const userName = localStorage.getItem('questybook_user_name') || '학생';
 
-      // 사용자 메시지 추가
-      addMessage(roomId, {
+      // 사용자 메시지 추가 (async)
+      await addMessage(roomId, {
         role: 'user',
         content: message,
       });
@@ -200,24 +200,24 @@ export function useStreamingChat(roomId: string) {
           }
         }
 
-        // 스트리밍 완료 - 메시지로 저장
+        // 스트리밍 완료 - 메시지로 저장 (async)
         const finalContent = fullContent || '죄송해요, 응답을 생성하지 못했어요. 다시 시도해주세요.';
 
-        addMessage(roomId, {
+        await addMessage(roomId, {
           role: 'assistant',
           content: finalContent,
           agentRole,
           actions: actions.length > 0 ? actions : undefined,
         });
 
-        // 현재 보고 있는 채팅방이면 읽음 처리
+        // 현재 보고 있는 채팅방이면 읽음 처리 (async)
         const currentPath = window.location.pathname;
         const isInCurrentRoom =
           currentPath === `/chat/${roomId}` ||
           (currentPath === '/chat' && roomId === 'ai-coach-default');
 
         if (isInCurrentRoom) {
-          markRoomAsRead(roomId);
+          await markRoomAsRead(roomId);
         } else if (fullContent) {
           addNotification({
             roomId,
@@ -234,8 +234,8 @@ export function useStreamingChat(roomId: string) {
 
         console.error('Streaming chat error:', error);
 
-        // 오류 시 폴백 메시지
-        addMessage(roomId, {
+        // 오류 시 폴백 메시지 (async)
+        await addMessage(roomId, {
           role: 'assistant',
           content: '죄송해요, 잠시 문제가 생겼어요. 다시 시도해주세요.',
           agentRole: 'COACH',

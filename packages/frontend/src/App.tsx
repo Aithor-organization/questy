@@ -126,12 +126,16 @@ function App() {
     }
   }, [isAuthenticated, checkOnboardingStatus, loadUserProfile, loadMembership]);
 
-  // 로그인 후 스토어 동기화 (Supabase → localStorage → Zustand)
+  // 로그인 후 스토어 동기화 (Supabase → Zustand)
+  const initializeChat = useChatStore((state) => state.initializeChat);
+  const resetChat = useChatStore((state) => state.resetChat);
+
   useEffect(() => {
     async function syncStoresFromSupabase() {
       if (!isAuthenticated) {
-        // 로그아웃 시 플래그 리셋
+        // 로그아웃 시 플래그 리셋 및 채팅 상태 초기화
         hasSyncedRef.current = false;
+        resetChat();
         return;
       }
 
@@ -141,29 +145,22 @@ function App() {
       console.log('[App] 로그인 후 스토어 동기화 시작');
 
       try {
-        // Supabase에서 localStorage로 데이터 동기화
-        const [questSynced, chatSynced] = await Promise.all([
-          syncFromSupabase('quest'),
-          syncFromSupabase('chat'),
-        ]);
+        // Quest 스토어: Supabase → localStorage → Zustand (기존 방식 유지)
+        const questSynced = await syncFromSupabase('quest');
+        console.log(`[App] Supabase 동기화: quest=${questSynced}`);
+        await useQuestStore.persist.rehydrate();
 
-        console.log(`[App] Supabase 동기화: quest=${questSynced}, chat=${chatSynced}`);
+        // Chat 스토어: Supabase 테이블에서 직접 로드 (새로운 방식)
+        await initializeChat();
 
-        // 항상 rehydrate 호출 (Supabase 데이터 또는 기존 localStorage 데이터 로드)
-        // 인증 전에 zustand persist가 초기화되어 빈 상태일 수 있으므로 항상 새로 로드
-        await Promise.all([
-          useQuestStore.persist.rehydrate(),
-          useChatStore.persist.rehydrate(),
-        ]);
-
-        console.log('[App] 스토어 rehydrate 완료');
+        console.log('[App] 스토어 동기화 완료');
       } catch (error) {
         console.error('[App] 스토어 동기화 실패:', error);
       }
     }
 
     syncStoresFromSupabase();
-  }, [isAuthenticated]);
+  }, [isAuthenticated, initializeChat, resetChat]);
 
   // 예약된 알림 백그라운드 체크 (1분마다)
   useScheduledNotifications();

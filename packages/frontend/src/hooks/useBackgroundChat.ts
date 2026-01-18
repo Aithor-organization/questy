@@ -87,11 +87,16 @@ export function useBackgroundChat(roomId: string) {
 
       const userName = localStorage.getItem('questybook_user_name') || '학생';
 
-      // 사용자 메시지 추가
-      const userMessageId = addMessage(roomId, {
+      // 사용자 메시지 추가 (async)
+      const userMessageId = await addMessage(roomId, {
         role: 'user',
         content: message,
       });
+
+      if (!userMessageId) {
+        console.error('Failed to add user message');
+        return;
+      }
 
       // 대기 응답 등록
       addPendingResponse(roomId, userMessageId);
@@ -133,8 +138,8 @@ export function useBackgroundChat(roomId: string) {
             localStorage.setItem('questybook_session_id', data.data.studentId);
           }
 
-          // AI 응답 메시지 추가 (읽지 않은 상태로)
-          addMessage(roomId, {
+          // AI 응답 메시지 추가 (읽지 않은 상태로, async)
+          await addMessage(roomId, {
             role: 'assistant',
             content: data.data.message,
             agentRole: data.data.agentRole,
@@ -142,7 +147,7 @@ export function useBackgroundChat(roomId: string) {
             actions: data.data.messageActions || undefined,  // 액션 버튼 (플랜 재설정 등)
           });
 
-          // 현재 보고 있는 채팅방이면 읽음 처리
+          // 현재 보고 있는 채팅방이면 읽음 처리 (async)
           const currentPath = window.location.pathname;
           // 기본 채팅방의 경우 /chat 또는 /chat/ai-coach-default 모두 체크
           const isInCurrentRoom =
@@ -150,7 +155,7 @@ export function useBackgroundChat(roomId: string) {
             (currentPath === '/chat' && roomId === 'ai-coach-default');
 
           if (isInCurrentRoom) {
-            markRoomAsRead(roomId);
+            await markRoomAsRead(roomId);
           } else {
             // 다른 곳에 있으면 알림 표시
             addNotification({
@@ -163,8 +168,8 @@ export function useBackgroundChat(roomId: string) {
 
           updatePendingResponse(userMessageId, 'completed');
         } else {
-          // 실패 응답
-          addMessage(roomId, {
+          // 실패 응답 (async)
+          await addMessage(roomId, {
             role: 'assistant',
             content: '죄송해요, 잠시 문제가 생겼어요. 다시 시도해주세요.',
             agentRole: 'COACH',
@@ -180,9 +185,9 @@ export function useBackgroundChat(roomId: string) {
 
         console.error('Chat error:', error);
 
-        // 오프라인 폴백 응답
+        // 오프라인 폴백 응답 (async)
         const fallbackResponse = generateOfflineResponse(message);
-        addMessage(roomId, {
+        await addMessage(roomId, {
           role: 'assistant',
           content: fallbackResponse,
           agentRole: 'COACH',
