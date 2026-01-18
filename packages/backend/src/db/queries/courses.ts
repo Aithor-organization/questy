@@ -1,77 +1,234 @@
 /**
  * Course Queries
  * 강좌 CRUD 함수
+ *
+ * NOTE: Bun 환경에서는 SQLite, Node.js(Railway)에서는 Supabase 사용
  */
 
 import { eq, sql } from 'drizzle-orm';
 import { db, sqlite } from '../connection.js';
+import { supabase } from '../supabase.js';
 import * as schema from '../schema.js';
+
+// Supabase 응답을 SQLite 스키마 형식으로 변환
+function mapSupabaseCourse(course: any): schema.Course {
+  return {
+    id: course.id,
+    name: course.name,
+    teacher: course.teacher_name,
+    subject: course.subject,
+    platform: course.platform,
+    url: course.url,
+    lectures: typeof course.lectures === 'string'
+      ? course.lectures
+      : JSON.stringify(course.lectures || []),
+    lectureCount: course.lecture_count,
+    totalDuration: course.total_duration,
+    category: null,
+    year: null,
+    isCompleted: course.is_completed,
+    lastCrawledAt: course.last_crawled_at ? new Date(course.last_crawled_at).getTime() / 1000 : null,
+    createdAt: course.created_at ? new Date(course.created_at).getTime() / 1000 : null,
+    updatedAt: course.updated_at ? new Date(course.updated_at).getTime() / 1000 : null,
+  };
+}
+
+// Supabase 폴백: 강좌 검색
+async function searchCoursesSupabase(options: {
+  query?: string;
+  subject?: string;
+  teacher?: string;
+  limit?: number;
+}): Promise<schema.Course[]> {
+  if (!supabase) {
+    console.error('[courses] Supabase client not available');
+    return [];
+  }
+
+  const { query, subject, teacher, limit = 20 } = options;
+
+  let queryBuilder = supabase
+    .from('courses')
+    .select('*')
+    .order('teacher_name')
+    .order('name')
+    .limit(limit);
+
+  if (teacher) {
+    queryBuilder = queryBuilder.ilike('teacher_name', `%${teacher}%`);
+  }
+
+  if (subject) {
+    queryBuilder = queryBuilder.eq('subject', subject);
+  }
+
+  if (query && !teacher) {
+    // name 또는 teacher_name에 검색어 포함
+    queryBuilder = queryBuilder.or(`name.ilike.%${query}%,teacher_name.ilike.%${query}%`);
+  }
+
+  const { data, error } = await queryBuilder;
+
+  if (error) {
+    console.error('[courses] Supabase search error:', error);
+    return [];
+  }
+
+  return (data || []).map(mapSupabaseCourse);
+}
 
 export function searchCourses(options: {
   query?: string;
   subject?: string;
   teacher?: string;
   limit?: number;
-}) {
-  const { query, subject, teacher, limit = 20 } = options;
+}): schema.Course[] | Promise<schema.Course[]> {
+  // SQLite가 사용 가능하면 SQLite 사용 (Bun 환경)
+  if (sqlite) {
+    const { query, subject, teacher, limit = 20 } = options;
 
-  let whereClause = '1=1';
-  const params: string[] = [];
+    let whereClause = '1=1';
+    const params: string[] = [];
 
-  if (teacher) {
-    whereClause += ' AND teacher LIKE ?';
-    params.push(`%${teacher}%`);
+    if (teacher) {
+      whereClause += ' AND teacher LIKE ?';
+      params.push(`%${teacher}%`);
+    }
+
+    if (subject) {
+      whereClause += ' AND subject = ?';
+      params.push(subject);
+    }
+
+    if (query && !teacher) {
+      whereClause += ' AND (name LIKE ? OR teacher LIKE ?)';
+      params.push(`%${query}%`, `%${query}%`);
+    }
+
+    const stmt = sqlite.prepare(`
+      SELECT * FROM courses
+      WHERE ${whereClause}
+      ORDER BY teacher, name
+      LIMIT ?
+    `);
+
+    return stmt.all(...params, limit) as schema.Course[];
   }
 
-  if (subject) {
-    whereClause += ' AND subject = ?';
-    params.push(subject);
+  // SQLite가 없으면 Supabase 사용 (Node.js/Railway 환경)
+  console.log('[courses] Using Supabase fallback for searchCourses');
+  return searchCoursesSupabase(options);
+}
+
+// Supabase 폴백: 단일 강좌 조회
+async function getCourseSupabase(id: string): Promise<schema.Course | null> {
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*')
+    .eq('id', id)
+    .single();
+
+  if (error || !data) return null;
+  return mapSupabaseCourse(data);
+}
+
+export function getCourse(id: string): schema.Course | null | Promise<schema.Course | null> {
+  if (db) {
+    const result = db.select().from(schema.courses).where(eq(schema.courses.id, id)).limit(1).all();
+    return result[0] || null;
   }
+  return getCourseSupabase(id);
+}
 
-  if (query && !teacher) {
-    whereClause += ' AND (name LIKE ? OR teacher LIKE ?)';
-    params.push(`%${query}%`, `%${query}%`);
+// Supabase 폴백: 강사별 강좌 조회
+async function getCoursesByTeacherSupabase(teacher: string): Promise<schema.Course[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*')
+    .ilike('teacher_name', `%${teacher}%`);
+
+  if (error || !data) return [];
+  return data.map(mapSupabaseCourse);
+}
+
+export function getCoursesByTeacher(teacher: string): schema.Course[] | Promise<schema.Course[]> {
+  if (db) {
+    return db.select().from(schema.courses)
+      .where(sql`teacher LIKE ${'%' + teacher + '%'}`)
+      .all();
   }
-
-  const stmt = sqlite.prepare(`
-    SELECT * FROM courses
-    WHERE ${whereClause}
-    ORDER BY teacher, name
-    LIMIT ?
-  `);
-
-  return stmt.all(...params, limit) as schema.Course[];
+  return getCoursesByTeacherSupabase(teacher);
 }
 
-export function getCourse(id: string) {
-  const result = db.select().from(schema.courses).where(eq(schema.courses.id, id)).limit(1).all();
-  return result[0] || null;
+// Supabase 폴백: 전체 강좌 조회
+async function getAllCoursesSupabase(): Promise<schema.Course[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*');
+
+  if (error || !data) return [];
+  return data.map(mapSupabaseCourse);
 }
 
-export function getCoursesByTeacher(teacher: string) {
-  return db.select().from(schema.courses)
-    .where(sql`teacher LIKE ${'%' + teacher + '%'}`)
-    .all();
+export function getAllCourses(): schema.Course[] | Promise<schema.Course[]> {
+  if (db) {
+    return db.select().from(schema.courses).all();
+  }
+  return getAllCoursesSupabase();
 }
 
-export function getAllCourses() {
-  return db.select().from(schema.courses).all();
+// Supabase 폴백: 강좌 수 조회
+async function getCoursesCountSupabase(): Promise<number> {
+  if (!supabase) return 0;
+
+  const { count, error } = await supabase
+    .from('courses')
+    .select('*', { count: 'exact', head: true });
+
+  if (error) return 0;
+  return count || 0;
 }
 
-export function getCoursesCount() {
-  const result = db.select({
-    count: sql<number>`COUNT(*)`,
-  }).from(schema.courses).all();
-  return result[0]?.count || 0;
+export function getCoursesCount(): number | Promise<number> {
+  if (db) {
+    const result = db.select({
+      count: sql<number>`COUNT(*)`,
+    }).from(schema.courses).all();
+    return result[0]?.count || 0;
+  }
+  return getCoursesCountSupabase();
 }
 
-export function getIncompleteCourses() {
-  const stmt = sqlite.prepare(`
-    SELECT * FROM courses
-    WHERE is_completed = 0 OR is_completed IS NULL
-    ORDER BY updated_at ASC
-  `);
-  return stmt.all() as schema.Course[];
+// Supabase 폴백: 미완강 강좌 조회
+async function getIncompleteCoursesSupabase(): Promise<schema.Course[]> {
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from('courses')
+    .select('*')
+    .or('is_completed.eq.false,is_completed.is.null')
+    .order('updated_at', { ascending: true });
+
+  if (error || !data) return [];
+  return data.map(mapSupabaseCourse);
+}
+
+export function getIncompleteCourses(): schema.Course[] | Promise<schema.Course[]> {
+  if (sqlite) {
+    const stmt = sqlite.prepare(`
+      SELECT * FROM courses
+      WHERE is_completed = 0 OR is_completed IS NULL
+      ORDER BY updated_at ASC
+    `);
+    return stmt.all() as schema.Course[];
+  }
+  return getIncompleteCoursesSupabase();
 }
 
 export function updateCourseCurriculum(

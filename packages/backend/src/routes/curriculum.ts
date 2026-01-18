@@ -73,7 +73,7 @@ async function callPythonAgent(action: string, params: object): Promise<any> {
   });
 }
 
-// 1. 강좌 검색 API (로컬 DB 사용 - 빠름!)
+// 1. 강좌 검색 API (Bun: SQLite, Node.js: Supabase)
 curriculumRoutes.post('/search-courses', async (c) => {
   try {
     const body = await c.req.json();
@@ -82,15 +82,18 @@ curriculumRoutes.post('/search-courses', async (c) => {
     // query에 강사명이 포함된 경우 lecturer로 사용
     const effectiveLecturer = lecturer || (query && subject ? query : undefined);
 
-    console.log(`[curriculum] Search courses (Local DB): query="${query || ''}", subject="${subject || ''}", lecturer="${effectiveLecturer || ''}"`);
+    console.log(`[curriculum] Search courses: query="${query || ''}", subject="${subject || ''}", lecturer="${effectiveLecturer || ''}"`);
 
-    // 로컬 DB에서 검색 (RAG 대신)
-    const courses = searchCoursesFromDB({
+    // DB에서 검색 (Bun: SQLite, Node.js: Supabase 자동 선택)
+    const coursesResult = searchCoursesFromDB({
       query: query || undefined,
       subject: subject || undefined,
       teacher: effectiveLecturer || undefined,
       limit
     });
+
+    // Promise인 경우 await (Supabase 폴백)
+    const courses = Array.isArray(coursesResult) ? coursesResult : await coursesResult;
 
     // 응답 형식 변환
     const normalizedCourses = courses.map((course) => {
@@ -309,7 +312,8 @@ curriculumRoutes.post('/crawl-curriculum', async (c) => {
 
     // 1. DB에서 먼저 확인
     if (courseId) {
-      const dbCourse = getCourse(courseId);
+      const courseResult = getCourse(courseId);
+      const dbCourse = courseResult instanceof Promise ? await courseResult : courseResult;
       if (dbCourse) {
         console.log(`[curriculum] Found course in DB: ${dbCourse.name}`);
 
@@ -415,7 +419,8 @@ curriculumRoutes.get('/course-detail/:courseId', async (c) => {
 // 6. 미완강 강좌 목록 조회 API
 curriculumRoutes.get('/incomplete-courses', async (c) => {
   try {
-    const courses = getIncompleteCourses();
+    const coursesResult = getIncompleteCourses();
+    const courses = Array.isArray(coursesResult) ? coursesResult : await coursesResult;
 
     return c.json({
       success: true,
@@ -513,8 +518,11 @@ curriculumRoutes.post('/batch-update', async (c) => {
 // 9. 강좌 통계 조회 API
 curriculumRoutes.get('/stats', async (c) => {
   try {
-    const allCourses = getAllCourses();
-    const incompleteCourses = getIncompleteCourses();
+    const allCoursesResult = getAllCourses();
+    const incompleteCoursesResult = getIncompleteCourses();
+
+    const allCourses = Array.isArray(allCoursesResult) ? allCoursesResult : await allCoursesResult;
+    const incompleteCourses = Array.isArray(incompleteCoursesResult) ? incompleteCoursesResult : await incompleteCoursesResult;
 
     const totalCourses = allCourses.length;
     const completedCourses = totalCourses - incompleteCourses.length;
