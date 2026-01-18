@@ -1,5 +1,5 @@
 // QuestyBook Backend Server
-// Build: 2026-01-18 - TypeScript curriculum-agent integration
+// Build: 2026-01-18-v2 - Fixed start command path
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
