@@ -1,10 +1,12 @@
 // Curriculum Generation Hook
 // 인강 강좌 검색 및 퀘스트 생성 (questStore 통합)
+// 강좌 검색: Supabase 직접 호출 (Railway 부하 감소)
 
 import { useState, useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useQuestStore, type QuestPlan } from '../stores/questStore';
+import { supabase } from '../lib/supabase';
 import { API_BASE_URL } from '../config';
 import type {
   Course,
@@ -60,15 +62,68 @@ export function useCurriculumGeneration() {
   const [generatedQuests, setGeneratedQuests] = useState<CurriculumQuest[]>([]);
   const [questSummary, setQuestSummary] = useState<GenerateQuestsResponse['summary'] | null>(null);
 
-  // 강좌 검색 (직접 fetch 사용)
+  // 강좌 검색 (Supabase 직접 호출 - Railway 부하 감소)
   const [isSearchingCourses, setIsSearchingCourses] = useState(false);
   const [searchErrorState, setSearchErrorState] = useState<Error | null>(null);
 
   const searchCoursesDirectly = useCallback(async (params: { query?: string; subject?: string }) => {
     setIsSearchingCourses(true);
     setSearchErrorState(null);
+
     try {
-      console.log('[useCurriculumGeneration] Searching courses:', params);
+      console.log('[useCurriculumGeneration] Searching courses via Supabase:', params);
+
+      // Supabase 사용 가능한 경우 직접 호출 (빠름)
+      if (supabase) {
+        let queryBuilder = supabase
+          .from('courses')
+          .select('*')
+          .order('teacher_name')
+          .order('name')
+          .limit(20);
+
+        // 강사명 필터
+        if (params.query) {
+          queryBuilder = queryBuilder.or(
+            `name.ilike.%${params.query}%,teacher_name.ilike.%${params.query}%`
+          );
+        }
+
+        // 과목 필터
+        if (params.subject) {
+          queryBuilder = queryBuilder.eq('subject', params.subject);
+        }
+
+        const { data, error } = await queryBuilder;
+
+        if (error) {
+          console.error('[useCurriculumGeneration] Supabase error:', error);
+          throw new Error(error.message);
+        }
+
+        // Supabase 응답을 Course 형식으로 변환
+        const courses: Course[] = (data || []).map((course: any) => ({
+          id: course.id,
+          courseName: course.name,
+          lecturer: course.teacher_name,
+          subject: course.subject || '',
+          platform: course.platform || 'megastudy',
+          url: course.url || '',
+          chapters: typeof course.lectures === 'string'
+            ? JSON.parse(course.lectures || '[]')
+            : (course.lectures || []),
+          lectureCount: course.lecture_count || 0,
+          totalDuration: course.total_duration || '',
+          isCompleted: course.is_completed || false,
+        }));
+
+        console.log('[useCurriculumGeneration] Supabase results:', courses.length);
+        setSearchResults(courses);
+        return;
+      }
+
+      // Supabase 없으면 백엔드 폴백 (로컬 개발 등)
+      console.log('[useCurriculumGeneration] Fallback to backend API');
       const res = await fetch(`${API_BASE_URL}/api/curriculum/search-courses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -76,9 +131,9 @@ export function useCurriculumGeneration() {
       });
       if (!res.ok) throw new Error('강좌 검색 실패');
       const data = await res.json();
-      console.log('[useCurriculumGeneration] Search response:', data);
       if (!data.success) throw new Error(data.error);
       setSearchResults(data.data.courses as Course[]);
+
     } catch (error) {
       console.error('[useCurriculumGeneration] Search error:', error);
       setSearchErrorState(error instanceof Error ? error : new Error('Unknown error'));
