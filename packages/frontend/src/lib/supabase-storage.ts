@@ -162,8 +162,12 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
       // 2. Supabase에 비동기로 저장
       const userId = await getUserId();
       if (!userId || !supabase) {
+        console.log(`[SupabaseStorage] setItem 스킵 - userId: ${userId}, supabase: ${!!supabase}, store: ${storeName}`);
         return;
       }
+
+      console.log(`[SupabaseStorage] setItem 시도 - store: ${storeName}, key: ${key}, userId: ${userId}`);
+
 
       try {
         const { error } = await supabase
@@ -182,7 +186,9 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
           );
 
         if (error) {
-          console.error('[SupabaseStorage] setItem 실패:', error.message);
+          console.error('[SupabaseStorage] setItem 실패:', error.message, error);
+        } else {
+          console.log(`[SupabaseStorage] setItem 성공 - store: ${storeName}, key: ${key}`);
         }
       } catch (error) {
         console.error('[SupabaseStorage] setItem 에러:', error);
