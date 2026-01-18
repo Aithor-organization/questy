@@ -171,7 +171,7 @@ export function OnboardingPage() {
       const { error: upsertError } = await supabase
         .from('user_profiles')
         .upsert({
-          id: user.id,
+          user_id: user.id,
           age: data.age,
           exam_year: data.examYear,
           target_university: data.targetUniversity,
