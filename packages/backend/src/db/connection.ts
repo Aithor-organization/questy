@@ -8,6 +8,7 @@
 
 import * as schema from './schema.js';
 import path from 'path';
+import { supabase } from './supabase.js';
 
 // Bun 런타임 감지
 const isBun = typeof globalThis.Bun !== 'undefined';
@@ -18,6 +19,9 @@ export const DB_PATH = process.env.DATABASE_URL || path.join(process.cwd(), 'que
 // SQLite 및 Drizzle 인스턴스 (Bun 환경에서만 초기화)
 export let sqlite: any = null;
 export let db: any = null;
+
+// Supabase 사용 여부 (Node.js 환경)
+export const useSupabase = !isBun && supabase !== null;
 
 if (isBun) {
   try {
@@ -34,4 +38,9 @@ if (isBun) {
   }
 } else {
   console.log('[DB] SQLite skipped (Node.js runtime - using Supabase instead)');
+  if (supabase) {
+    console.log('[DB] Supabase client available for queries');
+  } else {
+    console.warn('[DB] Supabase not configured - DB operations will fail');
+  }
 }

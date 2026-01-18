@@ -9,6 +9,7 @@ import { getSupervisor } from './singletons.js';
 import { ChatSchema, AdmissionChatSchema } from './types.js';
 import { extractInfoFromMessage } from './utils.js';
 import * as db from '../../db/index.js';
+import { useSupabase, getStudentAsync, createStudentAsync, addConversationAsync } from '../../db/index.js';
 import type { AgentRequest, Subject } from '@questy/coach-agent';
 
 export const chatRoutes = new Hono();
@@ -34,13 +35,20 @@ chatRoutes.post('/', async (c) => {
     // studentId가 없으면 자동 생성
     const finalStudentId = studentId || `guest-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-    // DB에서 학생 확인 또는 자동 생성
-    let dbStudent = db.getStudent(finalStudentId);
+    // DB에서 학생 확인 또는 자동 생성 (Supabase async 지원)
+    let dbStudent = useSupabase
+      ? await getStudentAsync(finalStudentId)
+      : db.getStudent(finalStudentId);
     if (!dbStudent) {
-      dbStudent = db.createStudent({
-        id: finalStudentId,
-        name: userName || '학생',
-      });
+      dbStudent = useSupabase
+        ? await createStudentAsync({
+            id: finalStudentId,
+            name: userName || '학생',
+          })
+        : db.createStudent({
+            id: finalStudentId,
+            name: userName || '학생',
+          });
       console.log(`[Coach/Chat] Created guest student in DB: ${finalStudentId}`);
     }
 
@@ -145,13 +153,20 @@ chatRoutes.post('/stream', async (c) => {
     // studentId가 없으면 자동 생성
     const finalStudentId = studentId || `guest-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 
-    // DB에서 학생 확인 또는 자동 생성
-    let dbStudent = db.getStudent(finalStudentId);
+    // DB에서 학생 확인 또는 자동 생성 (Supabase async 지원)
+    let dbStudent = useSupabase
+      ? await getStudentAsync(finalStudentId)
+      : db.getStudent(finalStudentId);
     if (!dbStudent) {
-      dbStudent = db.createStudent({
-        id: finalStudentId,
-        name: userName || '학생',
-      });
+      dbStudent = useSupabase
+        ? await createStudentAsync({
+            id: finalStudentId,
+            name: userName || '학생',
+          })
+        : db.createStudent({
+            id: finalStudentId,
+            name: userName || '학생',
+          });
     }
 
     // 메모리 StudentRegistry에도 동기화

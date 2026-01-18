@@ -10,7 +10,7 @@ export { db, sqlite } from './connection.js';
 export { initializeDatabase } from './init.js';
 
 // Student queries
-export { getStudent, createStudent, updateStudent } from './queries/students.js';
+export { getStudent, createStudent, updateStudent, getStudentAsync, createStudentAsync, updateStudentAsync } from './queries/students.js';
 
 // Plan queries
 export { getPlan, getStudentPlans, getActivePlans, createPlan, updatePlan } from './queries/plans.js';
@@ -28,7 +28,10 @@ export { getQuestTasks, createTask, createTasks, toggleTask } from './queries/ta
 export { getStudentProgress, getTodayProgress, upsertProgress } from './queries/progress.js';
 
 // Conversation queries
-export { getConversations, addConversation } from './queries/conversations.js';
+export { getConversations, addConversation, getConversationsAsync, addConversationAsync } from './queries/conversations.js';
+
+// Connection info
+export { useSupabase } from './connection.js';
 
 // Course queries
 export {
