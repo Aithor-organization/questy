@@ -1,5 +1,5 @@
 /**
- * QuestyBook App
+ * Questy App
  * AI 학습 코치 + 노트북 스타일 플래너 앱
  */
 

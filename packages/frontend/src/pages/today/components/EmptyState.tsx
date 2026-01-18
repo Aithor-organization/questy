@@ -37,7 +37,7 @@ export function EmptyState({ coachData, isNewUser }: EmptyStateProps) {
       <NotebookPage decoration="holes" className="text-center">
         <div className="py-12">
           <div className="text-6xl mb-4">📓</div>
-          <h1 className="handwrite handwrite-xl text-[var(--ink-black)] mb-2">QuestyBook</h1>
+          <h1 className="handwrite handwrite-xl text-[var(--ink-black)] mb-2">Questy</h1>
           <p className="text-[var(--pencil-gray)] mb-6">
             {isNewUser ? (
               <>처음 오셨네요! 👋<br />AI 코치와 함께 학습 여정을 시작해볼까요?</>
@@ -57,7 +57,7 @@ export function EmptyState({ coachData, isNewUser }: EmptyStateProps) {
       </NotebookPage>
 
       <div className="postit mt-6 mx-auto max-w-sm">
-        <p className="handwrite text-lg mb-3">💡 QuestyBook 사용 꿀팁</p>
+        <p className="handwrite text-lg mb-3">💡 Questy 사용 꿀팁</p>
         <ul className="text-sm space-y-2 text-[var(--pencil-gray)]">
           <li className="flex items-start gap-2">
             <span>📸</span><span>교재 목차 사진을 찍어 보내면 AI가 학습 플랜을 만들어줘요</span>

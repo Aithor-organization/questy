@@ -344,11 +344,26 @@
 /* 반응형 */
 @media (max-width: 640px) {
   :root {
-    --margin-line: 2rem;
+    --margin-line: 0;
   }
 
   .handwrite-xl {
     font-size: 1.75rem;
+  }
+
+  /* 모바일에서 마진 라인과 펀치 구멍 숨기기 */
+  .notebook-page-lined {
+    padding-left: 1rem;
+  }
+
+  .notebook-page-lined::before,
+  .notebook-page-lined::after {
+    display: none;
+  }
+
+  /* 모바일에서 노트북 배경 줄무늬도 단순화 */
+  .notebook-bg {
+    background-image: none;
   }
 }
 

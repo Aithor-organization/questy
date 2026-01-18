@@ -4,7 +4,7 @@
 
 import type { AppGuide } from './types';
 
-// QuestyBook 앱 사용 가이드 데이터
+// Questy 앱 사용 가이드 데이터
 export const appGuides: AppGuide[] = [
   {
     id: 'chat-coach',

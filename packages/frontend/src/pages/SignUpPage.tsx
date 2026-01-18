@@ -66,7 +66,7 @@ export function SignUpPage() {
                 회원가입
               </h1>
               <p className="text-[var(--pencil-gray)] text-sm mt-1">
-                QuestyBook과 함께 학습을 시작하세요
+                Questy과 함께 학습을 시작하세요
               </p>
             </div>
 

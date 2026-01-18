@@ -97,7 +97,7 @@ export function useAdmission() {
   // 초기 메시지
   useEffect(() => {
     addAssistantMessage(
-      '안녕하세요! QuestyBook에 오신 것을 환영해요! 🎉\n\n저는 당신의 학습 여정을 함께할 AI 코치예요. 먼저 간단한 정보를 알려주시면, 딱 맞는 학습 계획을 세워드릴게요!\n\n이름이 어떻게 되세요?'
+      '안녕하세요! Questy에 오신 것을 환영해요! 🎉\n\n저는 당신의 학습 여정을 함께할 AI 코치예요. 먼저 간단한 정보를 알려주시면, 딱 맞는 학습 계획을 세워드릴게요!\n\n이름이 어떻게 되세요?'
     );
     setStep('name');
   }, [addAssistantMessage]);
@@ -384,7 +384,7 @@ export function useAdmission() {
 
     setTimeout(() => {
       addAssistantMessage(
-        `🎉 ${classOption.name}으로 배정되었어요!\n\n${classOption.description}\n\n이제 QuestyBook 사용법을 알려드릴게요!`
+        `🎉 ${classOption.name}으로 배정되었어요!\n\n${classOption.description}\n\n이제 Questy 사용법을 알려드릴게요!`
       );
       setStep('class-assigned');
     }, 500);

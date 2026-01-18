@@ -12,7 +12,7 @@ export function AppGuideTab() {
       <div className="bg-gradient-to-r from-amber-50 to-orange-50 rounded-xl p-4 border border-amber-200">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-2xl">📓</span>
-          <span className="font-bold text-amber-800">QuestyBook이란?</span>
+          <span className="font-bold text-amber-800">Questy이란?</span>
         </div>
         <p className="text-sm text-gray-700">
           AI 학습 코치와 함께하는 스마트 학습 앱이에요.

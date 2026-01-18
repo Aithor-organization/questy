@@ -16,7 +16,7 @@ export const SUBJECT_OPTIONS = [
 ];
 
 export const ORIENTATION_STEPS: OrientationStep[] = [
-  { id: 'welcome', title: '환영해요!', description: 'QuestyBook은 AI 코치가 함께하는 학습 플래너예요.', icon: '👋' },
+  { id: 'welcome', title: '환영해요!', description: 'Questy은 AI 코치가 함께하는 학습 플래너예요.', icon: '👋' },
   { id: 'quest', title: '퀘스트란?', description: '매일 해야 할 학습을 퀘스트로 만들어 게임처럼 진행해요.', icon: '🎯' },
   { id: 'coach', title: 'AI 코치', description: '힘들 때, 막힐 때 언제든 코치에게 물어보세요!', icon: '🤖' },
   { id: 'report', title: '학습 리포트', description: '매주 학습 현황을 분석해서 알려드려요.', icon: '📊' },

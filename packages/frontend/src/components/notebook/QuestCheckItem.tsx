@@ -158,7 +158,7 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
         {/* 제목 */}
         <div className="flex-1 min-w-0">
           <span
-            className={`font-medium ${
+            className={`font-medium line-clamp-2 ${
               quest.completed ? 'line-through text-[var(--pencil-gray)]' : 'text-[var(--ink-black)]'
             }`}
           >
@@ -244,8 +244,8 @@ export function QuestCheckItem({ quest, onToggle }: QuestCheckItemProps) {
             <div className="mb-3 space-y-1">
               {quest.objectives.map((obj, index) => (
                 <div key={index} className="flex items-start gap-2 text-xs text-[var(--pencil-gray)]">
-                  <span className="text-[var(--sticker-mint)]">→</span>
-                  <span>{obj}</span>
+                  <span className="text-[var(--sticker-mint)] flex-shrink-0">→</span>
+                  <span className="line-clamp-2">{obj}</span>
                 </div>
               ))}
             </div>

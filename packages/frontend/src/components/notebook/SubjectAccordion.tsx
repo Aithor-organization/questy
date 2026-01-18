@@ -166,13 +166,13 @@ export function SubjectAccordion({
               <span className="text-2xl">{icon}</span>
 
               {/* 과목명 + 진행률 */}
-              <div className="flex-1 text-left">
+              <div className="flex-1 text-left min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="font-semibold text-[var(--ink-black)]">
+                  <span className="font-semibold text-[var(--ink-black)] line-clamp-1">
                     {group.groupName}
                   </span>
                   {group.isComplete && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--sticker-mint)] text-white">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--sticker-mint)] text-white flex-shrink-0">
                       완료!
                     </span>
                   )}

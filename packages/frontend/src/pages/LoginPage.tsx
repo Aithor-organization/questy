@@ -42,21 +42,21 @@ export function LoginPage() {
       <div className="w-full max-w-md">
         {/* 노트북 페이지 스타일 카드 */}
         <div className="notebook-page relative">
-          {/* 스프링 홀 */}
-          <div className="notebook-holes hidden sm:flex">
+          {/* 스프링 홀 - 모바일에서 숨김 */}
+          <div className="notebook-holes hidden md:flex">
             {[...Array(6)].map((_, i) => (
               <div key={i} className="notebook-hole" />
             ))}
           </div>
 
-          <div className="p-8 pl-8 sm:pl-20">
+          <div className="p-8">
             {/* 로고 영역 */}
             <div className="text-center mb-8">
               <div className="flex justify-center mb-3">
                 <BookOpen className="w-16 h-16 text-[var(--ink-blue)]" />
               </div>
               <h1 className="handwrite handwrite-xl text-[var(--ink-black)]">
-                QuestyBook
+                Questy
               </h1>
               <p className="text-[var(--pencil-gray)] text-sm mt-1">
                 AI 학습 코치와 함께하는 스마트 학습

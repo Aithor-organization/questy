@@ -49,7 +49,7 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
           <Link to="/" className="flex items-center gap-2">
             <span className="text-2xl">📓</span>
             <span className="handwrite handwrite-lg text-[var(--ink-black)]">
-              QuestyBook
+              Questy
             </span>
           </Link>
 
@@ -101,8 +101,8 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
         </div>
       </nav>
 
-      {/* 메인 콘텐츠 */}
-      <main className="max-w-2xl mx-auto px-4 py-6">
+      {/* 메인 콘텐츠 - 하단 네비게이션 높이만큼 패딩 추가 */}
+      <main className="max-w-2xl mx-auto px-4 py-6 pb-24">
         {children}
       </main>
 
@@ -116,9 +116,6 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
           <BottomNavItem to="/mypage" icon="👤" label="MY" active={location.pathname === '/mypage'} />
         </div>
       </nav>
-
-      {/* 하단 여백 (네비게이션 바 높이만큼) */}
-      <div className="h-16" />
     </div>
   );
 }
