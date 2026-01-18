@@ -1,5 +1,5 @@
 # Node.js only Dockerfile (Python agents converted to TypeScript)
-# Build: 2026-01-18
+# Build: 2026-01-18-v2
 FROM node:20-slim AS builder
 
 # Install pnpm
