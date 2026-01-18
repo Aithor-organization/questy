@@ -1,5 +1,5 @@
 // QuestyBook Backend Server
-// Build: 2026-01-18-v2 - Fixed start command path
+// Build: 2026-01-18-v3 - Include questyCoachAgent in Docker build
 import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
