@@ -30,6 +30,7 @@ export function ChatRoomPage() {
     addMessage,
     markRoomAsRead,
     getPendingResponseForRoom,
+    isInitialized: isChatStoreInitialized,
   } = useChatStore();
 
   // roomId가 없으면 기본 채팅방으로
@@ -69,9 +70,11 @@ export function ChatRoomPage() {
     }
   }, [targetRoomId]);
 
-  // 초기화: 환영 메시지 및 읽음 처리 (최초 1회만)
+  // 초기화: 환영 메시지 및 읽음 처리 (chatStore 초기화 후 1회만)
   useEffect(() => {
     async function initializeRoom() {
+      // chatStore가 초기화될 때까지 대기
+      if (!isChatStoreInitialized) return;
       if (initRef.current) return;
 
       const currentRoom = getRoomById(targetRoomId) || getDefaultRoom();
@@ -95,7 +98,7 @@ export function ChatRoomPage() {
     }
 
     initializeRoom();
-  }, [targetRoomId, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
+  }, [targetRoomId, isChatStoreInitialized, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
 
   // 첫 진입 시 스크롤: useLayoutEffect로 paint 전에 실행
   useLayoutEffect(() => {
