@@ -1,0 +1,23 @@
+# Nixpacks configuration for Railway
+# Node.js + Python multi-runtime support
+
+[phases.setup]
+# Add Python alongside Node.js
+nixPkgs = ["python311", "python311Packages.pip"]
+
+[phases.install]
+# Install Node.js dependencies
+cmds = [
+  "pnpm install",
+  "pip install -r packages/curriculum-agent/requirements.txt"
+]
+
+[phases.build]
+cmds = [
+  "pnpm --filter @questybook/shared build",
+  "pnpm --filter @questy/coach-agent build",
+  "pnpm --filter @questybook/backend build"
+]
+
+[start]
+cmd = "node packages/backend/dist/index.js"

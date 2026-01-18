@@ -24,11 +24,13 @@ const __dirname = path.dirname(__filename);
 // Python 에이전트 호출 헬퍼
 async function callPythonAgent(action: string, params: object): Promise<any> {
   return new Promise((resolve, reject) => {
+    // Python 경로 탐색 (Railway/Nix 환경 지원)
     const pythonPath = process.env.PYTHON_PATH || 'python3';
     const agentDir = path.resolve(__dirname, '../../../curriculum-agent');
     const agentScript = path.join(agentDir, 'main.py');
 
     console.log(`[curriculum] Calling Python agent: ${action}`);
+    console.log(`[curriculum] Python path: ${pythonPath}`);
     console.log(`[curriculum] Agent path: ${agentScript}`);
 
     const proc = spawn(pythonPath, [
