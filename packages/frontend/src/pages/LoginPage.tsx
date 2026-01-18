@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { BookOpen, Mail, Lock, LogIn, CheckCircle, AlertTriangle } from 'lucide-react';
+import { BookOpen, Mail, Lock, LogIn, CheckCircle, AlertTriangle, Check } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
 export function LoginPage() {
@@ -15,6 +15,7 @@ export function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // 회원가입 성공 메시지 표시
@@ -31,7 +32,7 @@ export function LoginPage() {
     e.preventDefault();
     clearError();
 
-    const success = await login(email, password);
+    const success = await login(email, password, rememberMe);
     if (success) {
       navigate('/');
     }
@@ -96,6 +97,27 @@ export function LoginPage() {
                 />
               </div>
 
+              {/* 자동로그인 체크박스 */}
+              <div className="flex items-center">
+                <button
+                  type="button"
+                  onClick={() => setRememberMe(!rememberMe)}
+                  className={`w-5 h-5 rounded border-2 flex items-center justify-center transition-colors ${
+                    rememberMe
+                      ? 'bg-[var(--ink-blue)] border-[var(--ink-blue)]'
+                      : 'bg-white border-[var(--paper-lines)] hover:border-[var(--ink-blue)]'
+                  }`}
+                >
+                  {rememberMe && <Check className="w-3 h-3 text-white" />}
+                </button>
+                <label
+                  onClick={() => setRememberMe(!rememberMe)}
+                  className="ml-2 text-sm text-[var(--pencil-gray)] cursor-pointer select-none"
+                >
+                  자동 로그인 (30일간 유지)
+                </label>
+              </div>
+
               {successMessage && (
                 <div className="flex items-center gap-2 bg-[var(--highlight-green)] border border-green-500 rounded-lg p-3 text-green-400 text-sm">
                   <CheckCircle className="w-4 h-4 flex-shrink-0" /> {successMessage}
@@ -136,7 +158,15 @@ export function LoginPage() {
 
               <button
                 type="button"
-                onClick={loginWithGoogle}
+                onClick={() => {
+                  // Google OAuth 전 자동로그인 설정 저장 (콜백에서 사용)
+                  if (rememberMe) {
+                    localStorage.setItem('questybook_pending_remember_me', 'true');
+                  } else {
+                    localStorage.removeItem('questybook_pending_remember_me');
+                  }
+                  loginWithGoogle();
+                }}
                 disabled={isLoading}
                 className="mt-4 w-full flex items-center justify-center gap-3 py-3 px-4 border-2 border-[var(--paper-lines)] rounded-lg bg-white hover:bg-gray-50 transition-colors disabled:opacity-50"
               >

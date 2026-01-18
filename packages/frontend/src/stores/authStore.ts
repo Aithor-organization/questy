@@ -55,7 +55,7 @@ interface AuthStore {
   error: string | null;
 
   // 액션
-  login: (email: string, password: string) => Promise<boolean>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean>;
   register: (email: string, password: string, name: string) => Promise<boolean>;
   loginWithGoogle: () => Promise<boolean>;
   logout: () => Promise<void>;
@@ -217,6 +217,23 @@ function setupAuthStateListener(set: SetState): void {
         localStorage.setItem('questybook_student_id', studentId);
       }
       localStorage.setItem('questybook_student_name', user.name);
+
+      // OAuth 로그인 시 자동로그인 설정 처리
+      const pendingRememberMe = localStorage.getItem('questybook_pending_remember_me');
+      if (pendingRememberMe === 'true') {
+        // 30일 자동로그인 설정
+        const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+        localStorage.setItem('questybook_remember_me', 'true');
+        localStorage.setItem('questybook_remember_expires', expiresAt.toString());
+        localStorage.removeItem('questybook_pending_remember_me');
+        console.log('[Auth] OAuth 자동로그인 설정됨 (30일)');
+      } else {
+        // 자동로그인 미설정 - 세션 마커만
+        localStorage.removeItem('questybook_remember_me');
+        localStorage.removeItem('questybook_remember_expires');
+        localStorage.removeItem('questybook_pending_remember_me');
+        sessionStorage.setItem('questybook_session_active', 'true');
+      }
     } else if (event === 'SIGNED_OUT') {
       set({
         user: null,
@@ -255,11 +272,47 @@ export const useAuthStore = create<AuthStore>()(
           return;
         }
 
+        // 자동로그인 체크
+        const rememberMe = localStorage.getItem('questybook_remember_me');
+        const rememberExpires = localStorage.getItem('questybook_remember_expires');
+        const sessionActive = sessionStorage.getItem('questybook_session_active');
+
+        // 자동로그인이 설정되어 있고 만료되었으면 로그아웃
+        if (rememberMe === 'true' && rememberExpires) {
+          const expiresAt = parseInt(rememberExpires, 10);
+          if (Date.now() > expiresAt) {
+            console.log('[Auth] 자동로그인 만료됨 - 로그아웃 처리');
+            await supabase.auth.signOut();
+            localStorage.removeItem('questybook_remember_me');
+            localStorage.removeItem('questybook_remember_expires');
+            set({ isLoading: false, user: null, session: null, isAuthenticated: false });
+            return;
+          }
+        }
+
+        // 자동로그인이 아닌데 브라우저가 닫혔다가 열렸으면 (sessionActive 없음) 로그아웃
+        if (!rememberMe && !sessionActive) {
+          const persistedUser = get().user;
+          if (persistedUser) {
+            console.log('[Auth] 자동로그인 미설정 & 브라우저 재시작 - 로그아웃 처리');
+            await supabase.auth.signOut();
+            set({ isLoading: false, user: null, session: null, isAuthenticated: false });
+            // zustand persist 데이터도 정리
+            localStorage.removeItem('questybook-auth');
+            return;
+          }
+        }
+
         // 🚀 낙관적 로딩: persist된 user가 있으면 즉시 표시
         const persistedUser = get().user;
         if (persistedUser) {
           console.log('[Auth] 🚀 Optimistic: Using persisted user:', persistedUser.email);
           set({ isAuthenticated: true, isLoading: false });
+
+          // 세션 마커 설정 (자동로그인 아닌 경우)
+          if (!rememberMe) {
+            sessionStorage.setItem('questybook_session_active', 'true');
+          }
 
           // 백그라운드에서 세션 검증 (UI 블로킹 없음)
           verifySessionInBackground(set, get);
@@ -323,7 +376,7 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
 
-      login: async (email: string, password: string) => {
+      login: async (email: string, password: string, rememberMe: boolean = false) => {
         set({ isLoading: true, error: null });
 
         // Supabase 미설정 시 테스트 계정
@@ -390,6 +443,19 @@ export const useAuthStore = create<AuthStore>()(
               localStorage.setItem('questybook_student_id', student.id);
             }
             localStorage.setItem('questybook_student_name', user.name);
+
+            // 자동로그인 설정 저장
+            if (rememberMe) {
+              // 30일 후 만료 시간 저장
+              const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
+              localStorage.setItem('questybook_remember_me', 'true');
+              localStorage.setItem('questybook_remember_expires', expiresAt.toString());
+            } else {
+              // 자동로그인 해제 - 세션 마커만 설정 (브라우저 닫으면 사라짐)
+              localStorage.removeItem('questybook_remember_me');
+              localStorage.removeItem('questybook_remember_expires');
+              sessionStorage.setItem('questybook_session_active', 'true');
+            }
 
             return true;
           }
@@ -520,17 +586,54 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: async () => {
+        console.log('[Auth] 로그아웃 시작 - 모든 데이터 정리');
+
+        // 1. Supabase 세션 종료
         if (supabase) {
           await supabase.auth.signOut();
         }
 
-        set({ user: null, session: null, userProfile: null, membershipData: null, isAuthenticated: false, error: null });
-        localStorage.removeItem('questybook_student_id');
-        localStorage.removeItem('questybook_student_name');
-        // 사용자별 데이터 격리 - 로그아웃 시 모든 캐시 삭제
-        localStorage.removeItem('questybook-chat-storage-v2');  // 채팅 데이터
-        localStorage.removeItem('questybook-storage');          // 퀘스트 데이터
-        localStorage.removeItem('questybook_last_user_id');     // 마지막 사용자 ID
+        // 2. Zustand 상태 초기화
+        set({
+          user: null,
+          session: null,
+          userProfile: null,
+          membershipData: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null,
+        });
+
+        // 3. 모든 localStorage 데이터 삭제
+        const keysToRemove = [
+          // 사용자 정보
+          'questybook_student_id',
+          'questybook_student_name',
+          'questybook_last_user_id',
+          // 자동로그인 관련
+          'questybook_remember_me',
+          'questybook_remember_expires',
+          // 캐시 데이터
+          'questybook-chat-storage-v2',
+          'questybook-storage',
+          'questybook-auth',
+          // 세션/대화 관련
+          'questybook_session_id',
+        ];
+
+        keysToRemove.forEach(key => localStorage.removeItem(key));
+
+        // conversationId 키들도 삭제 (채팅방별)
+        Object.keys(localStorage).forEach(key => {
+          if (key.startsWith('questybook_conv_')) {
+            localStorage.removeItem(key);
+          }
+        });
+
+        // 4. sessionStorage도 정리
+        sessionStorage.removeItem('questybook_session_active');
+
+        console.log('[Auth] 로그아웃 완료 - 모든 데이터 삭제됨');
       },
 
       clearError: () => {
