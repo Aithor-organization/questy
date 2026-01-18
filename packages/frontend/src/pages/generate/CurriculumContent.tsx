@@ -38,6 +38,7 @@ export function CurriculumContent() {
     dismissTimeWarning,
     isSearching,
     isGenerating,
+    generateError,
   } = useCurriculumGeneration();
 
   return (
@@ -100,6 +101,7 @@ export function CurriculumContent() {
             quests={generatedQuests}
             summary={questSummary}
             isLoading={isGenerating}
+            error={generateError}
             onBack={() => setStep('courses')}
             onConfirm={addToPlannerAndNavigate}
             onUpdatePracticeNote={updatePracticeNote}
@@ -586,6 +588,7 @@ function PreviewStep(props: {
     }> | null;
   } | null;
   isLoading: boolean;
+  error?: Error | null;
   onBack: () => void;
   onConfirm: () => void;
   onUpdatePracticeNote?: (questId: string, note: string) => void;
@@ -631,6 +634,12 @@ function PreviewStep(props: {
       <div className="text-center py-12">
         <div className="text-5xl mb-4">😕</div>
         <p className="text-lg font-medium">퀘스트 생성에 실패했습니다</p>
+        {props.error && (
+          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-left max-w-md mx-auto">
+            <p className="text-sm text-red-600 font-medium mb-1">오류 상세:</p>
+            <p className="text-xs text-red-500 break-all">{props.error.message || String(props.error)}</p>
+          </div>
+        )}
         <button onClick={props.onBack} className="mt-4 px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">
           다시 시도
         </button>

@@ -178,6 +178,12 @@ export function useCurriculumGeneration() {
   // 퀘스트 생성
   const generateMutation = useMutation({
     mutationFn: async () => {
+      console.log('[useCurriculumGeneration] Starting quest generation...');
+      console.log('[useCurriculumGeneration] API URL:', `${API_BASE_URL}/api/curriculum/generate-quests`);
+      console.log('[useCurriculumGeneration] Selected courses:', selectedCourses.length);
+      console.log('[useCurriculumGeneration] Target date:', targetDate);
+      console.log('[useCurriculumGeneration] Daily study hours:', dailyStudyHours);
+
       // 기존 플랜의 일별 퀘스트 정보 추출 (가용 시간 계산용)
       const existingPlanData = existingPlans.map(plan => ({
         id: plan.id,
@@ -190,25 +196,37 @@ export function useCurriculumGeneration() {
         })),
       }));
 
-      const res = await fetch(`${API_BASE_URL}/api/curriculum/generate-quests`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          selectedCourseIds: selectedCourses.map(c => c.id),
-          courseContents: selectedCourses, // 강좌 정보 직접 전달
-          targetDate,
-          dailyStudyHours,
-          subjectRatio,
-          // 새로운 옵션들
-          subjectHours,
-          options: curriculumOptions,
-          // 기존 플랜 정보 (가용 시간 계산용)
-          existingPlans: existingPlanData,
-        }),
-      });
-      if (!res.ok) throw new Error('퀘스트 생성 실패');
+      let res: Response;
+      try {
+        res = await fetch(`${API_BASE_URL}/api/curriculum/generate-quests`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            selectedCourseIds: selectedCourses.map(c => c.id),
+            courseContents: selectedCourses, // 강좌 정보 직접 전달
+            targetDate,
+            dailyStudyHours,
+            subjectRatio,
+            // 새로운 옵션들
+            subjectHours,
+            options: curriculumOptions,
+            // 기존 플랜 정보 (가용 시간 계산용)
+            existingPlans: existingPlanData,
+          }),
+        });
+      } catch (networkError) {
+        console.error('[useCurriculumGeneration] Network error:', networkError);
+        throw new Error(`네트워크 오류: 백엔드 서버에 연결할 수 없습니다 (${API_BASE_URL})`);
+      }
+
+      if (!res.ok) {
+        const errorText = await res.text().catch(() => 'Unknown error');
+        console.error('[useCurriculumGeneration] API error:', res.status, errorText);
+        throw new Error(`퀘스트 생성 실패 (${res.status}): ${errorText}`);
+      }
       const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+      console.log('[useCurriculumGeneration] API response:', data);
+      if (!data.success) throw new Error(data.error || '알 수 없는 오류');
       return data.data as GenerateQuestsResponse;
     },
     onSuccess: (data) => {
@@ -228,6 +246,10 @@ export function useCurriculumGeneration() {
         setShowTimeExceededWarning(false);
         setRequiredHoursPerDay(0);
       }
+    },
+    onError: (error) => {
+      console.error('[useCurriculumGeneration] Mutation error:', error);
+      console.error('[useCurriculumGeneration] Error message:', error instanceof Error ? error.message : String(error));
     },
   });
 

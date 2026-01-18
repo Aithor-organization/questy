@@ -4,6 +4,7 @@
 import { Hono } from 'hono';
 import { spawn } from 'child_process';
 import path from 'path';
+import { fileURLToPath } from 'url';
 import {
   searchCourses as searchCoursesFromDB,
   getCourse,
@@ -15,6 +16,10 @@ import { detectCompletion } from '../crawlers/megastudy/models.js';
 import { getCurriculumUpdater } from '../services/curriculum-updater.js';
 
 export const curriculumRoutes = new Hono();
+
+// ES Modules에서 __dirname 대체
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Python 에이전트 호출 헬퍼
 async function callPythonAgent(action: string, params: object): Promise<any> {
