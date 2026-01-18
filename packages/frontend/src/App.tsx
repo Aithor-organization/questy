@@ -147,17 +147,16 @@ function App() {
           syncFromSupabase('chat'),
         ]);
 
-        // Supabase에서 데이터를 가져온 경우에만 rehydrate (기존 localStorage 보존)
-        if (questSynced > 0) {
-          await useQuestStore.persist.rehydrate();
-          console.log('[App] Quest 스토어 rehydrate 완료');
-        }
-        if (chatSynced > 0) {
-          await useChatStore.persist.rehydrate();
-          console.log('[App] Chat 스토어 rehydrate 완료');
-        }
+        console.log(`[App] Supabase 동기화: quest=${questSynced}, chat=${chatSynced}`);
 
-        console.log('[App] 스토어 동기화 완료');
+        // 항상 rehydrate 호출 (Supabase 데이터 또는 기존 localStorage 데이터 로드)
+        // 인증 전에 zustand persist가 초기화되어 빈 상태일 수 있으므로 항상 새로 로드
+        await Promise.all([
+          useQuestStore.persist.rehydrate(),
+          useChatStore.persist.rehydrate(),
+        ]);
+
+        console.log('[App] 스토어 rehydrate 완료');
       } catch (error) {
         console.error('[App] 스토어 동기화 실패:', error);
       }
