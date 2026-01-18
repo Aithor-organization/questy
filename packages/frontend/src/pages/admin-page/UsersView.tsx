@@ -12,10 +12,23 @@ import {
   AlertCircle,
   RefreshCw,
   Search,
+  Square,
+  CheckSquare,
+  Trash2,
+  Users,
+  X,
 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 import type { UserMembership, MembershipType, MembershipStatus } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+
+// 액세스 토큰 가져오기
+async function getAccessToken(): Promise<string | null> {
+  if (!supabase) return null;
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.access_token || null;
+}
 
 // 멤버십 상태 라벨
 const membershipStatusLabels: Record<MembershipStatus, string> = {
@@ -40,6 +53,10 @@ export function UsersView() {
   const [filter, setFilter] = useState<'all' | 'pending' | 'active'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
+  // 다중 선택 관련 상태
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [bulkActionLoading, setBulkActionLoading] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // 사용자 목록 조회
   const fetchUsers = useCallback(async () => {
@@ -47,9 +64,10 @@ export function UsersView() {
     setError(null);
 
     try {
+      const token = await getAccessToken();
       const response = await fetch(`${API_URL}/api/admin/users`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token') || ''}`,
+          'Authorization': `Bearer ${token || ''}`,
         },
       });
 
@@ -76,11 +94,12 @@ export function UsersView() {
     setApproving(userId);
 
     try {
+      const token = await getAccessToken();
       const response = await fetch(`${API_URL}/api/admin/users/${userId}/membership`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${localStorage.getItem('supabase.auth.token') || ''}`,
+          'Authorization': `Bearer ${token || ''}`,
         },
         body: JSON.stringify({ membershipType }),
       });
@@ -97,6 +116,101 @@ export function UsersView() {
       setError(err.message || '멤버십 변경에 실패했습니다');
     } finally {
       setApproving(null);
+    }
+  };
+
+  // 사용자 선택 토글
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(userId)) {
+        newSet.delete(userId);
+      } else {
+        newSet.add(userId);
+      }
+      return newSet;
+    });
+  };
+
+  // 전체 선택/해제
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === filteredUsers.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(filteredUsers.map(u => u.id)));
+    }
+  };
+
+  // 선택 초기화
+  const clearSelection = () => {
+    setSelectedUsers(new Set());
+    setShowDeleteConfirm(false);
+  };
+
+  // 일괄 멤버십 변경
+  const bulkUpdateMembership = async (membershipType: MembershipType) => {
+    if (selectedUsers.size === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_URL}/api/admin/users/bulk/membership`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          userIds: Array.from(selectedUsers),
+          membershipType,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '일괄 멤버십 변경 실패');
+      }
+
+      clearSelection();
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || '일괄 멤버십 변경에 실패했습니다');
+    } finally {
+      setBulkActionLoading(false);
+    }
+  };
+
+  // 일괄 사용자 삭제
+  const bulkDeleteUsers = async () => {
+    if (selectedUsers.size === 0) return;
+
+    setBulkActionLoading(true);
+    try {
+      const token = await getAccessToken();
+      const response = await fetch(`${API_URL}/api/admin/users/bulk`, {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token || ''}`,
+        },
+        body: JSON.stringify({
+          userIds: Array.from(selectedUsers),
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!data.success) {
+        throw new Error(data.error || '일괄 사용자 삭제 실패');
+      }
+
+      clearSelection();
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message || '일괄 사용자 삭제에 실패했습니다');
+    } finally {
+      setBulkActionLoading(false);
     }
   };
 
@@ -163,8 +277,106 @@ export function UsersView() {
         </div>
       )}
 
+      {/* 일괄 작업 툴바 */}
+      {selectedUsers.size > 0 && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div className="flex items-center gap-2">
+              <Users size={18} className="text-blue-600" />
+              <span className="text-sm font-medium text-blue-700">
+                {selectedUsers.size}명 선택됨
+              </span>
+              <button
+                onClick={clearSelection}
+                className="p-1 hover:bg-blue-100 rounded"
+              >
+                <X size={14} className="text-blue-600" />
+              </button>
+            </div>
+
+            {!showDeleteConfirm ? (
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs text-blue-600">멤버십 변경:</span>
+                <button
+                  onClick={() => bulkUpdateMembership('pending')}
+                  disabled={bulkActionLoading}
+                  className="px-3 py-1.5 bg-yellow-500 text-white rounded-lg text-xs font-medium hover:bg-yellow-600 disabled:opacity-50"
+                >
+                  대기자
+                </button>
+                <button
+                  onClick={() => bulkUpdateMembership('beta_tester')}
+                  disabled={bulkActionLoading}
+                  className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 disabled:opacity-50"
+                >
+                  베타테스터
+                </button>
+                <button
+                  onClick={() => bulkUpdateMembership('lab_member')}
+                  disabled={bulkActionLoading}
+                  className="px-3 py-1.5 bg-purple-500 text-white rounded-lg text-xs font-medium hover:bg-purple-600 disabled:opacity-50"
+                >
+                  실험단
+                </button>
+                <div className="w-px h-6 bg-blue-200 mx-1" />
+                <button
+                  onClick={() => setShowDeleteConfirm(true)}
+                  disabled={bulkActionLoading}
+                  className="flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded-lg text-xs font-medium hover:bg-red-600 disabled:opacity-50"
+                >
+                  <Trash2 size={12} />
+                  삭제
+                </button>
+                {bulkActionLoading && (
+                  <Loader2 size={16} className="animate-spin text-blue-600" />
+                )}
+              </div>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-red-600 font-medium">
+                  정말 {selectedUsers.size}명의 사용자를 삭제하시겠습니까?
+                </span>
+                <button
+                  onClick={bulkDeleteUsers}
+                  disabled={bulkActionLoading}
+                  className="px-3 py-1.5 bg-red-600 text-white rounded-lg text-xs font-medium hover:bg-red-700 disabled:opacity-50"
+                >
+                  {bulkActionLoading ? (
+                    <Loader2 size={12} className="animate-spin" />
+                  ) : (
+                    '확인'
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={bulkActionLoading}
+                  className="px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs font-medium hover:bg-gray-600 disabled:opacity-50"
+                >
+                  취소
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* 필터 및 검색 */}
-      <div className="flex gap-3 flex-wrap">
+      <div className="flex gap-3 flex-wrap items-center">
+        {/* 전체 선택 체크박스 */}
+        <button
+          onClick={toggleSelectAll}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+        >
+          {selectedUsers.size === filteredUsers.length && filteredUsers.length > 0 ? (
+            <CheckSquare size={16} className="text-blue-600" />
+          ) : (
+            <Square size={16} />
+          )}
+          전체
+        </button>
+
+        <div className="w-px h-6 bg-gray-200" />
+
         <div className="flex gap-2">
           <button
             onClick={() => setFilter('all')}
@@ -224,6 +436,8 @@ export function UsersView() {
               user={user}
               onApprove={approveUser}
               isLoading={approving === user.id}
+              isSelected={selectedUsers.has(user.id)}
+              onToggleSelect={() => toggleUserSelection(user.id)}
             />
           ))}
         </div>
@@ -237,10 +451,14 @@ function UserCard({
   user,
   onApprove,
   isLoading,
+  isSelected,
+  onToggleSelect,
 }: {
   user: UserMembership;
   onApprove: (userId: string, type: MembershipType) => void;
   isLoading: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }) {
   const membership = user.membership;
   const status = membership?.status || 'pending';
@@ -287,13 +505,28 @@ function UserCard({
   };
 
   return (
-    <div className="p-4 bg-white border border-gray-200 rounded-xl shadow-sm">
-      <div className="flex flex-col gap-3">
-        {/* 사용자 정보 */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-medium text-gray-800 truncate">{user.name}</h3>
+    <div className={`p-4 bg-white border rounded-xl shadow-sm transition-all ${
+      isSelected ? 'border-blue-400 bg-blue-50/30' : 'border-gray-200'
+    }`}>
+      <div className="flex gap-3">
+        {/* 체크박스 */}
+        <button
+          onClick={onToggleSelect}
+          className="flex-shrink-0 mt-0.5"
+        >
+          {isSelected ? (
+            <CheckSquare size={20} className="text-blue-600" />
+          ) : (
+            <Square size={20} className="text-gray-400 hover:text-gray-600" />
+          )}
+        </button>
+
+        <div className="flex-1 flex flex-col gap-3">
+          {/* 사용자 정보 */}
+          <div className="flex items-start justify-between gap-4">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-medium text-gray-800 truncate">{user.name}</h3>
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[status]}`}>
                 {membershipStatusLabels[status]}
               </span>
@@ -358,6 +591,7 @@ function UserCard({
               적용
             </button>
           )}
+        </div>
         </div>
       </div>
     </div>

@@ -194,6 +194,14 @@ function setupAuthStateListener(set: SetState): void {
             });
             console.log('[Auth] New OAuth user: student_progress created');
           }
+
+          // 신규 사용자: user_memberships 레코드 생성 (pending 상태)
+          await client.from('user_memberships').insert({
+            user_id: newSession.user.id,
+            membership_type: 'pending',
+            status: 'pending',
+          });
+          console.log('[Auth] New OAuth user: user_memberships created');
         } else {
           studentId = student.id;
         }
@@ -521,6 +529,14 @@ export const useAuthStore = create<AuthStore>()(
               });
             }
 
+            // 4. user_memberships 레코드 생성 (pending 상태)
+            await supabase.from('user_memberships').insert({
+              user_id: data.user.id,
+              membership_type: 'pending',
+              status: 'pending',
+            });
+            console.log('[Auth] New user: user_memberships created');
+
             // 회원가입 성공 - 자동 로그인 상태 유지 (온보딩으로 이동)
             const user = mapSupabaseUser(data.user, student?.id);
             user.onboardingCompleted = false; // 새 사용자는 온보딩 미완료
@@ -720,20 +736,41 @@ export const useAuthStore = create<AuthStore>()(
           return false;
         }
 
+        // true인 경우만 캐시 신뢰 (이미 DB에서 검증됨)
+        // false나 undefined는 항상 DB에서 다시 확인
+        // (로그아웃 후 재로그인 시 persist 데이터가 stale할 수 있음)
+        if (currentUser.onboardingCompleted === true) {
+          console.log('[Auth] onboardingCompleted already true, skipping check');
+          return true;
+        }
+
+        console.log('[Auth] Checking onboarding status from DB...');
+
         try {
           const { data, error } = await supabase
             .from('user_profiles')
-            .select('onboarding_completed')
-            .eq('id', currentUser.id)
+            .select('onboarding_completed, target_university')
+            .eq('user_id', currentUser.id)
             .single();
 
           if (error) {
             // 프로필이 없으면 온보딩 미완료
             console.log('[Auth] No profile found, onboarding needed');
+            set({ user: { ...currentUser, onboardingCompleted: false } });
             return false;
           }
 
-          const completed = data?.onboarding_completed || false;
+          // 학습 목표(target_university)가 설정되어 있으면 온보딩 완료로 간주
+          // (기존 사용자가 onboarding_completed 플래그 없이 프로필만 있는 경우 대응)
+          const hasLearningGoal = !!data?.target_university;
+          const completed = data?.onboarding_completed || hasLearningGoal;
+
+          console.log('[Auth] Onboarding check result:', {
+            onboarding_completed: data?.onboarding_completed,
+            target_university: data?.target_university,
+            result: completed
+          });
+
           set({ user: { ...currentUser, onboardingCompleted: completed } });
           return completed;
         } catch (err) {
@@ -761,7 +798,7 @@ export const useAuthStore = create<AuthStore>()(
           const { data, error } = await supabase
             .from('user_profiles')
             .select('*')
-            .eq('id', currentUser.id)
+            .eq('user_id', currentUser.id)
             .single();
 
           if (error) {

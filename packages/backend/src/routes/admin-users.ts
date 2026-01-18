@@ -5,6 +5,7 @@
 
 import { Hono } from 'hono';
 import { supabase } from '../db/supabase.js';
+import { sendEmail, getMembershipApprovalEmail } from '../lib/email.js';
 
 export const adminUsersRoutes = new Hono();
 
@@ -94,25 +95,17 @@ adminUsersRoutes.get('/users', async (c) => {
       return c.json({ success: false, error: '사용자 목록 조회 실패' }, 500);
     }
 
-    // user_profiles에서 추가 정보 조회
+    // auth.users에서 이메일과 이름 조회 (Admin API 사용)
     const userIds = memberships?.map(m => m.user_id) || [];
+    const userInfo: Record<string, { email: string; name: string }> = {};
 
-    const { data: profiles, error: profileError } = await supabase
-      .from('user_profiles')
-      .select('user_id, name')
-      .in('user_id', userIds);
-
-    if (profileError) {
-      console.warn('[AdminUsers] Get profiles warning:', profileError);
-    }
-
-    // auth.users에서 이메일 정보 조회 (Admin API 사용)
-    const userEmails: Record<string, string> = {};
     for (const userId of userIds) {
       try {
         const { data: userData } = await supabase.auth.admin.getUserById(userId);
-        if (userData?.user?.email) {
-          userEmails[userId] = userData.user.email;
+        if (userData?.user) {
+          const email = userData.user.email || '';
+          const name = userData.user.user_metadata?.name || email.split('@')[0] || '이름 없음';
+          userInfo[userId] = { email, name };
         }
       } catch (e) {
         // 개별 사용자 조회 실패는 무시
@@ -121,11 +114,11 @@ adminUsersRoutes.get('/users', async (c) => {
 
     // 데이터 병합
     const users = memberships?.map(m => {
-      const profile = profiles?.find(p => p.user_id === m.user_id);
+      const info = userInfo[m.user_id];
       return {
         id: m.user_id,
-        name: profile?.name || '이름 없음',
-        email: userEmails[m.user_id] || '',
+        name: info?.name || '이름 없음',
+        email: info?.email || '',
         createdAt: m.created_at,
         membership: {
           type: m.membership_type,
@@ -217,14 +210,21 @@ adminUsersRoutes.post('/users/:userId/membership', async (c) => {
       try {
         const { data: userData } = await supabase.auth.admin.getUserById(userId);
         if (userData?.user?.email) {
-          console.log(`[AdminUsers] Sending approval notification to: ${userData.user.email}`);
-          await supabase.auth.admin.generateLink({
-            type: 'magiclink',
-            email: userData.user.email,
-            options: {
-              redirectTo: `${process.env.FRONTEND_URL || 'https://questybook.com'}/`,
-            },
+          const userName = userData.user.user_metadata?.name || userData.user.email.split('@')[0];
+          const { subject, html } = getMembershipApprovalEmail(userName, membershipType);
+
+          console.log(`[AdminUsers] Sending approval email to: ${userData.user.email}`);
+          const emailResult = await sendEmail({
+            to: userData.user.email,
+            subject,
+            html,
           });
+
+          if (emailResult.success) {
+            console.log(`[AdminUsers] Approval email sent: ${emailResult.id}`);
+          } else {
+            console.warn(`[AdminUsers] Approval email failed: ${emailResult.error}`);
+          }
         }
       } catch (emailError) {
         console.warn('[AdminUsers] Email notification failed:', emailError);
@@ -457,6 +457,196 @@ adminUsersRoutes.get('/membership/status', async (c) => {
   } catch (error: any) {
     console.error('[AdminUsers] Get membership status error:', error);
     return c.json({ success: false, error: error.message || '멤버십 조회 실패' }, 500);
+  }
+});
+
+/**
+ * 일괄 멤버십 변경
+ * POST /api/admin/users/bulk/membership
+ */
+adminUsersRoutes.post('/users/bulk/membership', async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    const body = await c.req.json();
+    const { userIds, membershipType, adminNote } = body as {
+      userIds: string[];
+      membershipType: MembershipType;
+      adminNote?: string;
+    };
+
+    // 유효성 검사
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return c.json({ success: false, error: '선택된 사용자가 없습니다' }, 400);
+    }
+
+    if (!['pending', 'beta_tester', 'lab_member'].includes(membershipType)) {
+      return c.json({ success: false, error: '유효하지 않은 멤버십 유형입니다' }, 400);
+    }
+
+    const now = new Date().toISOString();
+
+    // 멤버십 타입에 따른 설정
+    let status: MembershipStatus;
+    let expiresAt: string | null = null;
+    let approvedAt: string | null = null;
+
+    if (membershipType === 'pending') {
+      status = 'pending';
+    } else if (membershipType === 'beta_tester') {
+      status = 'active';
+      expiresAt = calculateBetaTesterExpiry();
+      approvedAt = now;
+    } else {
+      status = 'active';
+      approvedAt = now;
+    }
+
+    // 일괄 멤버십 업데이트
+    const { data, error } = await supabase
+      .from('user_memberships')
+      .update({
+        membership_type: membershipType,
+        status,
+        approved_at: approvedAt,
+        expires_at: expiresAt,
+        admin_note: adminNote || null,
+        updated_at: now,
+      })
+      .in('user_id', userIds)
+      .select();
+
+    if (error) {
+      console.error('[AdminUsers] Bulk membership update error:', error);
+      return c.json({ success: false, error: '일괄 멤버십 변경 실패' }, 500);
+    }
+
+    console.log(`[AdminUsers] Bulk membership changed: ${userIds.length} users -> ${membershipType}`);
+
+    // 승인 시 이메일 발송 (pending이 아닌 경우)
+    let emailsSent = 0;
+    if (membershipType !== 'pending') {
+      for (const userId of userIds) {
+        try {
+          const { data: userData } = await supabase.auth.admin.getUserById(userId);
+          if (userData?.user?.email) {
+            const userName = userData.user.user_metadata?.name || userData.user.email.split('@')[0];
+            const { subject, html } = getMembershipApprovalEmail(userName, membershipType);
+
+            const emailResult = await sendEmail({
+              to: userData.user.email,
+              subject,
+              html,
+            });
+
+            if (emailResult.success) {
+              emailsSent++;
+            }
+          }
+        } catch (emailError) {
+          console.warn(`[AdminUsers] Bulk email failed for ${userId}:`, emailError);
+        }
+      }
+      console.log(`[AdminUsers] Bulk approval emails sent: ${emailsSent}/${userIds.length}`);
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        updatedCount: data?.length || 0,
+        membershipType,
+        status,
+        emailsSent,
+      },
+    });
+  } catch (error: any) {
+    console.error('[AdminUsers] Bulk membership error:', error);
+    return c.json({ success: false, error: error.message || '일괄 멤버십 변경 실패' }, 500);
+  }
+});
+
+/**
+ * 일괄 사용자 삭제
+ * DELETE /api/admin/users/bulk
+ */
+adminUsersRoutes.delete('/users/bulk', async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    const body = await c.req.json();
+    const { userIds } = body as { userIds: string[] };
+
+    // 유효성 검사
+    if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
+      return c.json({ success: false, error: '선택된 사용자가 없습니다' }, 400);
+    }
+
+    // 1. user_memberships 삭제
+    const { error: membershipError } = await supabase
+      .from('user_memberships')
+      .delete()
+      .in('user_id', userIds);
+
+    if (membershipError) {
+      console.error('[AdminUsers] Delete memberships error:', membershipError);
+    }
+
+    // 2. user_profiles 삭제
+    const { error: profileError } = await supabase
+      .from('user_profiles')
+      .delete()
+      .in('user_id', userIds);
+
+    if (profileError) {
+      console.error('[AdminUsers] Delete profiles error:', profileError);
+    }
+
+    // 3. students 테이블 삭제 (관련 데이터 포함)
+    const { error: studentError } = await supabase
+      .from('students')
+      .delete()
+      .in('user_id', userIds);
+
+    if (studentError) {
+      console.error('[AdminUsers] Delete students error:', studentError);
+    }
+
+    // 4. auth.users 삭제 (Admin API 사용)
+    let deletedCount = 0;
+    const failedDeletes: string[] = [];
+
+    for (const userId of userIds) {
+      try {
+        const { error: authError } = await supabase.auth.admin.deleteUser(userId);
+        if (authError) {
+          console.error(`[AdminUsers] Delete auth user ${userId} error:`, authError);
+          failedDeletes.push(userId);
+        } else {
+          deletedCount++;
+        }
+      } catch (e) {
+        console.error(`[AdminUsers] Delete auth user ${userId} exception:`, e);
+        failedDeletes.push(userId);
+      }
+    }
+
+    console.log(`[AdminUsers] Bulk delete: ${deletedCount}/${userIds.length} users deleted`);
+
+    return c.json({
+      success: true,
+      data: {
+        deletedCount,
+        totalRequested: userIds.length,
+        failedDeletes: failedDeletes.length > 0 ? failedDeletes : undefined,
+      },
+    });
+  } catch (error: any) {
+    console.error('[AdminUsers] Bulk delete error:', error);
+    return c.json({ success: false, error: error.message || '일괄 사용자 삭제 실패' }, 500);
   }
 });
 
