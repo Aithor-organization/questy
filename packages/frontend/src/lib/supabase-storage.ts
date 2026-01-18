@@ -14,6 +14,9 @@ import { supabase } from './supabase';
 // 스토리지 테이블 이름
 const STORAGE_TABLE = 'user_storage';
 
+// 마지막 사용자 ID를 추적하는 키
+const LAST_USER_KEY = 'questybook_last_user_id';
+
 // 사용자 ID 가져오기
 async function getUserId(): Promise<string | null> {
   if (!supabase) return null;
@@ -51,6 +54,29 @@ function removeLocalStorage(key: string): void {
   }
 }
 
+/**
+ * 사용자 변경 감지 및 localStorage 초기화
+ * 다른 사용자로 로그인 시 이전 사용자의 캐시된 데이터를 삭제
+ */
+function checkAndClearOnUserChange(currentUserId: string, key: string): boolean {
+  const lastUserId = getLocalStorage(LAST_USER_KEY);
+
+  if (lastUserId && lastUserId !== currentUserId) {
+    // 사용자가 변경됨 - localStorage 데이터 삭제
+    console.log('[SupabaseStorage] 사용자 변경 감지, 캐시 초기화:', lastUserId, '→', currentUserId);
+    removeLocalStorage(key);
+    setLocalStorage(LAST_USER_KEY, currentUserId);
+    return true; // 캐시가 초기화됨
+  }
+
+  if (!lastUserId) {
+    // 첫 로그인 - 사용자 ID 저장
+    setLocalStorage(LAST_USER_KEY, currentUserId);
+  }
+
+  return false; // 캐시 유효
+}
+
 // JSON 문자열을 StorageValue로 파싱
 function parseStorageValue<T>(value: string | null): StorageValue<T> | null {
   if (!value) return null;
@@ -69,18 +95,20 @@ function parseStorageValue<T>(value: string | null): StorageValue<T> | null {
 export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
   return {
     getItem: async (key: string): Promise<StorageValue<T> | null> => {
-      // 1. 먼저 localStorage에서 빠르게 가져옴 (오프라인 지원)
-      const localData = getLocalStorage(key);
-      const localParsed = parseStorageValue<T>(localData);
+      // 1. 사용자 ID 확인
+      const userId = await getUserId();
 
       // 2. Supabase가 설정되지 않았으면 localStorage만 사용
-      const userId = await getUserId();
       if (!userId || !supabase) {
-        return localParsed;
+        const localData = getLocalStorage(key);
+        return parseStorageValue<T>(localData);
       }
 
+      // 3. 사용자 변경 감지 및 캐시 초기화
+      const cacheCleared = checkAndClearOnUserChange(userId, key);
+
       try {
-        // 3. Supabase에서 최신 데이터 가져오기
+        // 4. Supabase에서 최신 데이터 가져오기 (사용자별 데이터)
         const { data, error } = await supabase
           .from(STORAGE_TABLE)
           .select('value, updated_at')
@@ -94,7 +122,12 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
           if (error.code !== 'PGRST116') {
             console.warn('[SupabaseStorage] 조회 실패:', error.message);
           }
-          return localParsed;
+          // 캐시가 초기화되었으면 null 반환 (이전 사용자 데이터 방지)
+          if (cacheCleared) {
+            return null;
+          }
+          const localData = getLocalStorage(key);
+          return parseStorageValue<T>(localData);
         }
 
         if (data?.value) {
@@ -103,10 +136,21 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
           return parseStorageValue<T>(data.value);
         }
 
-        return localParsed;
+        // Supabase에 데이터 없음 - 캐시가 초기화되었으면 null 반환
+        if (cacheCleared) {
+          return null;
+        }
+
+        const localData = getLocalStorage(key);
+        return parseStorageValue<T>(localData);
       } catch (error) {
         console.error('[SupabaseStorage] getItem 에러:', error);
-        return localParsed;
+        // 오류 시에도 캐시가 초기화되었으면 null 반환
+        if (cacheCleared) {
+          return null;
+        }
+        const localData = getLocalStorage(key);
+        return parseStorageValue<T>(localData);
       }
     },
 
