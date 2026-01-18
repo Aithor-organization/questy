@@ -6,7 +6,7 @@ export const openrouter = new OpenAI({
   apiKey: process.env.OPENROUTER_API_KEY,
   defaultHeaders: {
     'HTTP-Referer': process.env.APP_URL || 'http://localhost:3000',
-    'X-Title': 'QuestyBook',
+    'X-Title': 'Questy',
   },
 });
 

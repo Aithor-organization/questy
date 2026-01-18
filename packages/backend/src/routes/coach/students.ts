@@ -52,7 +52,7 @@ studentRoutes.post('/', async (c) => {
       success: true,
       data: {
         student,
-        welcomeMessage: `🎉 ${name}님, QuestyBook에 오신 것을 환영해요!\n\n저는 당신의 학습을 도와줄 AI 코치예요. 함께 목표를 향해 달려가요! 💪`,
+        welcomeMessage: `🎉 ${name}님, Questy에 오신 것을 환영해요!\n\n저는 당신의 학습을 도와줄 AI 코치예요. 함께 목표를 향해 달려가요! 💪`,
       },
     });
   } catch (error) {

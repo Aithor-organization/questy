@@ -8,7 +8,7 @@ import { Resend } from 'resend';
 const resend = new Resend(process.env.RESEND_API_KEY);
 
 // 발신자 이메일 (도메인 인증 전에는 onboarding@resend.dev 사용)
-const FROM_EMAIL = process.env.FROM_EMAIL || 'QuestyBook <onboarding@resend.dev>';
+const FROM_EMAIL = process.env.FROM_EMAIL || 'Questy <onboarding@resend.dev>';
 
 interface SendEmailOptions {
   to: string;
@@ -70,17 +70,17 @@ export function getMembershipApprovalEmail(userName: string, membershipType: str
           </div>
           <div class="content">
             <p>안녕하세요, <strong>${userName}</strong>님!</p>
-            <p>QuestyBook <strong>${typeKorean}</strong> 멤버십이 승인되었습니다.</p>
+            <p>Questy <strong>${typeKorean}</strong> 멤버십이 승인되었습니다.</p>
             <p>이제 AI 학습 코치와 함께 효과적인 학습 여정을 시작할 수 있습니다.</p>
             <ul>
               <li>📚 맞춤형 학습 플랜 생성</li>
               <li>🤖 AI 코치와 실시간 대화</li>
               <li>📊 학습 진도 분석 및 리포트</li>
             </ul>
-            <a href="${process.env.APP_URL || 'http://questy-beta.vercel.app'}" class="button">QuestyBook 시작하기</a>
+            <a href="${process.env.APP_URL || 'http://questy-beta.vercel.app'}" class="button">Questy 시작하기</a>
           </div>
           <div class="footer">
-            <p>QuestyBook - AI 학습 코치</p>
+            <p>Questy - AI 학습 코치</p>
           </div>
         </div>
       </body>
