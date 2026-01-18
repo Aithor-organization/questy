@@ -385,7 +385,7 @@ export const useAuthStore = create<AuthStore>()(
             return false;
           }
 
-          if (data.user) {
+          if (data.user && data.session) {
             // 2. students 테이블에 프로필 생성
             const { data: student, error: studentError } = await supabase
               .from('students')
@@ -407,12 +407,32 @@ export const useAuthStore = create<AuthStore>()(
               });
             }
 
-            // 회원가입 성공 - 자동 로그인하지 않고 로그인 페이지로 리다이렉트하도록 함
-            // 세션이 있어도 저장하지 않음 (로그아웃 상태 유지)
-            await supabase.auth.signOut();
+            // 회원가입 성공 - 자동 로그인 상태 유지 (온보딩으로 이동)
+            const user = mapSupabaseUser(data.user, student?.id);
+            user.onboardingCompleted = false; // 새 사용자는 온보딩 미완료
 
-            set({ isLoading: false });
+            set({
+              user,
+              session: data.session,
+              isAuthenticated: true,
+              isLoading: false,
+            });
+
+            if (student?.id) {
+              localStorage.setItem('questybook_student_id', student.id);
+            }
+            localStorage.setItem('questybook_student_name', user.name);
+
             return true;
+          }
+
+          // 이메일 인증이 필요한 경우 (Supabase 설정에 따라)
+          if (data.user && !data.session) {
+            set({
+              error: '이메일 인증이 필요합니다. Supabase 대시보드에서 이메일 인증을 비활성화해주세요.',
+              isLoading: false
+            });
+            return false;
           }
 
           set({ isLoading: false });
