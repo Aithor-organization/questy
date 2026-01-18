@@ -4,6 +4,8 @@
  *
  * - 전체 화면 타이머 UI
  * - 경과 시간 실시간 표시
+ * - 주기적 자동 저장 (30초마다)
+ * - 페이지 새로고침 후 타이머 복구
  * - 완료 시 자동 기록 저장
  */
 
@@ -11,115 +13,126 @@ import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom'
 import { useQuestStore } from '../stores/questStore';
 
-type TimerStatus = 'IDLE' | 'RUNNING' | 'PAUSED' | 'COMPLETED';
+// 자동 저장 간격 (30초)
+const AUTO_SAVE_INTERVAL_MS = 30 * 1000;
 
 export function TimerPage() {
   const { planId, questId } = useParams<{ planId: string; questId: string }>();
   const navigate = useNavigate();
 
-  const getQuestById = useQuestStore((state) => state.getQuestById);
-  const updateTimerRecord = useQuestStore((state) => state.updateTimerRecord);
-  const toggleQuestComplete = useQuestStore((state) => state.toggleQuestComplete);
+  const {
+    activeTimer,
+    startTimer,
+    pauseTimer,
+    resumeTimer,
+    completeTimer,
+    // cancelTimer, // 현재 미사용
+    getElapsedSeconds,
+    saveTimerProgress,
+    getQuestById,
+  } = useQuestStore();
 
   const quest = planId && questId ? getQuestById(planId, questId) : undefined;
 
-  const [status, setStatus] = useState<TimerStatus>('IDLE');
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [startTime, setStartTime] = useState<Date | null>(null);
+  // 현재 퀘스트의 타이머인지 확인
+  const isActiveForThis = activeTimer?.planId === planId && activeTimer?.questId === questId;
+  const timerStatus = isActiveForThis && activeTimer ? activeTimer.status : 'IDLE';
 
-  // 이전 타이머 기록이 있으면 복원
-  useEffect(() => {
-    if (quest?.timerRecord && !quest.timerRecord.completed) {
-      setElapsedSeconds(quest.timerRecord.elapsedSeconds);
-      setStartTime(new Date(quest.timerRecord.startedAt));
-      setStatus('PAUSED');
-    }
-  }, [quest?.timerRecord]);
+  // UI 상태 (COMPLETED는 로컬에서만 관리)
+  const [isCompleted, setIsCompleted] = useState(false);
 
-  // 타이머 업데이트
+  // 타이머 틱 (1초마다 UI 업데이트)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_tick, setTick] = useState(0);
+
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
 
-    if (status === 'RUNNING') {
+    if (isActiveForThis && timerStatus === 'RUNNING') {
       interval = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
+        setTick((prev) => prev + 1);
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [status]);
+  }, [isActiveForThis, timerStatus]);
 
-  // 시작
-  const handleStart = useCallback(() => {
-    const now = new Date();
-    setStartTime(now);
-    setStatus('RUNNING');
+  // 주기적 자동 저장 (30초마다)
+  useEffect(() => {
+    let saveInterval: ReturnType<typeof setInterval>;
 
-    if (planId && questId) {
-      updateTimerRecord(planId, questId, {
-        startedAt: now.toISOString(),
-        elapsedSeconds: 0,
-        completed: false,
-      });
+    if (isActiveForThis && timerStatus === 'RUNNING') {
+      saveInterval = setInterval(() => {
+        saveTimerProgress();
+      }, AUTO_SAVE_INTERVAL_MS);
     }
-  }, [planId, questId, updateTimerRecord]);
+
+    return () => {
+      if (saveInterval) clearInterval(saveInterval);
+    };
+  }, [isActiveForThis, timerStatus, saveTimerProgress]);
+
+  // 페이지 종료 시 타이머 진행 저장
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isActiveForThis && timerStatus === 'RUNNING') {
+        saveTimerProgress();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isActiveForThis, timerStatus, saveTimerProgress]);
+
+  // 페이지 로드 시 기존 타이머 복구 (activeTimer가 없지만 timerRecord가 있는 경우)
+  useEffect(() => {
+    if (!isActiveForThis && quest?.timerRecord && !quest.timerRecord.completed && planId && questId) {
+      console.log('[TimerPage] 이전 타이머 기록 복구 가능:', quest.timerRecord.elapsedSeconds, 's');
+      // 자동 시작하지 않고 UI에 복구 가능함을 표시
+    }
+  }, [isActiveForThis, quest, planId, questId]);
+
+  // 현재 경과 시간
+  const elapsedSeconds = isActiveForThis ? getElapsedSeconds() : 0;
+
+  // 시작 (기존 timerRecord가 있으면 이어서)
+  const handleStart = useCallback(() => {
+    if (planId && questId) {
+      startTimer(planId, questId);
+    }
+  }, [planId, questId, startTimer]);
 
   // 일시정지
   const handlePause = useCallback(() => {
-    setStatus('PAUSED');
-
-    if (planId && questId && startTime) {
-      updateTimerRecord(planId, questId, {
-        startedAt: startTime.toISOString(),
-        elapsedSeconds,
-        completed: false,
-      });
-    }
-  }, [planId, questId, startTime, elapsedSeconds, updateTimerRecord]);
+    pauseTimer();
+  }, [pauseTimer]);
 
   // 재개
   const handleResume = useCallback(() => {
-    setStatus('RUNNING');
-  }, []);
+    resumeTimer();
+  }, [resumeTimer]);
 
   // 완료
-  const handleComplete = useCallback(() => {
-    const now = new Date();
-    setStatus('COMPLETED');
-
-    if (planId && questId && startTime) {
-      updateTimerRecord(planId, questId, {
-        startedAt: startTime.toISOString(),
-        endedAt: now.toISOString(),
-        elapsedSeconds,
-        completed: true,
-      });
-
-      // 퀘스트도 완료 처리
-      toggleQuestComplete(planId, questId);
-    }
+  const handleComplete = useCallback(async () => {
+    setIsCompleted(true);
+    await completeTimer();
 
     // 2초 후 메인으로 돌아가기
     setTimeout(() => {
       navigate('/');
     }, 2000);
-  }, [planId, questId, startTime, elapsedSeconds, updateTimerRecord, toggleQuestComplete, navigate]);
+  }, [completeTimer, navigate]);
 
   // 나가기 (저장 후)
   const handleExit = useCallback(() => {
-    if (status === 'RUNNING' || status === 'PAUSED') {
-      if (planId && questId && startTime) {
-        updateTimerRecord(planId, questId, {
-          startedAt: startTime.toISOString(),
-          elapsedSeconds,
-          completed: false,
-        });
-      }
+    if (isActiveForThis && timerStatus === 'RUNNING') {
+      // 일시정지하고 저장
+      pauseTimer();
     }
     navigate(-1);
-  }, [status, planId, questId, startTime, elapsedSeconds, updateTimerRecord, navigate]);
+  }, [isActiveForThis, timerStatus, pauseTimer, navigate]);
 
   // 시간 포맷팅 (MM:SS)
   const formatTime = (seconds: number): string => {
@@ -140,9 +153,9 @@ export function TimerPage() {
   // 예상 종료 시간 (예상 시간이 있을 때만)
   const getEstimatedEndTime = (): string => {
     if (!quest || !quest.estimatedMinutes) return '';
-    const baseTime = startTime || new Date();
-    const endTime = new Date(baseTime);
-    endTime.setMinutes(endTime.getMinutes() + quest.estimatedMinutes);
+    const remainingSeconds = Math.max(0, quest.estimatedMinutes * 60 - elapsedSeconds);
+    const endTime = new Date();
+    endTime.setSeconds(endTime.getSeconds() + remainingSeconds);
     return formatClockTime(endTime);
   };
 
@@ -153,6 +166,9 @@ export function TimerPage() {
 
   // 예상 시간 존재 여부
   const hasEstimatedTime = quest && quest.estimatedMinutes > 0;
+
+  // 이전 진행 기록 존재 여부
+  const hasSavedProgress = quest?.timerRecord && !quest.timerRecord.completed && quest.timerRecord.elapsedSeconds > 0;
 
   if (!quest) {
     return (
@@ -170,6 +186,9 @@ export function TimerPage() {
       </div>
     );
   }
+
+  // UI 상태 결정
+  const displayStatus = isCompleted ? 'COMPLETED' : timerStatus;
 
   return (
     <div className="min-h-screen notebook-bg p-4">
@@ -202,7 +221,7 @@ export function TimerPage() {
 
         {/* 타이머 영역 */}
         <div className="flex-1 flex flex-col items-center justify-center">
-          {status === 'COMPLETED' ? (
+          {displayStatus === 'COMPLETED' ? (
             // 완료 상태
             <div className="text-center animate-bounce">
               <p className="text-7xl mb-4">🎉</p>
@@ -213,11 +232,20 @@ export function TimerPage() {
                 {formatTime(elapsedSeconds)} 동안 열심히 했어요
               </p>
             </div>
-          ) : status === 'IDLE' ? (
+          ) : displayStatus === 'IDLE' ? (
             // 시작 전
             <div className="text-center">
               <p className="text-6xl mb-6">⏱️</p>
-              {hasEstimatedTime ? (
+              {hasSavedProgress ? (
+                <>
+                  <p className="text-lg text-[var(--pencil-gray)] mb-2">
+                    이전에 <span className="font-bold text-[var(--ink-blue)]">{formatTime(quest.timerRecord!.elapsedSeconds)}</span> 진행했어요
+                  </p>
+                  <p className="text-sm text-[var(--pencil-gray)] mb-8">
+                    이어서 학습을 시작할까요?
+                  </p>
+                </>
+              ) : hasEstimatedTime ? (
                 <>
                   <p className="text-lg text-[var(--pencil-gray)] mb-2">
                     예상 학습 시간: <span className="font-bold text-[var(--ink-blue)]">{quest.estimatedMinutes}분</span>
@@ -235,7 +263,7 @@ export function TimerPage() {
                 onClick={handleStart}
                 className="px-8 py-4 bg-[var(--sticker-mint)] text-white rounded-2xl text-xl font-bold shadow-lg hover:opacity-90 transition-opacity"
               >
-                ▶ 학습 시작
+                ▶ {hasSavedProgress ? '이어서 학습' : '학습 시작'}
               </button>
             </div>
           ) : (
@@ -271,21 +299,26 @@ export function TimerPage() {
               )}
 
               {/* 상태 메시지 */}
-              {status === 'PAUSED' && (
+              {displayStatus === 'PAUSED' && (
                 <div className="postit text-center mb-6">
                   ⏸ 일시정지 중... 준비되면 다시 시작해요!
                 </div>
               )}
 
-              {hasEstimatedTime && elapsedSeconds >= quest.estimatedMinutes * 60 && status === 'RUNNING' && (
+              {hasEstimatedTime && elapsedSeconds >= quest.estimatedMinutes * 60 && displayStatus === 'RUNNING' && (
                 <div className="postit text-center mb-6">
                   🎉 예상 시간을 넘겼어요! 조금만 더 힘내세요!
                 </div>
               )}
 
+              {/* 자동 저장 안내 */}
+              <p className="text-center text-xs text-[var(--pencil-gray)] mb-6">
+                💾 30초마다 자동 저장됩니다
+              </p>
+
               {/* 컨트롤 버튼 */}
               <div className="flex justify-center gap-4">
-                {status === 'RUNNING' ? (
+                {displayStatus === 'RUNNING' ? (
                   <button
                     onClick={handlePause}
                     className="px-6 py-3 bg-[var(--paper-yellow)] text-[var(--ink-black)] rounded-xl font-medium shadow hover:opacity-90 transition-opacity"
@@ -313,7 +346,7 @@ export function TimerPage() {
         </div>
 
         {/* 팁 (시작 전이나 진행 중일 때) */}
-        {quest.tip && status !== 'COMPLETED' && (
+        {quest.tip && displayStatus !== 'COMPLETED' && (
           <div className="postit mt-8 text-sm">
             <span className="text-[var(--ink-black)]">💡 </span>
             {quest.tip}

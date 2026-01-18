@@ -2,16 +2,13 @@
  * Admin Page - Main Entry Point
  * 관리자 페이지 통합 진입점
  *
- * 모듈화된 구조:
- * - types.ts: 타입 정의 및 유틸리티
- * - AdminLoginForm.tsx: 로그인 폼
- * - AdminContent.tsx: 메인 관리 콘텐츠
- * - CourseCard.tsx: 강좌 카드
- * - modals/: 모달 컴포넌트들
+ * 중요: Admin 페이지는 독립적인 인증 시스템 사용
+ * - 기존 세션 무시, 항상 로그인 폼 표시
+ * - 캐시/persist 없음
+ * - 직접 로그인만 허용
  */
 
-import { useState, useEffect, useCallback } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 import { AdminLoginForm } from './AdminLoginForm';
@@ -19,105 +16,49 @@ import { AdminContent } from './AdminContent';
 import type { AdminInfo } from './types';
 
 export function AdminPage() {
-  // 인증 상태
+  // 인증 상태 (캐시 없이 항상 초기값으로 시작)
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [adminInfo, setAdminInfo] = useState<AdminInfo | null>(null);
-  const [authLoading, setAuthLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(false); // 초기값 false - 바로 로그인 폼 표시
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // 관리자 권한 확인
-  const checkAdminStatus = useCallback(async (userId: string) => {
+  // 관리자 권한 확인 (타임아웃 추가)
+  const checkAdminStatus = useCallback(async (userId: string): Promise<AdminInfo | null> => {
     if (!supabase) return null;
 
     try {
-      const { data, error } = await supabase
+      // 5초 타임아웃
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), 5000)
+      );
+
+      const queryPromise = supabase
         .from('admins')
         .select('id, name, role')
         .eq('user_id', userId)
-        .single();
+        .single()
+        .then(({ data, error }) => {
+          if (error || !data) {
+            console.log('[Admin] User is not an admin:', userId, error?.message);
+            return null;
+          }
+          return data as AdminInfo;
+        });
 
-      if (error || !data) {
-        console.log('[Admin] User is not an admin:', userId);
-        return null;
+      const result = await Promise.race([queryPromise, timeoutPromise]);
+
+      if (result === null) {
+        console.log('[Admin] Admin check timeout or not found');
       }
 
-      return data as AdminInfo;
+      return result;
     } catch (err) {
       console.error('[Admin] Error checking admin status:', err);
       return null;
     }
   }, []);
 
-  // 초기 세션 확인 및 관리자 권한 체크
-  useEffect(() => {
-    const initAdminAuth = async () => {
-      if (!supabase) {
-        setAuthLoading(false);
-        setAuthError('Supabase가 설정되지 않았습니다');
-        return;
-      }
-
-      try {
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-        if (sessionError) {
-          console.error('[Admin] Session error:', sessionError);
-          await supabase.auth.signOut();
-          setAuthLoading(false);
-          return;
-        }
-
-        if (session?.user) {
-          const admin = await checkAdminStatus(session.user.id);
-
-          if (admin) {
-            setUser(session.user);
-            setAdminInfo(admin);
-          } else {
-            console.log('[Admin] User is not admin, signing out');
-            await supabase.auth.signOut();
-          }
-        }
-      } catch (err) {
-        console.error('[Admin] Init error:', err);
-        try {
-          await supabase.auth.signOut();
-        } catch {}
-      } finally {
-        setAuthLoading(false);
-      }
-    };
-
-    initAdminAuth();
-
-    // Auth 상태 변경 리스너
-    const { data: { subscription } } = supabase?.auth.onAuthStateChange(
-      async (event, session) => {
-        console.log('[Admin] Auth event:', event);
-
-        if (event === 'SIGNED_IN' && session?.user) {
-          const admin = await checkAdminStatus(session.user.id);
-          if (admin) {
-            setUser(session.user);
-            setAdminInfo(admin);
-          } else {
-            await supabase?.auth.signOut();
-          }
-        } else if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
-          setUser(null);
-          setAdminInfo(null);
-        } else if (event === 'TOKEN_REFRESHED' && session?.user) {
-          setUser(session.user);
-        }
-      }
-    ) || { data: { subscription: null } };
-
-    return () => {
-      subscription?.unsubscribe();
-    };
-  }, [checkAdminStatus]);
-
-  // 관리자 로그인
+  // 관리자 로그인 (직접 로그인만 허용)
   const adminLogin = async (email: string, password: string): Promise<boolean> => {
     if (!supabase) {
       setAuthError('Supabase가 설정되지 않았습니다');
@@ -128,6 +69,9 @@ export function AdminPage() {
     setAuthError(null);
 
     try {
+      // 기존 세션 먼저 로그아웃 (깨끗한 상태로 시작)
+      await supabase.auth.signOut();
+
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
@@ -144,17 +88,19 @@ export function AdminPage() {
       }
 
       if (data.user) {
-        setUser(data.user);
+        console.log('[Admin] Login successful, checking admin status...');
+
         const admin = await checkAdminStatus(data.user.id);
 
         if (!admin) {
           setAuthError('관리자 권한이 없는 계정입니다');
           await supabase.auth.signOut();
-          setUser(null);
           setAuthLoading(false);
           return false;
         }
 
+        console.log('[Admin] Admin verified:', admin.name);
+        setUser(data.user);
         setAdminInfo(admin);
         setAuthLoading(false);
         return true;
@@ -181,19 +127,7 @@ export function AdminPage() {
 
   const clearAuthError = () => setAuthError(null);
 
-  // 로딩 중
-  if (authLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-2" />
-          <p className="text-gray-600">인증 확인 중...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // 로그인되지 않았거나 관리자가 아닌 경우
+  // 로그인되지 않았거나 관리자가 아닌 경우 -> 항상 로그인 폼 표시
   if (!user || !adminInfo) {
     return (
       <AdminLoginForm

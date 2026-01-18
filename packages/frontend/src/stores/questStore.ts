@@ -20,6 +20,18 @@ interface TimerRecord {
   completed: boolean;     // 완료 여부
 }
 
+// 활성 타이머 상태 (persist 대상)
+type TimerStatus = 'IDLE' | 'RUNNING' | 'PAUSED';
+
+interface ActiveTimer {
+  planId: string;
+  questId: string;
+  status: TimerStatus;
+  startedAt: string;              // 최초 시작 시간 (ISO)
+  lastResumedAt: string;          // 마지막 재개 시간 (ISO)
+  elapsedBeforePause: number;     // 일시정지 전 누적 시간 (초)
+}
+
 interface DailyQuest {
   id: string;  // 고유 식별자
   day: number;
@@ -141,6 +153,16 @@ interface QuestStore {
   // 타이머 기록
   updateTimerRecord: (planId: string, questId: string, record: TimerRecord) => void;
   getQuestById: (planId: string, questId: string) => QuestWithPlan | undefined;
+
+  // === 활성 타이머 관리 ===
+  activeTimer: ActiveTimer | null;
+  startTimer: (planId: string, questId: string) => void;
+  pauseTimer: () => void;
+  resumeTimer: () => void;
+  completeTimer: () => Promise<void>;
+  cancelTimer: () => void;
+  getElapsedSeconds: () => number;
+  saveTimerProgress: () => void;  // 주기적 저장용
 }
 
 // 오늘 날짜를 YYYY-MM-DD 형식으로 반환
@@ -156,6 +178,7 @@ export const useQuestStore = create<QuestStore>()(
   persist(
     (set, get) => ({
       plans: [],
+      activeTimer: null,
 
       addPlan: (plan) => {
         const newPlan: QuestPlan = {
@@ -522,6 +545,186 @@ export const useQuestStore = create<QuestStore>()(
           planId: plan.id,
           planName: plan.materialName,
         };
+      },
+
+      // === 활성 타이머 관리 ===
+
+      // 타이머 시작
+      startTimer: (planId: string, questId: string) => {
+        const now = new Date().toISOString();
+        const quest = get().getQuestById(planId, questId);
+
+        if (!quest) {
+          console.error('[QuestStore] 타이머 시작 실패: 퀘스트를 찾을 수 없음');
+          return;
+        }
+
+        // 이미 다른 타이머가 실행 중이면 저장 후 종료
+        const currentTimer = get().activeTimer;
+        if (currentTimer && (currentTimer.planId !== planId || currentTimer.questId !== questId)) {
+          get().saveTimerProgress();
+        }
+
+        // 기존 timerRecord가 있으면 이어서 시작
+        const existingRecord = quest.timerRecord;
+        const elapsedBeforePause = existingRecord && !existingRecord.completed
+          ? existingRecord.elapsedSeconds
+          : 0;
+        const startedAt = existingRecord && !existingRecord.completed
+          ? existingRecord.startedAt
+          : now;
+
+        set({
+          activeTimer: {
+            planId,
+            questId,
+            status: 'RUNNING',
+            startedAt,
+            lastResumedAt: now,
+            elapsedBeforePause,
+          },
+        });
+
+        console.log(`[QuestStore] 타이머 시작: planId=${planId}, questId=${questId}, elapsed=${elapsedBeforePause}s`);
+      },
+
+      // 타이머 일시정지
+      pauseTimer: () => {
+        const timer = get().activeTimer;
+        if (!timer || timer.status !== 'RUNNING') return;
+
+        // 현재까지 경과 시간 계산
+        const elapsed = get().getElapsedSeconds();
+
+        set({
+          activeTimer: {
+            ...timer,
+            status: 'PAUSED',
+            elapsedBeforePause: elapsed,
+          },
+        });
+
+        // timerRecord에도 저장
+        get().updateTimerRecord(timer.planId, timer.questId, {
+          startedAt: timer.startedAt,
+          elapsedSeconds: elapsed,
+          completed: false,
+        });
+
+        console.log(`[QuestStore] 타이머 일시정지: ${elapsed}s 경과`);
+      },
+
+      // 타이머 재개
+      resumeTimer: () => {
+        const timer = get().activeTimer;
+        if (!timer || timer.status !== 'PAUSED') return;
+
+        set({
+          activeTimer: {
+            ...timer,
+            status: 'RUNNING',
+            lastResumedAt: new Date().toISOString(),
+          },
+        });
+
+        console.log(`[QuestStore] 타이머 재개: ${timer.elapsedBeforePause}s부터`);
+      },
+
+      // 타이머 완료 (퀘스트 완료 처리 포함)
+      completeTimer: async () => {
+        const timer = get().activeTimer;
+        if (!timer) return;
+
+        const elapsed = get().getElapsedSeconds();
+        const endedAt = new Date().toISOString();
+
+        // timerRecord 최종 저장
+        get().updateTimerRecord(timer.planId, timer.questId, {
+          startedAt: timer.startedAt,
+          endedAt,
+          elapsedSeconds: elapsed,
+          completed: true,
+        });
+
+        // 퀘스트 완료 처리
+        get().toggleQuestComplete(timer.planId, timer.questId);
+
+        // 백엔드에 실제 학습 시간 저장 (선택적)
+        try {
+          const sessionId = localStorage.getItem('questybook_session_id') || 'guest';
+          const quest = get().getQuestById(timer.planId, timer.questId);
+
+          if (quest) {
+            await fetch(`${API_BASE_URL}/api/quests/${quest.id}/complete`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                studentId: sessionId,
+                actualMinutes: Math.ceil(elapsed / 60),
+                completedAt: endedAt,
+              }),
+            });
+          }
+        } catch (error) {
+          console.error('[QuestStore] 백엔드 저장 실패:', error);
+        }
+
+        // 타이머 초기화
+        set({ activeTimer: null });
+
+        console.log(`[QuestStore] 타이머 완료: ${Math.ceil(elapsed / 60)}분 학습`);
+      },
+
+      // 타이머 취소 (진행 상황 저장 후 종료)
+      cancelTimer: () => {
+        const timer = get().activeTimer;
+        if (!timer) return;
+
+        // 현재까지 진행 상황 저장
+        const elapsed = get().getElapsedSeconds();
+        if (elapsed > 0) {
+          get().updateTimerRecord(timer.planId, timer.questId, {
+            startedAt: timer.startedAt,
+            elapsedSeconds: elapsed,
+            completed: false,
+          });
+        }
+
+        set({ activeTimer: null });
+        console.log(`[QuestStore] 타이머 취소: ${elapsed}s 저장됨`);
+      },
+
+      // 현재 경과 시간 계산 (초)
+      getElapsedSeconds: () => {
+        const timer = get().activeTimer;
+        if (!timer) return 0;
+
+        if (timer.status === 'PAUSED') {
+          return timer.elapsedBeforePause;
+        }
+
+        // RUNNING 상태: 이전 누적 + 현재 세션 시간
+        const now = Date.now();
+        const lastResumed = new Date(timer.lastResumedAt).getTime();
+        const currentSession = Math.floor((now - lastResumed) / 1000);
+
+        return timer.elapsedBeforePause + currentSession;
+      },
+
+      // 주기적 저장 (30초마다 호출)
+      saveTimerProgress: () => {
+        const timer = get().activeTimer;
+        if (!timer || timer.status !== 'RUNNING') return;
+
+        const elapsed = get().getElapsedSeconds();
+
+        get().updateTimerRecord(timer.planId, timer.questId, {
+          startedAt: timer.startedAt,
+          elapsedSeconds: elapsed,
+          completed: false,
+        });
+
+        console.log(`[QuestStore] 타이머 진행 저장: ${elapsed}s`);
       },
     }),
     {

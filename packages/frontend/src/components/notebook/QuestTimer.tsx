@@ -6,89 +6,136 @@
  * - 타이머 시작 시 예상 종료 시간 표시
  * - 경과 시간 실시간 표시
  * - 일시정지/재개 기능
+ * - 주기적 자동 저장 (30초마다)
+ * - 페이지 새로고침 후 타이머 복구
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useState } from 'react';
+import { useQuestStore } from '../../stores/questStore';
 
 interface QuestTimerProps {
+  planId: string;
+  questId: string;
   estimatedMinutes: number;
-  onStart?: () => void;
-  onPause?: () => void;
-  onResume?: () => void;
-  onComplete?: () => void;
   isCompleted?: boolean;
 }
 
-type TimerStatus = 'IDLE' | 'RUNNING' | 'PAUSED';
+// 자동 저장 간격 (30초)
+const AUTO_SAVE_INTERVAL_MS = 30 * 1000;
 
 export function QuestTimer({
+  planId,
+  questId,
   estimatedMinutes,
-  onStart,
-  onPause,
-  onResume,
-  onComplete,
   isCompleted = false,
 }: QuestTimerProps) {
-  const [status, setStatus] = useState<TimerStatus>('IDLE');
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
-  const [startTime, setStartTime] = useState<Date | null>(null);
+  const {
+    activeTimer,
+    startTimer,
+    pauseTimer,
+    resumeTimer,
+    completeTimer,
+    getElapsedSeconds,
+    saveTimerProgress,
+    getQuestById,
+  } = useQuestStore();
 
-  // 타이머 업데이트
+  // 현재 퀘스트의 타이머인지 확인
+  const isActiveForThis = activeTimer?.planId === planId && activeTimer?.questId === questId;
+  const status = isActiveForThis ? activeTimer.status : 'IDLE';
+
+  // 경과 시간 (1초마다 업데이트를 위한 tick state)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [_tick, setTick] = useState(0);
+
+  // 타이머 틱 (1초마다 UI 업데이트)
   useEffect(() => {
     let interval: ReturnType<typeof setInterval>;
 
-    if (status === 'RUNNING') {
+    if (isActiveForThis && status === 'RUNNING') {
       interval = setInterval(() => {
-        setElapsedSeconds((prev) => prev + 1);
+        setTick((prev) => prev + 1);
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [status]);
+  }, [isActiveForThis, status]);
 
-  // 시작
+  // 주기적 자동 저장 (30초마다)
+  useEffect(() => {
+    let saveInterval: ReturnType<typeof setInterval>;
+
+    if (isActiveForThis && status === 'RUNNING') {
+      saveInterval = setInterval(() => {
+        saveTimerProgress();
+      }, AUTO_SAVE_INTERVAL_MS);
+    }
+
+    return () => {
+      if (saveInterval) clearInterval(saveInterval);
+    };
+  }, [isActiveForThis, status, saveTimerProgress]);
+
+  // 페이지 종료 시 타이머 진행 저장
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (isActiveForThis && status === 'RUNNING') {
+        saveTimerProgress();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isActiveForThis, status, saveTimerProgress]);
+
+  // 페이지 로드 시 기존 타이머 복구
+  useEffect(() => {
+    if (!isActiveForThis && !isCompleted) {
+      const quest = getQuestById(planId, questId);
+      // 미완료 timerRecord가 있으면 타이머 상태로 복구 (자동 시작은 안 함)
+      if (quest?.timerRecord && !quest.timerRecord.completed && quest.timerRecord.elapsedSeconds > 0) {
+        console.log(`[QuestTimer] 복구 가능한 타이머 발견: ${quest.timerRecord.elapsedSeconds}s`);
+      }
+    }
+  }, [planId, questId, isActiveForThis, isCompleted, getQuestById]);
+
+  // 현재 경과 시간 계산
+  const elapsedSeconds = isActiveForThis ? getElapsedSeconds() : 0;
+
+  // 시작 (기존 timerRecord가 있으면 이어서)
   const handleStart = useCallback(() => {
-    setStartTime(new Date());
-    setStatus('RUNNING');
-    onStart?.();
-  }, [onStart]);
+    startTimer(planId, questId);
+  }, [planId, questId, startTimer]);
 
   // 일시정지
   const handlePause = useCallback(() => {
-    setStatus('PAUSED');
-    onPause?.();
-  }, [onPause]);
+    pauseTimer();
+  }, [pauseTimer]);
 
   // 재개
   const handleResume = useCallback(() => {
-    setStatus('RUNNING');
-    onResume?.();
-  }, [onResume]);
+    resumeTimer();
+  }, [resumeTimer]);
 
   // 완료
-  const handleComplete = useCallback(() => {
-    setStatus('IDLE');
-    onComplete?.();
-  }, [onComplete]);
+  const handleComplete = useCallback(async () => {
+    await completeTimer();
+  }, [completeTimer]);
 
-  // 시간 포맷팅
+  // 시간 포맷팅 (MM:SS)
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  // 예상 종료 시간
+  // 예상 종료 시간 계산
   const getEstimatedEndTime = (): string => {
-    if (!startTime) {
-      const now = new Date();
-      now.setMinutes(now.getMinutes() + estimatedMinutes);
-      return formatClockTime(now);
-    }
-    const endTime = new Date(startTime);
-    endTime.setMinutes(endTime.getMinutes() + estimatedMinutes);
+    const remainingSeconds = Math.max(0, estimatedMinutes * 60 - elapsedSeconds);
+    const endTime = new Date();
+    endTime.setSeconds(endTime.getSeconds() + remainingSeconds);
     return formatClockTime(endTime);
   };
 
@@ -112,6 +159,10 @@ export function QuestTimer({
     return null;
   }
 
+  // 기존 진행 중인 타이머가 있는지 확인
+  const quest = getQuestById(planId, questId);
+  const hasSavedProgress = quest?.timerRecord && !quest.timerRecord.completed && quest.timerRecord.elapsedSeconds > 0;
+
   return (
     <div className="quest-timer mt-3 pl-9">
       {status === 'IDLE' ? (
@@ -122,11 +173,19 @@ export function QuestTimer({
             className="inline-flex items-center gap-2 px-4 py-2 bg-[var(--sticker-mint)] text-white rounded-lg hover:opacity-90 transition-opacity font-medium text-sm"
           >
             <span>▶</span>
-            <span>학습 시작</span>
+            <span>{hasSavedProgress ? '이어서 학습' : '학습 시작'}</span>
           </button>
-          <span className="text-xs text-[var(--pencil-gray)]">
-            지금 시작하면 <span className="font-semibold text-[var(--ink-blue)]">{getEstimatedEndTime()}</span>에 끝나요
-          </span>
+          {hasSavedProgress ? (
+            <span className="text-xs text-[var(--pencil-gray)]">
+              <span className="font-semibold text-[var(--ink-blue)]">
+                {formatTime(quest.timerRecord!.elapsedSeconds)}
+              </span> 진행됨
+            </span>
+          ) : (
+            <span className="text-xs text-[var(--pencil-gray)]">
+              지금 시작하면 <span className="font-semibold text-[var(--ink-blue)]">{getEstimatedEndTime()}</span>에 끝나요
+            </span>
+          )}
         </div>
       ) : (
         // 진행 중 / 일시정지
