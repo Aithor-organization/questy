@@ -7,6 +7,7 @@
 
 import { create } from 'zustand';
 import * as chatApi from '../lib/chat-api';
+import { clearStudentIdCache } from '../lib/chat-api';
 import type { DbChatRoom, DbChatMessage } from '../lib/chat-api';
 
 // 일정 재조정 옵션
@@ -211,6 +212,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
 
   // 채팅 상태 초기화 (로그아웃 시)
   resetChat: () => {
+    clearStudentIdCache(); // studentId 캐시도 초기화
     set({
       rooms: [],
       notifications: [],

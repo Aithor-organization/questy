@@ -30,31 +30,54 @@ export interface DbChatMessage {
   created_at: string;
 }
 
-// 사용자의 student_id 가져오기
+// 사용자의 student_id 캐시 (세션 내 중복 호출 방지)
+let cachedStudentId: string | null = null;
+let studentIdPromise: Promise<string | null> | null = null;
+
+// 사용자의 student_id 가져오기 (캐싱)
 async function getStudentId(): Promise<string | null> {
   if (!supabase) return null;
 
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+  // 이미 캐시된 값이 있으면 반환
+  if (cachedStudentId) return cachedStudentId;
 
-    // students 테이블에서 user_id로 student_id 조회
-    const { data: student, error } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', user.id)
-      .single();
+  // 이미 조회 중이면 같은 Promise 반환 (중복 요청 방지)
+  if (studentIdPromise) return studentIdPromise;
 
-    if (error || !student) {
-      console.error('[ChatAPI] student 조회 실패:', error?.message);
+  studentIdPromise = (async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+
+      // students 테이블에서 user_id로 student_id 조회
+      const { data: student, error } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+
+      if (error || !student) {
+        console.error('[ChatAPI] student 조회 실패:', error?.message);
+        return null;
+      }
+
+      cachedStudentId = student.id;
+      return student.id;
+    } catch (error) {
+      console.error('[ChatAPI] getStudentId 에러:', error);
       return null;
+    } finally {
+      studentIdPromise = null;
     }
+  })();
 
-    return student.id;
-  } catch (error) {
-    console.error('[ChatAPI] getStudentId 에러:', error);
-    return null;
-  }
+  return studentIdPromise;
+}
+
+// 캐시 초기화 (로그아웃 시 호출)
+export function clearStudentIdCache(): void {
+  cachedStudentId = null;
+  studentIdPromise = null;
 }
 
 /**
