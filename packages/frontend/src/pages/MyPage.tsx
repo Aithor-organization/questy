@@ -219,31 +219,57 @@ export function MyPage() {
 
   // 학습 프로필 저장
   const handleSaveProfile = async () => {
-    if (!user || !supabase || !editProfile) return;
+    if (!user || !supabase || !editProfile) {
+      console.log('[MyPage] handleSaveProfile: Missing user, supabase, or editProfile');
+      return;
+    }
 
     setProfileError(null);
     setIsSavingProfile(true);
 
+    console.log('[MyPage] Saving profile for user:', user.id);
+    console.log('[MyPage] Profile data:', editProfile);
+
     try {
-      const { error } = await supabase
+      // 현재 세션 확인
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      console.log('[MyPage] Current session:', sessionData?.session?.user?.id, 'error:', sessionError);
+
+      if (!sessionData?.session) {
+        setProfileError('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+        return;
+      }
+
+      // 타임아웃 Promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('요청 시간 초과 (10초)')), 10000);
+      });
+
+      const upsertPromise = supabase
         .from('user_profiles')
         .upsert({
           id: user.id,
           age: editProfile.age,
           exam_year: editProfile.examYear,
-          target_university: editProfile.targetUniversity,
-          target_grades: editProfile.targetGrades,
-          current_grades: editProfile.currentGrades,
-          selected_tamgu1: editProfile.selectedTamgu1,
-          selected_tamgu2: editProfile.selectedTamgu2,
-          subscribed_platforms: editProfile.subscribedPlatforms,
-          daily_study_hours: editProfile.dailyStudyHours,
+          target_university: editProfile.targetUniversity || '',
+          target_grades: editProfile.targetGrades || {},
+          current_grades: editProfile.currentGrades || {},
+          selected_tamgu1: editProfile.selectedTamgu1 || '',
+          selected_tamgu2: editProfile.selectedTamgu2 || '',
+          subscribed_platforms: editProfile.subscribedPlatforms || [],
+          daily_study_hours: editProfile.dailyStudyHours || 8,
           onboarding_completed: true,
           onboarding_completed_at: new Date().toISOString(),
-        });
+        })
+        .select();
+
+      const { data, error } = await Promise.race([upsertPromise, timeoutPromise]);
+
+      console.log('[MyPage] Upsert response - data:', data, 'error:', error);
 
       if (error) {
-        setProfileError('저장에 실패했습니다');
+        console.error('[MyPage] Upsert error:', error);
+        setProfileError(`저장에 실패했습니다: ${error.message}`);
         return;
       }
 
@@ -254,7 +280,8 @@ export function MyPage() {
         setProfileSuccess(false);
       }, 1500);
     } catch (err) {
-      setProfileError('오류가 발생했습니다');
+      console.error('[MyPage] handleSaveProfile catch:', err);
+      setProfileError(`오류가 발생했습니다: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setIsSavingProfile(false);
     }
