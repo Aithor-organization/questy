@@ -750,7 +750,7 @@ export const useAuthStore = create<AuthStore>()(
           const { data, error } = await supabase
             .from('user_profiles')
             .select('onboarding_completed, target_university')
-            .eq('user_id', currentUser.id)
+            .eq('id', currentUser.id)
             .single();
 
           if (error) {
@@ -798,7 +798,7 @@ export const useAuthStore = create<AuthStore>()(
           const { data, error } = await supabase
             .from('user_profiles')
             .select('*')
-            .eq('user_id', currentUser.id)
+            .eq('id', currentUser.id)
             .single();
 
           if (error) {

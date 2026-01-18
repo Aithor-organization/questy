@@ -194,7 +194,7 @@ export function useMyPage() {
       const upsertPromise = supabase
         .from('user_profiles')
         .upsert({
-          user_id: user.id,
+          id: user.id,
           age: editProfile.age,
           exam_year: editProfile.examYear,
           target_university: editProfile.targetUniversity || '',
