@@ -29,8 +29,8 @@
   --shadow-sticker: 2px 2px 4px rgba(0,0,0,0.15);
 
   /* 타이포그래피 */
-  --font-handwrite: 'Nanum Pen Script', cursive;
-  --font-body: 'Gowun Dodum', sans-serif;
+  --font-handwrite: 'Pretendard Variable', sans-serif;
+  --font-body: 'Pretendard Variable', sans-serif;
 
   /* 간격 */
   --line-height: 1.75rem;

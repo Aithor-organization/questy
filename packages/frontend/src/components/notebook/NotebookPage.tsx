@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 
 interface NotebookPageProps {
   children: ReactNode;
-  title?: string;
+  title?: ReactNode;
   decoration?: 'holes' | 'tape' | 'none';
   className?: string;
 }

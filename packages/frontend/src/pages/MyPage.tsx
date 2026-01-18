@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { User, ClipboardList, Mail, Hash, Pencil, MessageCircle, FileText, LogOut } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { NotebookLayout, NotebookPage } from '../components/notebook';
 
@@ -91,21 +92,23 @@ export function MyPage() {
       <NotebookPage>
         {/* 헤더 */}
         <div className="text-center mb-8">
-          <div className="text-6xl mb-4">👤</div>
+          <div className="flex justify-center mb-4">
+            <User className="w-16 h-16 text-[var(--ink-blue)]" />
+          </div>
           <h1 className="handwrite handwrite-xl text-[var(--ink-black)]">
             마이페이지
           </h1>
         </div>
 
         {/* 사용자 정보 카드 */}
-        <div className="bg-white/50 rounded-lg p-6 mb-6 border border-[var(--paper-lines)]">
+        <div className="bg-white/10 rounded-lg p-6 mb-6 border border-[var(--paper-lines)]">
           <h2 className="handwrite handwrite-lg text-[var(--ink-black)] mb-4 flex items-center gap-2">
-            <span>📋</span> 내 정보
+            <ClipboardList className="w-5 h-5" /> 내 정보
           </h2>
 
           <div className="space-y-4">
             <div className="flex items-center gap-3 pb-3 border-b border-dashed border-[var(--paper-lines)]">
-              <span className="text-2xl">📛</span>
+              <User className="w-6 h-6 text-[var(--pencil-gray)]" />
               <div>
                 <div className="text-xs text-[var(--pencil-gray)]">이름</div>
                 <div className="handwrite text-[var(--ink-black)]">
@@ -115,7 +118,7 @@ export function MyPage() {
             </div>
 
             <div className="flex items-center gap-3 pb-3 border-b border-dashed border-[var(--paper-lines)]">
-              <span className="text-2xl">✉️</span>
+              <Mail className="w-6 h-6 text-[var(--pencil-gray)]" />
               <div>
                 <div className="text-xs text-[var(--pencil-gray)]">이메일</div>
                 <div className="handwrite text-[var(--ink-black)]">
@@ -125,7 +128,7 @@ export function MyPage() {
             </div>
 
             <div className="flex items-center gap-3">
-              <span className="text-2xl">🆔</span>
+              <Hash className="w-6 h-6 text-[var(--pencil-gray)]" />
               <div>
                 <div className="text-xs text-[var(--pencil-gray)]">학생 ID</div>
                 <div className="handwrite text-[var(--ink-black)] text-sm">
@@ -135,27 +138,25 @@ export function MyPage() {
             </div>
           </div>
 
-          {/* 내 정보 수정 버튼 */}
           <button
             onClick={openEditModal}
-            className="w-full mt-4 py-2 px-4 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-lg border border-blue-200 transition-colors flex items-center justify-center gap-2 handwrite"
+            className="w-full mt-4 py-2 px-4 bg-[var(--highlight-blue)] hover:opacity-80 text-[var(--ink-blue)] rounded-lg border border-[var(--ink-blue)]/30 transition-colors flex items-center justify-center gap-2"
           >
-            <span>✏️</span>
+            <Pencil className="w-4 h-4" />
             내 정보 수정
           </button>
         </div>
 
-        {/* 고객 지원 */}
-        <div className="bg-white/50 rounded-lg p-6 mb-6 border border-[var(--paper-lines)]">
+        <div className="bg-white/10 rounded-lg p-6 mb-6 border border-[var(--paper-lines)]">
           <h2 className="handwrite handwrite-lg text-[var(--ink-black)] mb-4 flex items-center gap-2">
-            <span>💬</span> 고객 지원
+            <MessageCircle className="w-5 h-5" /> 고객 지원
           </h2>
 
           <button
             onClick={() => navigate('/inquiry')}
-            className="w-full py-3 px-4 bg-green-50 hover:bg-green-100 text-green-600 rounded-lg border border-green-200 transition-colors flex items-center justify-center gap-2 handwrite"
+            className="w-full py-3 px-4 bg-[var(--highlight-green)] hover:opacity-80 text-[var(--sticker-mint)] rounded-lg border border-[var(--sticker-mint)]/30 transition-colors flex items-center justify-center gap-2"
           >
-            <span>📝</span>
+            <FileText className="w-4 h-4" />
             1:1 문의하기
           </button>
           <p className="text-xs text-[var(--pencil-gray)] mt-2 text-center">
@@ -166,9 +167,9 @@ export function MyPage() {
         {/* 로그아웃 버튼 */}
         <button
           onClick={handleLogout}
-          className="w-full py-3 px-4 bg-red-50 hover:bg-red-100 text-red-600 rounded-lg border border-red-200 transition-colors flex items-center justify-center gap-2 handwrite"
+          className="w-full py-3 px-4 bg-[var(--highlight-pink)] hover:opacity-80 text-[var(--ink-red)] rounded-lg border border-[var(--ink-red)]/30 transition-colors flex items-center justify-center gap-2"
         >
-          <span>🚪</span>
+          <LogOut className="w-4 h-4" />
           로그아웃
         </button>
 

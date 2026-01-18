@@ -60,11 +60,11 @@ export function CurriculumPage() {
         </div>
 
         {/* 스텝 인디케이터 */}
-        <div className="flex justify-center gap-2 mb-6">
+        <div className="flex justify-center items-center gap-1 sm:gap-2 mb-6">
           <StepIndicator step={1} current={step} target="settings" label="설정" />
-          <span className="text-gray-300 self-center">→</span>
+          <span className="text-gray-300 hidden sm:block">→</span>
           <StepIndicator step={2} current={step} target="courses" label="강좌선택" />
-          <span className="text-gray-300 self-center">→</span>
+          <span className="text-gray-300 hidden sm:block">→</span>
           <StepIndicator step={3} current={step} target="preview" label="확인" />
         </div>
 
@@ -204,17 +204,17 @@ function StepIndicator({
     (target === 'courses' && current === 'preview');
 
   return (
-    <div className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-sm font-medium transition-colors ${
+    <div className={`flex items-center gap-1 px-2 sm:px-3 py-1.5 rounded-full text-sm font-medium transition-colors whitespace-nowrap ${
       isActive
         ? 'bg-[var(--ink-blue)] text-white'
         : isPast
           ? 'bg-[var(--highlight-blue)] text-[var(--ink-blue)]'
           : 'bg-gray-100 text-gray-400'
     }`}>
-      <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs">
+      <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs flex-shrink-0">
         {step}
       </span>
-      <span>{label}</span>
+      <span className="hidden sm:inline">{label}</span>
     </div>
   );
 }

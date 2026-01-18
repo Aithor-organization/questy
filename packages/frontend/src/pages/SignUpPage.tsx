@@ -5,6 +5,7 @@
 
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { UserPlus, User, Mail, Lock, AlertTriangle, Sparkles } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
 export function SignUpPage() {
@@ -58,7 +59,9 @@ export function SignUpPage() {
           <div className="p-8 pl-8 sm:pl-20">
             {/* 로고 영역 */}
             <div className="text-center mb-6">
-              <div className="text-5xl mb-2">📓</div>
+              <div className="flex justify-center mb-3">
+                <UserPlus className="w-14 h-14 text-[var(--sticker-mint)]" />
+              </div>
               <h1 className="handwrite handwrite-xl text-[var(--ink-black)]">
                 회원가입
               </h1>
@@ -73,8 +76,8 @@ export function SignUpPage() {
             {/* 회원가입 폼 */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-[var(--ink-black)] mb-1.5">
-                  👤 이름
+                <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-black)] mb-1.5">
+                  <User className="w-4 h-4" /> 이름
                 </label>
                 <input
                   type="text"
@@ -87,8 +90,8 @@ export function SignUpPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--ink-black)] mb-1.5">
-                  ✉️ 이메일
+                <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-black)] mb-1.5">
+                  <Mail className="w-4 h-4" /> 이메일
                 </label>
                 <input
                   type="email"
@@ -101,8 +104,8 @@ export function SignUpPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--ink-black)] mb-1.5">
-                  🔒 비밀번호
+                <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-black)] mb-1.5">
+                  <Lock className="w-4 h-4" /> 비밀번호
                 </label>
                 <input
                   type="password"
@@ -116,8 +119,8 @@ export function SignUpPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--ink-black)] mb-1.5">
-                  🔒 비밀번호 확인
+                <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-black)] mb-1.5">
+                  <Lock className="w-4 h-4" /> 비밀번호 확인
                 </label>
                 <input
                   type="password"
@@ -130,8 +133,8 @@ export function SignUpPage() {
               </div>
 
               {displayError && (
-                <div className="bg-[var(--highlight-pink)] border border-[var(--ink-red)] rounded-lg p-3 text-[var(--ink-red)] text-sm">
-                  ⚠️ {displayError}
+                <div className="flex items-center gap-2 bg-[var(--highlight-pink)] border border-[var(--ink-red)] rounded-lg p-3 text-[var(--ink-red)] text-sm">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {displayError}
                 </div>
               )}
 
@@ -144,7 +147,7 @@ export function SignUpPage() {
                     : 'bg-[var(--sticker-mint)] text-[#064e3b] hover:opacity-90 active:scale-[0.98]'
                 }`}
               >
-                {isLoading ? '가입 중...' : '🎉 가입하기'}
+                {isLoading ? '가입 중...' : <span className="flex items-center justify-center gap-2"><Sparkles className="w-5 h-5" /> 가입하기</span>}
               </button>
             </form>
 

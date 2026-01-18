@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { BookOpen, Mail, Lock, LogIn, CheckCircle, AlertTriangle } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 
 export function LoginPage() {
@@ -51,7 +52,9 @@ export function LoginPage() {
           <div className="p-8 pl-8 sm:pl-20">
             {/* 로고 영역 */}
             <div className="text-center mb-8">
-              <div className="text-6xl mb-2">📓</div>
+              <div className="flex justify-center mb-3">
+                <BookOpen className="w-16 h-16 text-[var(--ink-blue)]" />
+              </div>
               <h1 className="handwrite handwrite-xl text-[var(--ink-black)]">
                 QuestyBook
               </h1>
@@ -66,8 +69,8 @@ export function LoginPage() {
             {/* 로그인 폼 */}
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label className="block text-sm font-medium text-[var(--ink-black)] mb-1.5">
-                  ✉️ 이메일
+                <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-black)] mb-1.5">
+                  <Mail className="w-4 h-4" /> 이메일
                 </label>
                 <input
                   type="email"
@@ -80,8 +83,8 @@ export function LoginPage() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-[var(--ink-black)] mb-1.5">
-                  🔒 비밀번호
+                <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink-black)] mb-1.5">
+                  <Lock className="w-4 h-4" /> 비밀번호
                 </label>
                 <input
                   type="password"
@@ -94,14 +97,14 @@ export function LoginPage() {
               </div>
 
               {successMessage && (
-                <div className="bg-[var(--highlight-green)] border border-green-500 rounded-lg p-3 text-green-700 text-sm">
-                  ✅ {successMessage}
+                <div className="flex items-center gap-2 bg-[var(--highlight-green)] border border-green-500 rounded-lg p-3 text-green-400 text-sm">
+                  <CheckCircle className="w-4 h-4 flex-shrink-0" /> {successMessage}
                 </div>
               )}
 
               {error && (
-                <div className="bg-[var(--highlight-pink)] border border-[var(--ink-red)] rounded-lg p-3 text-[var(--ink-red)] text-sm">
-                  ⚠️ {error}
+                <div className="flex items-center gap-2 bg-[var(--highlight-pink)] border border-[var(--ink-red)] rounded-lg p-3 text-[var(--ink-red)] text-sm">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" /> {error}
                 </div>
               )}
 
@@ -114,7 +117,7 @@ export function LoginPage() {
                     : 'bg-[var(--ink-blue)] text-white hover:opacity-90 active:scale-[0.98]'
                 }`}
               >
-                {isLoading ? '로그인 중...' : '📝 로그인'}
+                {isLoading ? '로그인 중...' : <span className="flex items-center justify-center gap-2"><LogIn className="w-5 h-5" /> 로그인</span>}
               </button>
             </form>
 
