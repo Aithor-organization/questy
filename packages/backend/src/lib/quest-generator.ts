@@ -1,23 +1,15 @@
 import { AnalyzedUnit } from './image-analyzer';
-import { formatDate } from '@questybook/shared';
+import { formatDate, DailyQuestBase } from '@questybook/shared';
 
 /**
- * 간단한 일일 퀘스트 정보 (로컬 전용)
- * Note: @questybook/shared의 DailyQuest와 구조가 다름
- * - shared DailyQuest는 tasks 배열, studyTips 등 포함
- * - 이 타입은 단순 퀘스트 생성용으로 사용
+ * 간단한 일일 퀘스트 정보
+ * @questybook/shared의 DailyQuestBase를 사용
+ * @deprecated 로컬 정의 대신 DailyQuestBase를 직접 import하여 사용
  */
-export interface SimpleDailyQuest {
-  day: number;
-  date: string;
-  unitNumber: number;
-  unitTitle: string;
-  range: string;
-  estimatedMinutes: number;
-}
+export type SimpleDailyQuest = DailyQuestBase;
 
 // 기존 코드와의 호환성을 위한 alias
-export type DailyQuest = SimpleDailyQuest;
+export type DailyQuest = DailyQuestBase;
 
 // 난이도별 예상 학습 시간 (분)
 const DIFFICULTY_MINUTES: Record<'easy' | 'medium' | 'hard', number> = {

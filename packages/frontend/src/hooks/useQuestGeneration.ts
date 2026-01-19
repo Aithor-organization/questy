@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { BookMetadata } from '@questybook/shared';
+import type { BookMetadata, DailyQuestAPI } from '@questybook/shared';
 import {
   canGeneratePlan,
   incrementGenerationCount,
@@ -23,23 +23,10 @@ interface FormData {
 
 /**
  * API 응답용 DailyQuest 타입
- * Note: @questybook/shared의 DailyQuest와 구조가 다름
- * - 이 타입은 백엔드 API 응답 파싱용
- * - questStore.ts의 DailyQuest는 클라이언트 상태 관리용으로 더 많은 필드 포함
+ * @questybook/shared의 DailyQuestAPI를 사용
+ * @deprecated 로컬 정의 대신 DailyQuestAPI를 직접 import하여 사용
  */
-export interface DailyQuest {
-  id?: string;        // 고유 식별자 (백엔드에서 제공되지 않을 수 있음)
-  day: number;
-  date: string;
-  unitNumber: number;
-  unitTitle: string;
-  range: string;
-  estimatedMinutes: number;
-  tip?: string;
-  topics?: string[];
-  pages?: string;
-  objectives?: string[];
-}
+export type DailyQuest = DailyQuestAPI;
 
 export interface Recommendation {
   suggestedDays: number;

@@ -112,9 +112,9 @@ export function AdminPage() {
     if (!supabase) return null;
 
     try {
-      // 5초 타임아웃
+      // 10초 타임아웃 (네트워크 지연 또는 DB cold start 대비)
       const timeoutPromise = new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), 5000)
+        setTimeout(() => resolve(null), 10000)
       );
 
       const queryPromise = supabase

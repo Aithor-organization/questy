@@ -32,6 +32,7 @@ import {
 } from './pages';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { ToastNotification } from './components/ToastNotification';
+import { ToastContainer } from './components/Toast';
 
 // 인증이 필요한 라우트를 보호하는 컴포넌트
 function ProtectedRoute({ children, skipOnboarding = false, skipMembershipCheck = false }: {
@@ -181,6 +182,7 @@ function App() {
 
       {/* 전역 토스트 알림 */}
       <ToastNotification />
+      <ToastContainer />
 
       <Routes>
         {/* 공개 라우트 (로그인/회원가입) */}

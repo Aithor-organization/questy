@@ -10,6 +10,7 @@
 
 import type { PersistStorage, StorageValue } from 'zustand/middleware';
 import { supabase } from './supabase';
+import { toast } from '../stores/toastStore';
 
 // 스토리지 테이블 이름
 const STORAGE_TABLE = 'user_storage';
@@ -187,11 +188,14 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
 
         if (error) {
           console.error('[SupabaseStorage] setItem 실패:', error.message, error);
+          // 사용자에게 저장 실패 알림
+          toast.warning('데이터 동기화에 실패했습니다. 인터넷 연결을 확인해주세요.');
         } else {
           console.log(`[SupabaseStorage] setItem 성공 - store: ${storeName}, key: ${key}`);
         }
       } catch (error) {
         console.error('[SupabaseStorage] setItem 에러:', error);
+        toast.warning('데이터 동기화에 실패했습니다. 잠시 후 다시 시도해주세요.');
       }
     },
 
@@ -306,8 +310,16 @@ export async function syncFromSupabase(storeName: string): Promise<number> {
     }
 
     if (data && data.length > 0) {
-      for (const item of data) {
-        setLocalStorage(item.key, item.value);
+      // 청크 처리로 UI 프리징 방지 (대량 데이터 시)
+      const CHUNK_SIZE = 10;
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        const chunk = data.slice(i, i + CHUNK_SIZE);
+        chunk.forEach(item => setLocalStorage(item.key, item.value));
+
+        // 다음 청크 전 이벤트 루프에 양보 (UI 응답성 유지)
+        if (i + CHUNK_SIZE < data.length) {
+          await new Promise(r => setTimeout(r, 0));
+        }
       }
       console.log(`[SupabaseStorage] 동기화 완료: ${storeName} (${data.length}개 항목)`);
       return data.length;

@@ -2,17 +2,9 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { API_BASE_URL } from '../config';
 import { createSupabaseStorage } from '../lib/supabase-storage';
+import type { StudyTips, DailyQuestClient } from '@questybook/shared';
 
-// AI 학습 팁 (수능 맞춤)
-interface StudyTips {
-  importance: string; // "중요도 높음", "자주 출제됨" 등
-  keyPoints: string[]; // 핵심 포인트
-  commonMistakes?: string; // 자주 하는 실수
-  studyMethod?: string; // 추천 학습법
-  relatedUnits?: string; // 연계 단원
-}
-
-// 타이머 기록
+// 타이머 기록 (클라이언트 전용 확장 - shared보다 상세)
 interface TimerRecord {
   startedAt: string;      // 시작 시간 (ISO)
   endedAt?: string;       // 종료 시간 (ISO)
@@ -34,30 +26,11 @@ interface ActiveTimer {
 
 /**
  * 클라이언트 상태 관리용 DailyQuest 타입
- * Note: @questybook/shared의 DailyQuest와 구조가 다름
- * - 이 타입은 프론트엔드 상태 관리 전용
- * - timerRecord, practiceNote, isPractice 등 클라이언트 전용 필드 포함
+ * @questybook/shared의 DailyQuestClient를 기반으로 하되,
+ * TimerRecord가 더 상세한 구조를 가지므로 확장하여 사용
  */
-export interface DailyQuest {
-  id: string;  // 고유 식별자
-  day: number;
-  date: string;
-  unitNumber: number;
-  unitTitle: string;
-  range: string;
-  estimatedMinutes: number;
-  tip?: string;
-  completed?: boolean;
-  // 상세 정보 (학습계획표에서 추출)
-  topics?: string[];
-  pages?: string;
-  objectives?: string[];
-  // AI 학습 팁 (수능 맞춤)
-  studyTips?: StudyTips;
-  // 문제풀이(자습) 메모
-  practiceNote?: string;
-  isPractice?: boolean;  // 문제풀이 퀘스트 여부
-  // 타이머 기록
+export interface DailyQuest extends Omit<DailyQuestClient, 'timerRecord'> {
+  // 타이머 기록 (shared보다 상세한 구조)
   timerRecord?: TimerRecord;
 }
 

@@ -114,3 +114,55 @@ export interface PreviewImage {
   pageNumber: number;
   imageUrl: string;
 }
+
+// ============================================================================
+// DailyQuest 타입 계층 (Interface 기반)
+// - DailyQuestBase: 공통 필드 (백엔드/프론트엔드 공유)
+// - DailyQuestAPI: API 응답용 (백엔드 → 프론트엔드)
+// - DailyQuestClient: 클라이언트 상태용 (프론트엔드 전용 확장)
+//
+// Note: 위의 DailyQuestSchema는 Zod 기반으로 다른 용도(StudyPlan 내 tasks 구조)
+// ============================================================================
+
+/**
+ * DailyQuestBase - 공통 필드
+ * 백엔드 생성과 프론트엔드 표시에 모두 필요한 기본 필드
+ */
+export interface DailyQuestBase {
+  day: number;           // D-day 기준 몇 번째 날
+  date: string;          // YYYY-MM-DD
+  unitNumber: number;    // 단원 번호
+  unitTitle: string;     // 단원 제목
+  range: string;         // 학습 범위 (e.g., "1p ~ 10p")
+  estimatedMinutes: number; // 예상 학습 시간 (분)
+}
+
+/**
+ * DailyQuestAPI - API 응답용
+ * 백엔드에서 생성하여 프론트엔드로 전달하는 데이터 구조
+ */
+export interface DailyQuestAPI extends DailyQuestBase {
+  id?: string;           // 고유 식별자 (생성 시점에 없을 수 있음)
+  tip?: string;          // 학습 팁
+  topics?: string[];     // 학습 토픽
+  pages?: string;        // 페이지 범위
+  objectives?: string[]; // 학습 목표
+}
+
+/**
+ * DailyQuestClient - 클라이언트 상태용
+ * 프론트엔드에서 사용자 인터랙션을 위해 확장한 구조
+ */
+export interface DailyQuestClient extends DailyQuestAPI {
+  id: string;            // 클라이언트에서는 필수
+  completed?: boolean;   // 완료 여부
+  completedAt?: string;  // 완료 시간
+  studyTips?: StudyTips; // AI 학습 팁
+  practiceNote?: string; // 문제풀이 메모
+  isPractice?: boolean;  // 문제풀이 퀘스트 여부
+  timerRecord?: {        // 타이머 기록
+    startTime: string;
+    endTime: string;
+    duration: number;
+  };
+}

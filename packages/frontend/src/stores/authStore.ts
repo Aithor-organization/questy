@@ -121,9 +121,10 @@ async function verifySessionInBackground(set: SetState, get: GetState): Promise<
       return;
     }
 
-    // 세션 유효 - 최신 정보로 업데이트
+    // 세션 유효 - 최신 정보로 업데이트 (studentId는 현재 상태 또는 캐시에서)
     const currentUser = get().user;
-    const user = mapSupabaseUser(session.user, currentUser?.studentId || undefined);
+    const cachedStudentId = localStorage.getItem('questybook_student_id');
+    const user = mapSupabaseUser(session.user, currentUser?.studentId || cachedStudentId || undefined);
     set({ user, session });
 
     // studentId가 없으면 조회
@@ -388,8 +389,9 @@ export const useAuthStore = create<AuthStore>()(
           if (session?.user) {
             console.log('[Auth] Session found for:', session.user.email);
 
-            // 즉시 기본 user 정보로 로그인 처리 (studentId는 백그라운드에서)
-            const user = mapSupabaseUser(session.user);
+            // 즉시 기본 user 정보로 로그인 처리 (studentId는 캐시 먼저 확인 후 백그라운드에서 갱신)
+            const cachedStudentId = localStorage.getItem('questybook_student_id');
+            const user = mapSupabaseUser(session.user, cachedStudentId || undefined);
             set({
               user,
               session,
@@ -641,23 +643,7 @@ export const useAuthStore = create<AuthStore>()(
         // 0. chat-api 캐시 정리 (다른 사용자 데이터 누수 방지)
         clearStudentIdCache();
 
-        // 1. Supabase 세션 종료
-        if (supabase) {
-          await supabase.auth.signOut();
-        }
-
-        // 2. Zustand 상태 초기화
-        set({
-          user: null,
-          session: null,
-          userProfile: null,
-          membershipData: null,
-          isAuthenticated: false,
-          isLoading: false,
-          error: null,
-        });
-
-        // 3. 모든 localStorage 데이터 삭제
+        // 1. 먼저 모든 localStorage 데이터 삭제 (persist 미들웨어 재저장 방지)
         const keysToRemove = [
           // 사용자 정보
           'questybook_student_id',
@@ -683,8 +669,28 @@ export const useAuthStore = create<AuthStore>()(
           }
         });
 
-        // 4. sessionStorage도 정리
+        // 2. sessionStorage 정리
         sessionStorage.removeItem('questybook_session_active');
+
+        // 3. Zustand 상태 초기화 (localStorage 삭제 후 수행)
+        set({
+          user: null,
+          session: null,
+          userProfile: null,
+          membershipData: null,
+          isAuthenticated: false,
+          isLoading: false,
+          error: null,
+        });
+
+        // 4. Supabase 세션 종료 (마지막에 수행, 에러 시에도 로그아웃 완료)
+        if (supabase) {
+          try {
+            await supabase.auth.signOut();
+          } catch (e) {
+            console.warn('[Auth] signOut error (ignored):', e);
+          }
+        }
 
         console.log('[Auth] 로그아웃 완료 - 모든 데이터 삭제됨');
       },
