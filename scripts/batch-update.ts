@@ -13,7 +13,8 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
-import * as iconvLite from 'iconv-lite';
+import * as cheerio from 'cheerio';
+import iconv from 'iconv-lite';
 
 // ============================================
 // 환경변수 & 설정
@@ -41,17 +42,164 @@ const log = {
   success: (msg: string) => console.log(`[${new Date().toISOString()}] ✅ ${msg}`),
   warn: (msg: string) => console.log(`[${new Date().toISOString()}] ⚠️  ${msg}`),
   error: (msg: string) => console.error(`[${new Date().toISOString()}] ❌ ${msg}`),
+  debug: (msg: string) => console.log(`[${new Date().toISOString()}] 🔍 ${msg}`),
 };
 
 // ============================================
-// 크롤러 유틸리티 (간소화 버전)
+// 유틸리티
+// ============================================
+
+function delay(ms: number): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 완강 여부 감지 (MegastudyParser.detectCompletion과 동일한 로직)
+ */
+function detectCompletion(curriculum: string[]): boolean {
+  if (!curriculum || curriculum.length === 0) return false;
+
+  const completionKeywords = ['완강', '종강', '마감', '완료', '마지막'];
+  const lastItem = curriculum[curriculum.length - 1] || '';
+
+  return completionKeywords.some(kw => lastItem.includes(kw));
+}
+
+// ============================================
+// MegastudyParser 로직 (admin 크롤러와 동일)
 // ============================================
 
 /**
- * EUC-KR 인코딩 페이지 fetch
+ * 메가스터디 강좌 상세 페이지 파싱 (cheerio 사용)
+ * packages/backend/src/crawlers/megastudy/parser.ts의 parseCourseDetail과 동일
+ */
+function parseMegastudyCourseDetail(html: string, courseId: string): {
+  title?: string;
+  lecturerName?: string;
+  curriculum?: string[];
+  isCompleted?: boolean;
+} | null {
+  const $ = cheerio.load(html);
+
+  try {
+    // 다양한 셀렉터 시도 (메가스터디 페이지 구조에 맞게)
+    // 2024+ 메가스터디 신규 구조 우선
+    const title = (
+      $('.lstedu_bookinfo--tit').text().trim() ||
+      $('.book_tit').text().trim() ||
+      $('.lecture-detail .title').text().trim() ||
+      $('.course-title').text().trim() ||
+      $('.lec_title').text().trim() ||
+      $('h1.tit').text().trim() ||
+      $('h2.tit').text().trim() ||
+      $('.chr_info h3').text().trim() ||
+      $('title').text().split('|')[0]?.trim() ||
+      ''
+    );
+
+    // 선생님 이름 파싱 (2024+ 구조 우선)
+    let lecturerName = '';
+    const teacherLink = $('.lstedu_bookinfo--teacher strong a').text().trim();
+    if (teacherLink) {
+      // "[국어] 김동욱 선생님" → "김동욱" 추출
+      const match = teacherLink.match(/\[.+?\]\s*(.+?)\s*선생님/);
+      lecturerName = match ? match[1] : teacherLink.replace(/\[.+?\]\s*/, '').replace(/\s*선생님/, '');
+    }
+
+    // 기존 셀렉터 폴백
+    if (!lecturerName) {
+      lecturerName = (
+        $('.teacher-info .name').text().trim() ||
+        $('.lecturer-name').text().trim() ||
+        $('.teacher_name').text().trim() ||
+        $('.tec_name').text().trim() ||
+        ''
+      );
+    }
+
+    // 커리큘럼 (목차) 파싱 - 다양한 셀렉터 시도
+    const curriculum: string[] = [];
+
+    // 방법 1: 강의목록 테이블에서 파싱 (megastudy 2024+ 구조)
+    // #scrollTab2는 "강의목차" 섹션
+    const lectureTable = $('#scrollTab2 table.tb_char_opt');
+    log.debug(`Found ${lectureTable.length} lecture tables in #scrollTab2`);
+
+    if (lectureTable.length > 0) {
+      let lectureNum = 0;
+      lectureTable.find('tbody tr').each((_, row) => {
+        const $row = $(row);
+        const titleCell = $row.find('td').first();
+        const timeCell = $row.find('td.lecture-time');
+
+        const lectureTitle = titleCell.text().trim();
+        const duration = timeCell.text().trim();
+
+        // 빈 행이나 헤더 행 스킵
+        if (!lectureTitle || lectureTitle.length < 2) return;
+
+        lectureNum++;
+        const formattedLecture = duration
+          ? `${lectureNum}. ${lectureTitle} (${duration})`
+          : `${lectureNum}. ${lectureTitle}`;
+        curriculum.push(formattedLecture);
+      });
+      log.debug(`Parsed ${curriculum.length} lectures from #scrollTab2 table`);
+    }
+
+    // 방법 2: 기존 셀렉터 시도 (이전 구조 호환성)
+    if (curriculum.length === 0) {
+      const curriculumSelectors = [
+        '.curriculum-list li',
+        '.lesson-list li',
+        '.lec_list li',
+        '.unit_list li',
+        '.chr_list li',
+        '.list_chr_cont li',
+        'table.list_table tbody tr td:nth-child(2)',
+        '.lecList li',
+        '.lec_cont_list li',
+      ];
+
+      for (const selector of curriculumSelectors) {
+        $(selector).each((_, el) => {
+          const text = $(el).text().trim();
+          if (text && text.length > 0 && text.length < 500) {
+            curriculum.push(text);
+          }
+        });
+        if (curriculum.length > 0) break;
+      }
+    }
+
+    if (!title) {
+      log.warn(`No title found for course ${courseId}`);
+      return null;
+    }
+
+    // 완강 여부 감지
+    const isCompleted = detectCompletion(curriculum);
+
+    return {
+      title,
+      lecturerName,
+      curriculum: curriculum.length > 0 ? curriculum : undefined,
+      isCompleted,
+    };
+  } catch (error) {
+    log.error(`Failed to parse course detail for ${courseId}: ${error}`);
+    return null;
+  }
+}
+
+// ============================================
+// 크롤러 유틸리티
+// ============================================
+
+/**
+ * EUC-KR 인코딩 페이지 fetch (admin 크롤러와 동일한 방식)
  */
 async function fetchHtmlEucKr(url: string, retries = 3): Promise<string | null> {
-
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
       await delay(REQUEST_DELAY + Math.random() * 500);
@@ -74,8 +222,9 @@ async function fetchHtmlEucKr(url: string, retries = 3): Promise<string | null> 
         throw new Error(`HTTP ${response.status}`);
       }
 
+      // EUC-KR → UTF-8 변환
       const buffer = await response.arrayBuffer();
-      return iconvLite.decode(Buffer.from(buffer), 'euc-kr');
+      return iconv.decode(Buffer.from(buffer), 'euc-kr');
 
     } catch (error) {
       log.warn(`Attempt ${attempt + 1}/${retries} failed for ${url}: ${error}`);
@@ -126,13 +275,17 @@ async function fetchJson(url: string, body?: Record<string, string>): Promise<un
   return null;
 }
 
-function delay(ms: number): Promise<void> {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
 // ============================================
 // 플랫폼별 크롤링 로직
 // ============================================
+
+interface CrawlResult {
+  success: boolean;
+  title?: string;
+  curriculum?: string[];
+  isCompleted?: boolean;
+  error?: string;
+}
 
 /**
  * 플랫폼 감지
@@ -143,7 +296,7 @@ function detectPlatform(url: string): 'megastudy' | 'mimac' {
 }
 
 /**
- * 메가스터디 크롤링
+ * 메가스터디 크롤링 (admin 크롤러와 동일한 로직)
  */
 async function crawlMegastudy(url: string): Promise<CrawlResult> {
   try {
@@ -152,30 +305,22 @@ async function crawlMegastudy(url: string): Promise<CrawlResult> {
       return { success: false, error: 'Failed to fetch HTML' };
     }
 
-    // 간단한 파싱 (cheerio 없이)
-    const titleMatch = html.match(/<h3[^>]*class="[^"]*tit[^"]*"[^>]*>([^<]+)<\/h3>/i)
-      || html.match(/<title>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : undefined;
+    // courseId 추출
+    const courseIdMatch = url.match(/CHR_CD=([^&]+)/) || url.match(/lecture_code=([^&]+)/);
+    const courseId = courseIdMatch ? courseIdMatch[1] : 'unknown';
 
-    // 강의 목록 파싱 (li 태그에서 추출)
-    const curriculum: string[] = [];
-    const lecturePattern = /<li[^>]*>[\s\S]*?<span[^>]*class="[^"]*num[^"]*"[^>]*>(\d+)<\/span>[\s\S]*?<span[^>]*class="[^"]*tit[^"]*"[^>]*>([^<]+)<\/span>[\s\S]*?(?:<span[^>]*class="[^"]*time[^"]*"[^>]*>([^<]*)<\/span>)?/gi;
-    let match;
-    while ((match = lecturePattern.exec(html)) !== null) {
-      const num = match[1];
-      const lecTitle = match[2].trim();
-      const duration = match[3]?.trim() || '';
-      curriculum.push(`${num}. ${lecTitle}${duration ? ` (${duration})` : ''}`);
+    // cheerio를 사용한 파싱 (admin과 동일)
+    const parsed = parseMegastudyCourseDetail(html, courseId);
+
+    if (!parsed) {
+      return { success: false, error: 'Could not parse course data' };
     }
-
-    // 완강 여부 체크
-    const isCompleted = /완강|종강|마감/i.test(html);
 
     return {
       success: true,
-      title,
-      curriculum,
-      isCompleted,
+      title: parsed.title,
+      curriculum: parsed.curriculum,
+      isCompleted: parsed.isCompleted,
     };
   } catch (error) {
     return { success: false, error: String(error) };
@@ -196,10 +341,13 @@ async function crawlMimac(url: string): Promise<CrawlResult> {
     const pidMatch = url.match(/pid=([A-Z]+\d+)/) || html.match(/pid['"]\s*:\s*['"]([A-Z]+\d+)['"]/);
     const pid = pidMatch ? pidMatch[1] : null;
 
-    // 제목 파싱
-    const titleMatch = html.match(/<h3[^>]*class="[^"]*tit[^"]*"[^>]*>([^<]+)<\/h3>/i)
-      || html.match(/<title>([^<]+)<\/title>/i);
-    const title = titleMatch ? titleMatch[1].trim() : undefined;
+    // 제목 파싱 (cheerio 사용)
+    const $ = cheerio.load(html);
+    const title = (
+      $('h3.tit').text().trim() ||
+      $('title').text().split('|')[0]?.trim() ||
+      ''
+    );
 
     // 커리큘럼 API 호출
     let curriculum: string[] = [];
@@ -230,14 +378,6 @@ async function crawlMimac(url: string): Promise<CrawlResult> {
   }
 }
 
-interface CrawlResult {
-  success: boolean;
-  title?: string;
-  curriculum?: string[];
-  isCompleted?: boolean;
-  error?: string;
-}
-
 /**
  * URL로 크롤링 (플랫폼 자동 감지)
  */
@@ -261,6 +401,7 @@ interface Course {
   teacher_name: string;
   lecture_count: number;
   is_completed: boolean;
+  lectures?: { num: string; title: string; duration: string }[];
 }
 
 /**
@@ -292,7 +433,7 @@ async function runBatchUpdate() {
 
   const { data: courses, error: fetchError } = await supabase
     .from('courses')
-    .select('id, name, url, teacher_name, lecture_count, is_completed')
+    .select('id, name, url, teacher_name, lecture_count, is_completed, lectures')
     .not('url', 'is', null)
     .eq('is_completed', false)
     .order('teacher_name');
@@ -316,10 +457,12 @@ async function runBatchUpdate() {
   let completed = 0;
   let updated = 0;
   let failed = 0;
+  let skipped = 0;
 
   // 업데이트 상세 기록
   const updateDetails: { name: string; teacher: string; diff: number; newCount: number; isCompleted: boolean }[] = [];
   const failedCourses: { name: string; teacher: string; error: string }[] = [];
+  const skippedCourses: { name: string; teacher: string; reason: string }[] = [];
 
   for (let i = 0; i < total; i += BATCH_SIZE) {
     const batch = coursesToUpdate.slice(i, i + BATCH_SIZE);
@@ -332,16 +475,35 @@ async function runBatchUpdate() {
     const results = await Promise.allSettled(
       batch.map(async (course) => {
         const prevCount = course.lecture_count || 0;
+        const prevLectures = course.lectures || [];
 
         try {
           const result = await crawlUrl(course.url);
 
+          // ⚠️ 크롤링 실패 시 기존 데이터 유지 (데이터 삭제 방지)
           if (!result.success) {
-            return { course, success: false, error: result.error };
+            return {
+              course,
+              success: false,
+              error: result.error,
+              skipped: true,
+              skipReason: result.error || 'Crawl failed',
+            };
+          }
+
+          // ⚠️ 커리큘럼을 파싱하지 못한 경우 기존 데이터 유지
+          const newCurriculum = result.curriculum || [];
+          if (newCurriculum.length === 0 && prevCount > 0) {
+            return {
+              course,
+              success: false,
+              skipped: true,
+              skipReason: `No curriculum found but course has ${prevCount} existing lectures - keeping existing data`,
+            };
           }
 
           // 커리큘럼 파싱
-          const lectures = result.curriculum?.map((item, idx) => parseCurriculumItem(item, idx)) || [];
+          const lectures = newCurriculum.map((item, idx) => parseCurriculumItem(item, idx));
 
           // Supabase 업데이트
           const { error: updateError } = await supabase
@@ -363,6 +525,7 @@ async function runBatchUpdate() {
             course,
             success: true,
             diff,
+            newCount: lectures.length,
             isCompleted: result.isCompleted,
           };
 
@@ -377,21 +540,26 @@ async function runBatchUpdate() {
       completed++;
 
       if (result.status === 'fulfilled') {
-        const { course, success, diff, isCompleted, error } = result.value;
+        const { course, success, diff, newCount, isCompleted, error, skipped: wasSkipped, skipReason } = result.value;
 
-        if (success) {
+        if (wasSkipped) {
+          // 스킵됨 (데이터 보존)
+          skipped++;
+          log.warn(`[${completed}/${total}] ${course.name} (${course.teacher_name}) - SKIPPED: ${skipReason}`);
+          skippedCourses.push({ name: course.name, teacher: course.teacher_name, reason: skipReason || 'Unknown' });
+        } else if (success) {
           updated++;
           const diffStr = diff !== undefined ? (diff > 0 ? `+${diff}` : diff === 0 ? '±0' : `${diff}`) : '';
           const completedStr = isCompleted ? ' [완강]' : '';
           log.success(`[${completed}/${total}] ${course.name} (${course.teacher_name}) ${diffStr}${completedStr}`);
 
           // 상세 기록 저장
-          if (diff !== undefined) {
+          if (diff !== undefined && newCount !== undefined) {
             updateDetails.push({
               name: course.name,
               teacher: course.teacher_name,
               diff,
-              newCount: course.lecture_count + diff,
+              newCount,
               isCompleted: isCompleted || false,
             });
           }
@@ -419,6 +587,9 @@ async function runBatchUpdate() {
   log.info('='.repeat(50));
   log.info(`총 처리: ${total}개`);
   log.success(`성공: ${updated}개`);
+  if (skipped > 0) {
+    log.warn(`스킵 (데이터 보존): ${skipped}개`);
+  }
   if (failed > 0) {
     log.error(`실패: ${failed}개`);
   }
@@ -447,6 +618,14 @@ async function runBatchUpdate() {
     log.info(`\n📋 변경 없음: ${noChangeCourses.length}개 강좌`);
   }
 
+  // 스킵된 강좌 (데이터 보존)
+  if (skippedCourses.length > 0) {
+    log.info('\n⚠️ 스킵된 강좌 (기존 데이터 유지):');
+    skippedCourses.forEach(d => {
+      log.warn(`  • ${d.name} (${d.teacher}) - ${d.reason}`);
+    });
+  }
+
   // 실패한 강좌
   if (failedCourses.length > 0) {
     log.info('\n❌ 실패한 강좌:');
@@ -457,8 +636,9 @@ async function runBatchUpdate() {
 
   log.info('\n' + '='.repeat(50));
 
-  // 실패가 있으면 exit code 1
-  if (failed > 0) {
+  // 실패가 있어도 스킵과 함께면 성공으로 처리 (데이터는 보존됨)
+  // 순수 실패(데이터 손실)가 있을 때만 exit code 1
+  if (failed > 0 && skipped === 0) {
     process.exit(1);
   }
 }
