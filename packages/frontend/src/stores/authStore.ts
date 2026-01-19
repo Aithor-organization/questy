@@ -7,7 +7,11 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase, retryQuery } from '../lib/supabase';
 import { clearStudentIdCache } from '../lib/chat-api';
+import { createLogger } from '../lib/logger';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
+
+// 개발 모드에서만 동작하는 로거 (프로덕션에서는 자동 비활성화)
+const log = createLogger('[Auth]');
 
 // 사용자 인터페이스
 export interface User {
@@ -80,14 +84,33 @@ interface AuthStore {
 }
 
 // Supabase User를 앱 User로 변환
-function mapSupabaseUser(supabaseUser: SupabaseUser, studentId?: string): User {
+// isAdmin은 별도로 checkAdminStatus()에서 설정됨
+function mapSupabaseUser(supabaseUser: SupabaseUser, studentId?: string, isAdmin?: boolean): User {
   return {
     id: supabaseUser.id,
     email: supabaseUser.email || '',
     name: supabaseUser.user_metadata?.name || supabaseUser.email?.split('@')[0] || '학생',
     studentId: studentId || null,
-    isAdmin: supabaseUser.email === 'admin@questybook.com',
+    isAdmin: isAdmin ?? false,  // 명시적으로 전달되지 않으면 false (DB 조회 후 업데이트)
   };
+}
+
+// 관리자 권한 확인 (admins 테이블 조회)
+async function checkAdminStatus(userId: string): Promise<boolean> {
+  if (!supabase) return false;
+
+  try {
+    const { data, error } = await supabase
+      .from('admins')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    return !error && data !== null;
+  } catch (err) {
+    console.warn('[Auth] Admin check failed:', err);
+    return false;
+  }
 }
 
 // 세션 검증 타임아웃 (ms)
@@ -109,7 +132,7 @@ async function verifySessionInBackground(set: SetState, get: GetState): Promise<
   isVerifyingSession = true;
 
   try {
-    console.log('[Auth] 🔄 Background: Verifying session...');
+    log.log(' 🔄 Background: Verifying session...');
     const { data: { session }, error } = await supabase.auth.getSession();
 
     if (error || !session) {
@@ -124,7 +147,10 @@ async function verifySessionInBackground(set: SetState, get: GetState): Promise<
     // 세션 유효 - 최신 정보로 업데이트 (studentId는 현재 상태 또는 캐시에서)
     const currentUser = get().user;
     const cachedStudentId = localStorage.getItem('questybook_student_id');
-    const user = mapSupabaseUser(session.user, currentUser?.studentId || cachedStudentId || undefined);
+
+    // 관리자 권한도 백그라운드에서 확인
+    const isAdmin = await checkAdminStatus(session.user.id);
+    const user = mapSupabaseUser(session.user, currentUser?.studentId || cachedStudentId || undefined, isAdmin);
     set({ user, session });
 
     // studentId가 없으면 조회
@@ -135,11 +161,11 @@ async function verifySessionInBackground(set: SetState, get: GetState): Promise<
     // 리스너 등록
     setupAuthStateListener(set);
 
-    console.log('[Auth] ✅ Background: Session verified');
+    log.log(' ✅ Background: Session verified');
   } catch (err: any) {
     // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
     if (err?.name === 'AbortError') {
-      console.log('[Auth] Background verification cancelled');
+      log.log(' Background verification cancelled');
       return;
     }
     console.error('[Auth] Background verification error:', err);
@@ -167,7 +193,7 @@ async function fetchStudentIdInBackground(userId: string, set: SetState, get: Ge
       if (currentUser) {
         set({ user: { ...currentUser, studentId: student.id } });
         localStorage.setItem('questybook_student_id', student.id);
-        console.log('[Auth] 📝 Background: studentId updated');
+        log.log(' 📝 Background: studentId updated');
       }
     }
   } catch (e) {
@@ -181,16 +207,16 @@ function setupAuthStateListener(set: SetState): void {
 
   // 이미 리스너가 등록되어 있으면 중복 등록 방지
   if (isListenerRegistered) {
-    console.log('[Auth] Listener already registered, skipping');
+    log.log(' Listener already registered, skipping');
     return;
   }
   isListenerRegistered = true;
-  console.log('[Auth] Setting up auth state listener');
+  log.log(' Setting up auth state listener');
 
   const client = supabase; // TypeScript null 체크용
 
   client.auth.onAuthStateChange(async (event, newSession) => {
-    console.log('[Auth] State changed:', event);
+    log.log(' State changed:', event);
 
     if (event === 'SIGNED_IN' && newSession?.user) {
       let studentId: string | null = null;
@@ -226,7 +252,7 @@ function setupAuthStateListener(set: SetState): void {
                 status: 'pending',
               }),
             ]);
-            console.log('[Auth] New OAuth user: student_progress & user_memberships created (parallel)');
+            log.log(' New OAuth user: student_progress & user_memberships created (parallel)');
           }
         } else {
           studentId = student.id;
@@ -235,7 +261,10 @@ function setupAuthStateListener(set: SetState): void {
         console.warn('[Auth] Student handling error:', e);
       }
 
-      const user = mapSupabaseUser(newSession.user, studentId || undefined);
+      // 관리자 권한 확인 (신규 사용자는 관리자가 아님)
+      const isAdmin = isNewUser ? false : await checkAdminStatus(newSession.user.id);
+      const user = mapSupabaseUser(newSession.user, studentId || undefined, isAdmin);
+
       // 신규 사용자는 온보딩 미완료 상태로 설정
       if (isNewUser) {
         user.onboardingCompleted = false;
@@ -261,7 +290,7 @@ function setupAuthStateListener(set: SetState): void {
         localStorage.setItem('questybook_remember_me', 'true');
         localStorage.setItem('questybook_remember_expires', expiresAt.toString());
         localStorage.removeItem('questybook_pending_remember_me');
-        console.log('[Auth] OAuth 자동로그인 설정됨 (30일)');
+        log.log(' OAuth 자동로그인 설정됨 (30일)');
       } else {
         // 자동로그인 미설정 - 세션 마커만
         localStorage.removeItem('questybook_remember_me');
@@ -299,7 +328,7 @@ export const useAuthStore = create<AuthStore>()(
       // Supabase Auth 초기화 (앱 시작 시 호출) - 최적화 버전
       initializeAuth: async () => {
         const startTime = performance.now();
-        console.log('[Auth] initializeAuth started');
+        log.log(' initializeAuth started');
 
         // Supabase 미설정 시 즉시 반환
         if (!supabase) {
@@ -317,7 +346,7 @@ export const useAuthStore = create<AuthStore>()(
         if (rememberMe === 'true' && rememberExpires) {
           const expiresAt = parseInt(rememberExpires, 10);
           if (Date.now() > expiresAt) {
-            console.log('[Auth] 자동로그인 만료됨 - 로그아웃 처리');
+            log.log(' 자동로그인 만료됨 - 로그아웃 처리');
             await supabase.auth.signOut();
             localStorage.removeItem('questybook_remember_me');
             localStorage.removeItem('questybook_remember_expires');
@@ -336,14 +365,14 @@ export const useAuthStore = create<AuthStore>()(
             const { data: { session: currentSession } } = await supabase.auth.getSession();
             if (!currentSession) {
               // Supabase 세션도 없으면 진짜 로그아웃
-              console.log('[Auth] 자동로그인 미설정 & 세션 없음 - 로그아웃 처리');
+              log.log(' 자동로그인 미설정 & 세션 없음 - 로그아웃 처리');
               await supabase.auth.signOut();
               set({ isLoading: false, user: null, session: null, isAuthenticated: false });
               localStorage.removeItem('questybook-auth');
               return;
             }
             // Supabase 세션이 유효하면 sessionStorage 복구하고 계속 진행
-            console.log('[Auth] 모바일 새로고침 감지 - 세션 유지');
+            log.log(' 모바일 새로고침 감지 - 세션 유지');
             sessionStorage.setItem('questybook_session_active', 'true');
           }
         }
@@ -351,7 +380,7 @@ export const useAuthStore = create<AuthStore>()(
         // 🚀 낙관적 로딩: persist된 user가 있으면 즉시 표시
         const persistedUser = get().user;
         if (persistedUser) {
-          console.log('[Auth] 🚀 Optimistic: Using persisted user:', persistedUser.email);
+          log.log(' 🚀 Optimistic: Using persisted user:', persistedUser.email);
           set({ isAuthenticated: true, isLoading: false });
 
           // 세션 마커 설정 (자동로그인 아닌 경우)
@@ -371,7 +400,7 @@ export const useAuthStore = create<AuthStore>()(
             setTimeout(() => resolve(null), AUTH_TIMEOUT)
           );
 
-          console.log('[Auth] Checking session with timeout...');
+          log.log(' Checking session with timeout...');
           const result = await Promise.race([sessionPromise, timeoutPromise]);
 
           // 타임아웃 발생
@@ -390,11 +419,15 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           if (session?.user) {
-            console.log('[Auth] Session found for:', session.user.email);
+            log.log(' Session found for:', session.user.email);
 
             // 즉시 기본 user 정보로 로그인 처리 (studentId는 캐시 먼저 확인 후 백그라운드에서 갱신)
             const cachedStudentId = localStorage.getItem('questybook_student_id');
-            const user = mapSupabaseUser(session.user, cachedStudentId || undefined);
+
+            // 관리자 권한 확인 (병렬로 실행)
+            const isAdmin = await checkAdminStatus(session.user.id);
+            const user = mapSupabaseUser(session.user, cachedStudentId || undefined, isAdmin);
+
             set({
               user,
               session,
@@ -406,7 +439,7 @@ export const useAuthStore = create<AuthStore>()(
             // studentId는 백그라운드에서 조회
             fetchStudentIdInBackground(session.user.id, set, get);
           } else {
-            console.log('[Auth] No session found');
+            log.log(' No session found');
             set({ isLoading: false, user: null, session: null, isAuthenticated: false });
           }
 
@@ -469,14 +502,17 @@ export const useAuthStore = create<AuthStore>()(
           }
 
           if (data.user) {
-            // students 테이블에서 student_id 조회
-            const { data: student } = await supabase
-              .from('students')
-              .select('id')
-              .eq('user_id', data.user.id)
-              .single();
+            // students 테이블과 관리자 권한 병렬 조회
+            const [studentResult, isAdmin] = await Promise.all([
+              supabase
+                .from('students')
+                .select('id')
+                .eq('user_id', data.user.id)
+                .single(),
+              checkAdminStatus(data.user.id),
+            ]);
 
-            const user = mapSupabaseUser(data.user, student?.id);
+            const user = mapSupabaseUser(data.user, studentResult.data?.id, isAdmin);
 
             set({
               user,
@@ -485,8 +521,8 @@ export const useAuthStore = create<AuthStore>()(
               isLoading: false,
             });
 
-            if (student?.id) {
-              localStorage.setItem('questybook_student_id', student.id);
+            if (studentResult.data?.id) {
+              localStorage.setItem('questybook_student_id', studentResult.data.id);
             }
             localStorage.setItem('questybook_student_name', user.name);
 
@@ -572,7 +608,7 @@ export const useAuthStore = create<AuthStore>()(
                   status: 'pending',
                 }),
               ]);
-              console.log('[Auth] New user: student_progress & user_memberships created (parallel)');
+              log.log(' New user: student_progress & user_memberships created (parallel)');
             }
 
             // 회원가입 성공 - 자동 로그인 상태 유지 (온보딩으로 이동)
@@ -641,7 +677,7 @@ export const useAuthStore = create<AuthStore>()(
       },
 
       logout: async () => {
-        console.log('[Auth] 로그아웃 시작 - 모든 데이터 정리');
+        log.log(' 로그아웃 시작 - 모든 데이터 정리');
 
         // 0. chat-api 캐시 정리 (다른 사용자 데이터 누수 방지)
         clearStudentIdCache();
@@ -695,7 +731,7 @@ export const useAuthStore = create<AuthStore>()(
           }
         }
 
-        console.log('[Auth] 로그아웃 완료 - 모든 데이터 삭제됨');
+        log.log(' 로그아웃 완료 - 모든 데이터 삭제됨');
       },
 
       clearError: () => {
@@ -770,7 +806,7 @@ export const useAuthStore = create<AuthStore>()(
       syncName: (name: string) => {
         const currentUser = useAuthStore.getState().user;
         if (currentUser && currentUser.name !== name) {
-          console.log('[Auth] 이름 동기화:', currentUser.name, '→', name);
+          log.log(' 이름 동기화:', currentUser.name, '→', name);
           set({ user: { ...currentUser, name } });
         }
       },
@@ -786,11 +822,11 @@ export const useAuthStore = create<AuthStore>()(
         // false나 undefined는 항상 DB에서 다시 확인
         // (로그아웃 후 재로그인 시 persist 데이터가 stale할 수 있음)
         if (currentUser.onboardingCompleted === true) {
-          console.log('[Auth] onboardingCompleted already true, skipping check');
+          log.log(' onboardingCompleted already true, skipping check');
           return true;
         }
 
-        console.log('[Auth] Checking onboarding status from DB...');
+        log.log(' Checking onboarding status from DB...');
 
         try {
           // AbortError 재시도 로직 적용
@@ -808,7 +844,7 @@ export const useAuthStore = create<AuthStore>()(
           if (error) {
             // PGRST116 (행 없음)만 온보딩 미완료로 처리
             if (error.code === 'PGRST116') {
-              console.log('[Auth] No profile found, onboarding needed');
+              log.log(' No profile found, onboarding needed');
               set({ user: { ...currentUser, onboardingCompleted: false } });
               return false;
             }
@@ -822,7 +858,7 @@ export const useAuthStore = create<AuthStore>()(
           const hasLearningGoal = !!data?.target_university;
           const completed = data?.onboarding_completed || hasLearningGoal;
 
-          console.log('[Auth] Onboarding check result:', {
+          log.log(' Onboarding check result:', {
             onboarding_completed: data?.onboarding_completed,
             target_university: data?.target_university,
             result: completed
@@ -833,7 +869,7 @@ export const useAuthStore = create<AuthStore>()(
         } catch (err: any) {
           // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
           if (err?.name === 'AbortError') {
-            console.log('[Auth] Onboarding check cancelled');
+            log.log(' Onboarding check cancelled');
             return currentUser.onboardingCompleted ?? false;
           }
           // 네트워크 에러 등 예외 시 기존 상태 유지
@@ -887,7 +923,7 @@ export const useAuthStore = create<AuthStore>()(
             // PGRST116: 행 없음 (프로필 미생성) - 정상 케이스
             // 다른 에러: 네트워크/권한 문제 - 로깅 필요
             if (error?.code === 'PGRST116') {
-              console.log('[Auth] No user profile found (not created yet)');
+              log.log(' No user profile found (not created yet)');
             } else if (error) {
               console.warn('[Auth] User profile load error:', error.code, error.message);
             }
@@ -907,12 +943,12 @@ export const useAuthStore = create<AuthStore>()(
           };
 
           set({ userProfile: profile });
-          console.log('[Auth] User profile loaded:', profile.targetUniversity);
+          log.log(' User profile loaded:', profile.targetUniversity);
           return profile;
         } catch (err: any) {
           // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
           if (err?.name === 'AbortError') {
-            console.log('[Auth] User profile load cancelled');
+            log.log(' User profile load cancelled');
             return null;
           }
           // 네트워크 에러 등 예외 처리
@@ -946,7 +982,7 @@ export const useAuthStore = create<AuthStore>()(
           if (data.success) {
             const membership: MembershipData = data.data;
             set({ membershipData: membership });
-            console.log('[Auth] Membership loaded:', membership.type);
+            log.log(' Membership loaded:', membership.type);
             return membership;
           }
           return null;

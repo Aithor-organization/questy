@@ -3,7 +3,7 @@
  * AI 학습 코치 + 노트북 스타일 플래너 앱
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from './stores/authStore';
 import { useQuestStore } from './stores/questStore';
@@ -12,6 +12,7 @@ import { syncFromSupabase } from './lib/supabase-storage';
 import { useScheduledNotifications } from './hooks/useScheduledNotifications';
 import { useCoachScheduler } from './hooks/useCoachScheduler';
 import { useMembership } from './hooks/useMembership';
+import { createLogger } from './lib/logger';
 import {
   LoginPage,
   SignUpPage,
@@ -27,12 +28,17 @@ import {
   ChatRoomPage,
   ReportPage,
   TipsPage,
-  AdminPage,
   TimerPage,
 } from './pages';
 import { PendingApprovalPage } from './pages/PendingApprovalPage';
 import { ToastNotification } from './components/ToastNotification';
 import { ToastContainer } from './components/Toast';
+
+// Lazy Loading: 관리자 페이지 (일반 사용자는 접근하지 않음)
+const AdminPage = lazy(() => import('./pages/admin-page').then(m => ({ default: m.AdminPage })));
+
+// 개발 모드에서만 동작하는 로거
+const log = createLogger('[App]');
 
 // 인증이 필요한 라우트를 보호하는 컴포넌트
 function ProtectedRoute({ children, skipOnboarding = false, skipMembershipCheck = false }: {
@@ -137,20 +143,20 @@ function App() {
       if (hasSyncedRef.current) return;
       hasSyncedRef.current = true;
 
-      console.log('[App] 로그인 후 스토어 동기화 시작');
+      log.log('로그인 후 스토어 동기화 시작');
 
       try {
         // Quest 스토어: Supabase → localStorage → Zustand (기존 방식 유지)
         const questSynced = await syncFromSupabase('quest');
-        console.log(`[App] Supabase 동기화: quest=${questSynced}`);
+        log.log(`Supabase 동기화: quest=${questSynced}`);
         await useQuestStore.persist.rehydrate();
 
         // Chat 스토어: Supabase 테이블에서 직접 로드 (새로운 방식)
         await initializeChat();
 
-        console.log('[App] 스토어 동기화 완료');
+        log.log('스토어 동기화 완료');
       } catch (error) {
-        console.error('[App] 스토어 동기화 실패:', error);
+        log.error('스토어 동기화 실패:', error);
       }
     }
 
@@ -211,7 +217,11 @@ function App() {
         <Route path="/generate" element={<ProtectedRoute><GeneratePage /></ProtectedRoute>} />
         <Route path="/curriculum" element={<Navigate to="/generate?tab=curriculum" replace />} />
         <Route path="/tips" element={<ProtectedRoute><TipsPage /></ProtectedRoute>} />
-        <Route path="/admin" element={<AdminPage />} />
+        <Route path="/admin" element={
+          <Suspense fallback={<div className="min-h-screen bg-amber-50 flex items-center justify-center"><div className="text-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div><p className="text-gray-600">로딩 중...</p></div></div>}>
+            <AdminPage />
+          </Suspense>
+        } />
         <Route path="/plan/:planId" element={<ProtectedRoute><PlanDetailPage /></ProtectedRoute>} />
         <Route path="/timer/:planId/:questId" element={<ProtectedRoute><TimerPage /></ProtectedRoute>} />
 

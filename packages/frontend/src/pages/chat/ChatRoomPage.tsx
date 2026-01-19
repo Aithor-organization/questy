@@ -149,12 +149,22 @@ export function ChatRoomPage() {
     }
   }, [room?.messages.length]);
 
-  // 스트리밍 중 자동 스크롤 (실시간 응답 따라가기)
+  // 스트리밍 시작 시 즉시 스크롤 (AI 응답 생성 시작)
   useEffect(() => {
-    if (streamingContent && !isFirstScrollRef.current) {
+    if (isStreaming && !isFirstScrollRef.current) {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [streamingContent]);
+  }, [isStreaming]);
+
+  // 스트리밍 중 자동 스크롤 (실시간 응답 따라가기)
+  useEffect(() => {
+    if (isStreaming && !isFirstScrollRef.current) {
+      // requestAnimationFrame으로 부드러운 스크롤 보장
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      });
+    }
+  }, [streamingContent, isStreaming]);
 
   // 포커스 시 읽음 처리 (async)
   useEffect(() => {

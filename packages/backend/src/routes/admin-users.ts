@@ -1,11 +1,15 @@
 /**
  * Admin Users Routes
  * 사용자 및 멤버십 관리 API
+ *
+ * 관리자 전용 라우트는 adminOnly 미들웨어 적용
+ * membership/status는 일반 사용자 접근 허용 (인증만 필요)
  */
 
 import { Hono } from 'hono';
 import { supabase } from '../db/supabase.js';
 import { sendEmail, getMembershipApprovalEmail } from '../lib/email.js';
+import { adminOnly, authenticate } from '../middleware/auth.js';
 
 export const adminUsersRoutes = new Hono();
 
@@ -40,42 +44,34 @@ function calculateBetaTesterExpiry(): string {
   return expiry.toISOString();
 }
 
-/**
- * 관리자 권한 확인
- */
-async function isAdmin(userId: string): Promise<boolean> {
-  if (!supabase) return false;
-
-  const { data, error } = await supabase
-    .from('admins')
-    .select('id')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  return !error && data !== null;
-}
+// 관리자 권한 확인은 이제 middleware/auth.ts의 adminOnly 미들웨어로 처리
 
 /**
- * 모든 사용자 목록 조회 (관리자용)
+ * 모든 사용자 목록 조회 (관리자용) - P2 페이지네이션 적용
  * GET /api/admin/users
+ *
+ * Query params:
+ * - page: 페이지 번호 (기본 1)
+ * - limit: 페이지당 항목 수 (기본 50, 최대 100)
+ * - status: 멤버십 상태 필터 (optional: pending, active, expired, revoked)
+ * - type: 멤버십 유형 필터 (optional: pending, regular, beta_tester, lab_member)
  */
-adminUsersRoutes.get('/users', async (c) => {
+adminUsersRoutes.get('/users', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
     }
 
-    // 관리자 권한 확인 (헤더에서 userId 추출)
-    const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ success: false, error: '인증이 필요합니다' }, 401);
-    }
+    // 쿼리 파라미터 파싱
+    const page = Math.max(1, parseInt(c.req.query('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50')));
+    const statusFilter = c.req.query('status') as MembershipStatus | undefined;
+    const typeFilter = c.req.query('type') as MembershipType | undefined;
 
-    // auth.users와 user_memberships 조인하여 조회
-    // Supabase에서 auth.users 직접 접근이 어려우므로 Edge Function 권장
-    // 여기서는 user_memberships + user_profiles 조합으로 처리
+    const offset = (page - 1) * limit;
 
-    const { data: memberships, error } = await supabase
+    // 필터가 적용된 쿼리 빌더
+    let queryBuilder = supabase
       .from('user_memberships')
       .select(`
         id,
@@ -87,51 +83,62 @@ adminUsersRoutes.get('/users', async (c) => {
         admin_note,
         created_at,
         updated_at
-      `)
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' });
+
+    // 필터 적용
+    if (statusFilter) {
+      queryBuilder = queryBuilder.eq('status', statusFilter);
+    }
+    if (typeFilter) {
+      queryBuilder = queryBuilder.eq('membership_type', typeFilter);
+    }
+
+    // 페이지네이션 및 정렬
+    const { data: memberships, error, count } = await queryBuilder
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('[AdminUsers] Get users error:', error);
       return c.json({ success: false, error: '사용자 목록 조회 실패' }, 500);
     }
 
-    // auth.users에서 이메일과 이름 일괄 조회 (N+1 문제 해결)
+    // 현재 페이지의 사용자 ID만 추출
     const userIds = memberships?.map(m => m.user_id) || [];
+
+    if (userIds.length === 0) {
+      return c.json({
+        success: true,
+        data: {
+          users: [],
+          pagination: {
+            page,
+            limit,
+            total: count || 0,
+            totalPages: Math.ceil((count || 0) / limit),
+          },
+        },
+      });
+    }
+
+    // 현재 페이지 사용자들의 auth 정보만 조회 (최적화)
     const userInfo: Record<string, { email: string; name: string }> = {};
 
-    // listUsers로 일괄 조회 (페이지네이션으로 모든 사용자 가져오기)
-    try {
-      let page = 1;
-      const perPage = 1000; // 최대 1000명씩 조회
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: listData, error: listError } = await supabase.auth.admin.listUsers({
-          page,
-          perPage,
-        });
-
-        if (listError || !listData?.users) {
-          console.warn('[AdminUsers] listUsers error:', listError?.message);
-          break;
+    // 현재 페이지 사용자들만 개별 조회 (N개만 조회하므로 효율적)
+    const userPromises = userIds.map(async (userId) => {
+      try {
+        const { data: userData } = await supabase.auth.admin.getUserById(userId);
+        if (userData?.user) {
+          const email = userData.user.email || '';
+          const name = userData.user.user_metadata?.name || email.split('@')[0] || '이름 없음';
+          userInfo[userId] = { email, name };
         }
-
-        // 조회된 사용자 중 필요한 것만 매핑
-        for (const authUser of listData.users) {
-          if (userIds.includes(authUser.id)) {
-            const email = authUser.email || '';
-            const name = authUser.user_metadata?.name || email.split('@')[0] || '이름 없음';
-            userInfo[authUser.id] = { email, name };
-          }
-        }
-
-        // 다음 페이지 확인
-        hasMore = listData.users.length === perPage;
-        page++;
+      } catch (e) {
+        // 개별 사용자 조회 실패는 무시
       }
-    } catch (e) {
-      console.warn('[AdminUsers] Batch user fetch failed:', e);
-    }
+    });
+
+    await Promise.all(userPromises);
 
     // 데이터 병합
     const users = memberships?.map(m => {
@@ -151,7 +158,18 @@ adminUsersRoutes.get('/users', async (c) => {
       };
     }) || [];
 
-    return c.json({ success: true, data: users });
+    return c.json({
+      success: true,
+      data: {
+        users,
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
+      },
+    });
   } catch (error: any) {
     console.error('[AdminUsers] Get users error:', error);
     return c.json({ success: false, error: error.message || '사용자 목록 조회 실패' }, 500);
@@ -165,7 +183,7 @@ adminUsersRoutes.get('/users', async (c) => {
  * NOTE: 이 라우트는 /users/:userId/membership보다 먼저 정의되어야 함
  * 그렇지 않으면 'bulk'가 :userId 파라미터로 매칭됨
  */
-adminUsersRoutes.post('/users/bulk/membership', async (c) => {
+adminUsersRoutes.post('/users/bulk/membership', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
@@ -301,7 +319,7 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
  *
  * NOTE: 이 라우트도 /users/:userId 패턴보다 먼저 정의되어야 함
  */
-adminUsersRoutes.delete('/users/bulk', async (c) => {
+adminUsersRoutes.delete('/users/bulk', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
@@ -384,7 +402,7 @@ adminUsersRoutes.delete('/users/bulk', async (c) => {
  * 멤버십 변경 (대기자/베타테스터/실험단)
  * POST /api/admin/users/:userId/membership
  */
-adminUsersRoutes.post('/users/:userId/membership', async (c) => {
+adminUsersRoutes.post('/users/:userId/membership', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
@@ -499,7 +517,7 @@ adminUsersRoutes.post('/users/:userId/membership', async (c) => {
  * 멤버십 승인 (레거시 호환용)
  * POST /api/admin/users/:userId/approve
  */
-adminUsersRoutes.post('/users/:userId/approve', async (c) => {
+adminUsersRoutes.post('/users/:userId/approve', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
@@ -562,7 +580,7 @@ adminUsersRoutes.post('/users/:userId/approve', async (c) => {
  * 멤버십 취소/철회
  * POST /api/admin/users/:userId/revoke
  */
-adminUsersRoutes.post('/users/:userId/revoke', async (c) => {
+adminUsersRoutes.post('/users/:userId/revoke', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
@@ -606,35 +624,24 @@ adminUsersRoutes.post('/users/:userId/revoke', async (c) => {
 });
 
 /**
- * 멤버십 상태 조회 (사용자용)
+ * 멤버십 상태 조회 (사용자용 - 일반 사용자도 자신의 멤버십 조회 가능)
  * GET /api/admin/membership/status
  */
-adminUsersRoutes.get('/membership/status', async (c) => {
+adminUsersRoutes.get('/membership/status', authenticate, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
     }
 
-    // Authorization 헤더에서 토큰 추출
-    const authHeader = c.req.header('Authorization');
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      return c.json({ success: false, error: '인증이 필요합니다' }, 401);
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-
-    // 토큰으로 사용자 정보 조회
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
-
-    if (authError || !user) {
-      return c.json({ success: false, error: '유효하지 않은 인증입니다' }, 401);
-    }
+    // authenticate 미들웨어에서 인증 완료 - 사용자 정보 가져오기
+    const authUser = c.get('user') as { id: string; email: string; role: string };
+    const userId = authUser.id;
 
     // 멤버십 정보 조회
     const { data: membership, error } = await supabase
       .from('user_memberships')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .maybeSingle();
 
     if (error) {
@@ -684,11 +691,11 @@ adminUsersRoutes.get('/membership/status', async (c) => {
           expires_at: null,
           updated_at: new Date().toISOString(),
         })
-        .eq('user_id', user.id);
+        .eq('user_id', userId);
 
       currentType = 'regular';
       currentStatus = 'expired';
-      console.log(`[AdminUsers] Beta tester expired, demoted to regular: ${user.id}`);
+      console.log(`[AdminUsers] Beta tester expired, demoted to regular: ${userId}`);
     }
 
     return c.json({
@@ -709,23 +716,29 @@ adminUsersRoutes.get('/membership/status', async (c) => {
 });
 
 /**
- * 사용자 학습 프로필 조회 (관리자용)
+ * 사용자 학습 프로필 조회 (관리자용) - P2 페이지네이션 및 Join 최적화
  * GET /api/admin/users/learning-profiles
+ *
+ * Query params:
+ * - page: 페이지 번호 (기본 1)
+ * - limit: 페이지당 항목 수 (기본 50, 최대 100)
+ * - onboardingCompleted: 온보딩 완료 필터 (optional: true/false)
  */
-adminUsersRoutes.get('/users/learning-profiles', async (c) => {
+adminUsersRoutes.get('/users/learning-profiles', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
     }
 
-    // 관리자 권한 확인
-    const authHeader = c.req.header('Authorization');
-    if (!authHeader) {
-      return c.json({ success: false, error: '인증이 필요합니다' }, 401);
-    }
+    // 쿼리 파라미터 파싱
+    const page = Math.max(1, parseInt(c.req.query('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50')));
+    const onboardingFilter = c.req.query('onboardingCompleted');
 
-    // user_profiles + user_memberships 조인하여 조회
-    const { data: profiles, error } = await supabase
+    const offset = (page - 1) * limit;
+
+    // 필터가 적용된 쿼리 빌더
+    let queryBuilder = supabase
       .from('user_profiles')
       .select(`
         id,
@@ -741,59 +754,72 @@ adminUsersRoutes.get('/users/learning-profiles', async (c) => {
         onboarding_completed,
         onboarding_completed_at,
         created_at
-      `)
-      .order('created_at', { ascending: false });
+      `, { count: 'exact' });
+
+    // 온보딩 완료 필터 적용
+    if (onboardingFilter === 'true') {
+      queryBuilder = queryBuilder.eq('onboarding_completed', true);
+    } else if (onboardingFilter === 'false') {
+      queryBuilder = queryBuilder.or('onboarding_completed.eq.false,onboarding_completed.is.null');
+    }
+
+    // 페이지네이션 및 정렬
+    const { data: profiles, error, count } = await queryBuilder
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('[AdminUsers] Get learning profiles error:', error);
       return c.json({ success: false, error: '학습 프로필 조회 실패' }, 500);
     }
 
-    // 사용자 ID 목록
+    // 현재 페이지의 사용자 ID만 추출
     const userIds = profiles?.map(p => p.id) || [];
+
+    if (userIds.length === 0) {
+      return c.json({
+        success: true,
+        data: {
+          profiles: [],
+          pagination: {
+            page,
+            limit,
+            total: count || 0,
+            totalPages: Math.ceil((count || 0) / limit),
+          },
+        },
+      });
+    }
+
+    // 현재 페이지 사용자들의 auth 정보와 멤버십 정보를 병렬로 조회
     const userInfo: Record<string, { email: string; name: string }> = {};
     const membershipInfo: Record<string, { type: MembershipType; status: MembershipStatus }> = {};
 
-    // auth.users에서 이메일과 이름 일괄 조회
-    try {
-      let page = 1;
-      const perPage = 1000;
-      let hasMore = true;
-
-      while (hasMore) {
-        const { data: listData, error: listError } = await supabase.auth.admin.listUsers({
-          page,
-          perPage,
-        });
-
-        if (listError || !listData?.users) {
-          console.warn('[AdminUsers] listUsers error:', listError?.message);
-          break;
-        }
-
-        for (const authUser of listData.users) {
-          if (userIds.includes(authUser.id)) {
-            const email = authUser.email || '';
-            const name = authUser.user_metadata?.name || email.split('@')[0] || '이름 없음';
-            userInfo[authUser.id] = { email, name };
+    // 병렬 처리: auth 정보와 멤버십 정보 동시 조회
+    const [, membershipResult] = await Promise.all([
+      // auth 정보 조회
+      Promise.all(userIds.map(async (userId) => {
+        try {
+          const { data: userData } = await supabase.auth.admin.getUserById(userId);
+          if (userData?.user) {
+            const email = userData.user.email || '';
+            const name = userData.user.user_metadata?.name || email.split('@')[0] || '이름 없음';
+            userInfo[userId] = { email, name };
           }
+        } catch (e) {
+          // 개별 사용자 조회 실패는 무시
         }
+      })),
+      // 멤버십 정보 조회 (현재 페이지 사용자들만)
+      supabase
+        .from('user_memberships')
+        .select('user_id, membership_type, status')
+        .in('user_id', userIds),
+    ]);
 
-        hasMore = listData.users.length === perPage;
-        page++;
-      }
-    } catch (e) {
-      console.warn('[AdminUsers] Batch user fetch failed:', e);
-    }
-
-    // 멤버십 정보 조회
-    const { data: memberships } = await supabase
-      .from('user_memberships')
-      .select('user_id, membership_type, status')
-      .in('user_id', userIds);
-
-    if (memberships) {
-      for (const m of memberships) {
+    // 멤버십 정보 매핑
+    if (membershipResult.data) {
+      for (const m of membershipResult.data) {
         membershipInfo[m.user_id] = {
           type: m.membership_type,
           status: m.status,
@@ -827,7 +853,18 @@ adminUsersRoutes.get('/users/learning-profiles', async (c) => {
       };
     }) || [];
 
-    return c.json({ success: true, data: result });
+    return c.json({
+      success: true,
+      data: {
+        profiles: result,
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
+      },
+    });
   } catch (error: any) {
     console.error('[AdminUsers] Get learning profiles error:', error);
     return c.json({ success: false, error: error.message || '학습 프로필 조회 실패' }, 500);
@@ -835,10 +872,10 @@ adminUsersRoutes.get('/users/learning-profiles', async (c) => {
 });
 
 /**
- * 대기 중인 사용자 수 조회
+ * 대기 중인 사용자 수 조회 (관리자용)
  * GET /api/admin/users/pending/count
  */
-adminUsersRoutes.get('/users/pending/count', async (c) => {
+adminUsersRoutes.get('/users/pending/count', adminOnly, async (c) => {
   try {
     if (!supabase) {
       return c.json({ success: false, error: 'Supabase not available' }, 500);

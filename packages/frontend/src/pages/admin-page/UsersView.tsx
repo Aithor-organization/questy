@@ -2,7 +2,7 @@
  * Users View - 사용자 및 멤버십 관리
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2,
   UserCheck,
@@ -17,6 +17,8 @@ import {
   Trash2,
   Users,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { UserMembership, MembershipType, MembershipStatus } from './types';
@@ -52,20 +54,59 @@ export function UsersView() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'pending' | 'active'>('all');
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
   // 다중 선택 관련 상태
   const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
   const [bulkActionLoading, setBulkActionLoading] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  // 페이지네이션 상태
+  const [page, setPage] = useState(1);
+  const [limit] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 사용자 목록 조회
+  // 검색어 디바운싱 (300ms)
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1); // 검색 시 첫 페이지로
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  // 사용자 목록 조회 (서버사이드 페이지네이션 + 검색)
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const token = await getAccessToken();
-      const response = await fetch(`${API_URL}/api/admin/users`, {
+      // 서버사이드 페이지네이션 및 검색 파라미터
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      // 상태 필터
+      if (filter === 'pending') {
+        params.append('status', 'pending');
+      } else if (filter === 'active') {
+        params.append('status', 'active');
+      }
+      // 서버사이드 검색
+      if (debouncedSearch) {
+        params.append('search', debouncedSearch);
+      }
+
+      const response = await fetch(`${API_URL}/api/admin/users?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token || ''}`,
         },
@@ -77,13 +118,24 @@ export function UsersView() {
         throw new Error(data.error || '사용자 목록 조회 실패');
       }
 
-      setUsers(data.data || []);
+      // P2 페이지네이션 응답 구조: data.data = { users: [], pagination: {} }
+      const usersArray = Array.isArray(data.data) ? data.data : (data.data?.users || []);
+      setUsers(usersArray);
+
+      // 페이지네이션 정보 업데이트
+      if (data.data?.pagination) {
+        setTotalPages(data.data.pagination.totalPages || 1);
+        setTotal(data.data.pagination.total || usersArray.length);
+      } else {
+        setTotalPages(1);
+        setTotal(usersArray.length);
+      }
     } catch (err: any) {
       setError(err.message || '사용자 목록을 불러오는데 실패했습니다');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit, filter, debouncedSearch]);
 
   useEffect(() => {
     fetchUsers();
@@ -218,29 +270,18 @@ export function UsersView() {
     }
   };
 
-  // 필터링된 사용자 목록
-  const filteredUsers = users.filter(user => {
-    // 검색 필터
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      if (!user.name?.toLowerCase().includes(query) &&
-          !user.email?.toLowerCase().includes(query)) {
-        return false;
-      }
-    }
+  // 필터 또는 검색 변경 시 첫 페이지로 리셋
+  const handleFilterChange = (newFilter: 'all' | 'pending' | 'active') => {
+    setFilter(newFilter);
+    setPage(1);
+    setSelectedUsers(new Set());
+  };
 
-    // 상태 필터
-    if (filter === 'pending') {
-      return user.membership?.status === 'pending';
-    }
-    if (filter === 'active') {
-      return user.membership?.status === 'active';
-    }
+  // 서버사이드 필터링이므로 클라이언트 필터 제거
+  // users 배열을 그대로 사용
+  const filteredUsers = users;
 
-    return true;
-  });
-
-  // 대기 중인 사용자 수
+  // 대기 중인 사용자 수 (전체 기준으로 표시하려면 별도 API 필요, 현재는 로드된 데이터 기준)
   const pendingCount = users.filter(u => u.membership?.status === 'pending').length;
 
   if (loading) {
@@ -390,27 +431,27 @@ export function UsersView() {
 
         <div className="flex gap-2">
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => handleFilterChange('all')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === 'all'
                 ? 'bg-blue-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            전체 ({users.length})
+            전체 ({total})
           </button>
           <button
-            onClick={() => setFilter('pending')}
+            onClick={() => handleFilterChange('pending')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === 'pending'
                 ? 'bg-yellow-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            대기 ({pendingCount})
+            대기
           </button>
           <button
-            onClick={() => setFilter('active')}
+            onClick={() => handleFilterChange('active')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === 'active'
                 ? 'bg-green-500 text-white'
@@ -451,6 +492,47 @@ export function UsersView() {
               onToggleSelect={() => toggleUserSelection(user.id)}
             />
           ))}
+        </div>
+      )}
+
+      {/* 페이지네이션 UI */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 py-4 border-t border-gray-200 mt-4">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1 || loading}
+            className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={16} />
+            이전
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">
+              <span className="font-semibold text-gray-800">{page}</span>
+              {' / '}
+              {totalPages} 페이지
+            </span>
+            <span className="text-xs text-gray-400">
+              (총 {total}명)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages || loading}
+            className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            다음
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* 단일 페이지일 때도 전체 수 표시 */}
+      {totalPages === 1 && total > 0 && (
+        <div className="text-center py-2 text-xs text-gray-400">
+          총 {total}명
         </div>
       )}
     </div>

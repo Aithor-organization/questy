@@ -2,7 +2,7 @@
  * Learning Profiles View - 사용자 학습 프로필 조회
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Loader2,
   BookOpen,
@@ -13,6 +13,8 @@ import {
   Target,
   ChevronDown,
   ChevronUp,
+  ChevronLeft,
+  ChevronRight,
   User,
   AlertCircle,
 } from 'lucide-react';
@@ -57,17 +59,56 @@ export function LearningProfilesView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [filter, setFilter] = useState<'all' | 'completed' | 'incomplete'>('all');
   const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+  // 페이지네이션 상태
+  const [page, setPage] = useState(1);
+  const [limit] = useState(50);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // 학습 프로필 목록 조회
+  // 검색어 디바운싱 (300ms)
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current);
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(searchQuery);
+      setPage(1); // 검색 시 첫 페이지로
+    }, 300);
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current);
+      }
+    };
+  }, [searchQuery]);
+
+  // 학습 프로필 목록 조회 (서버사이드 페이지네이션 + 검색)
   const fetchProfiles = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
       const token = await getAccessToken();
-      const response = await fetch(`${API_URL}/api/admin/users/learning-profiles`, {
+      // 서버사이드 페이지네이션 및 검색 파라미터
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: limit.toString(),
+      });
+      // 상태 필터
+      if (filter === 'completed') {
+        params.append('onboarding', 'completed');
+      } else if (filter === 'incomplete') {
+        params.append('onboarding', 'incomplete');
+      }
+      // 서버사이드 검색
+      if (debouncedSearch) {
+        params.append('search', debouncedSearch);
+      }
+
+      const response = await fetch(`${API_URL}/api/admin/users/learning-profiles?${params.toString()}`, {
         headers: {
           'Authorization': `Bearer ${token || ''}`,
         },
@@ -79,42 +120,40 @@ export function LearningProfilesView() {
         throw new Error(data.error || '학습 프로필 조회 실패');
       }
 
-      setProfiles(data.data || []);
+      // P2 페이지네이션 응답 구조: data.data = { profiles: [], pagination: {} }
+      const profilesArray = Array.isArray(data.data) ? data.data : (data.data?.profiles || []);
+      setProfiles(profilesArray);
+
+      // 페이지네이션 정보 업데이트
+      if (data.data?.pagination) {
+        setTotalPages(data.data.pagination.totalPages || 1);
+        setTotal(data.data.pagination.total || profilesArray.length);
+      } else {
+        setTotalPages(1);
+        setTotal(profilesArray.length);
+      }
     } catch (err: any) {
       setError(err.message || '학습 프로필을 불러오는데 실패했습니다');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, limit, filter, debouncedSearch]);
 
   useEffect(() => {
     fetchProfiles();
   }, [fetchProfiles]);
 
-  // 필터링된 프로필 목록
-  const filteredProfiles = profiles.filter(user => {
-    // 검색 필터
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      if (!user.name?.toLowerCase().includes(query) &&
-          !user.email?.toLowerCase().includes(query) &&
-          !user.profile?.targetUniversity?.toLowerCase().includes(query)) {
-        return false;
-      }
-    }
+  // 필터 또는 검색 변경 시 첫 페이지로 리셋
+  const handleFilterChange = (newFilter: 'all' | 'completed' | 'incomplete') => {
+    setFilter(newFilter);
+    setPage(1);
+  };
 
-    // 상태 필터
-    if (filter === 'completed') {
-      return user.profile?.onboardingCompleted === true;
-    }
-    if (filter === 'incomplete') {
-      return !user.profile?.onboardingCompleted;
-    }
+  // 서버사이드 필터링이므로 클라이언트 필터 제거
+  // profiles 배열을 그대로 사용
+  const filteredProfiles = profiles;
 
-    return true;
-  });
-
-  // 온보딩 완료 사용자 수
+  // 온보딩 완료 사용자 수 (현재 로드된 데이터 기준)
   const completedCount = profiles.filter(u => u.profile?.onboardingCompleted).length;
 
   // 확장 토글
@@ -170,34 +209,34 @@ export function LearningProfilesView() {
       <div className="flex gap-3 flex-wrap items-center">
         <div className="flex gap-2">
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => handleFilterChange('all')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === 'all'
                 ? 'bg-teal-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            전체 ({profiles.length})
+            전체 ({total})
           </button>
           <button
-            onClick={() => setFilter('completed')}
+            onClick={() => handleFilterChange('completed')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === 'completed'
                 ? 'bg-green-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            설정 완료 ({completedCount})
+            설정 완료
           </button>
           <button
-            onClick={() => setFilter('incomplete')}
+            onClick={() => handleFilterChange('incomplete')}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
               filter === 'incomplete'
                 ? 'bg-orange-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            미설정 ({profiles.length - completedCount})
+            미설정
           </button>
         </div>
 
@@ -229,6 +268,47 @@ export function LearningProfilesView() {
               onToggle={() => toggleExpand(user.id)}
             />
           ))}
+        </div>
+      )}
+
+      {/* 페이지네이션 UI */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-4 py-4 border-t border-gray-200 mt-4">
+          <button
+            onClick={() => setPage(p => Math.max(1, p - 1))}
+            disabled={page === 1 || loading}
+            className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            <ChevronLeft size={16} />
+            이전
+          </button>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">
+              <span className="font-semibold text-gray-800">{page}</span>
+              {' / '}
+              {totalPages} 페이지
+            </span>
+            <span className="text-xs text-gray-400">
+              (총 {total}명)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setPage(p => Math.min(totalPages, p + 1))}
+            disabled={page === totalPages || loading}
+            className="flex items-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          >
+            다음
+            <ChevronRight size={16} />
+          </button>
+        </div>
+      )}
+
+      {/* 단일 페이지일 때도 전체 수 표시 */}
+      {totalPages === 1 && total > 0 && (
+        <div className="text-center py-2 text-xs text-gray-400">
+          총 {total}명
         </div>
       )}
     </div>

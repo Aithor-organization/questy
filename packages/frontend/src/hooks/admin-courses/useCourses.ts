@@ -5,12 +5,18 @@
 
 import { useState, useCallback } from 'react';
 import { supabase, retryQuery } from '../../lib/supabase';
+import { isCacheStale, setToCache, getFromCache, invalidateCacheByPrefix } from '../../lib/cache';
 import {
   CRAWL_API_BASE,
   defaultHeaders,
   mapCourseFromSupabase,
   type Course,
 } from './types';
+
+// P3: 캐시 설정
+const COURSES_CACHE_KEY = 'courses_by_teacher_';
+const ALL_COURSES_CACHE_KEY = 'all_courses';
+const STALE_TIME = 5 * 60 * 1000; // 5분
 
 // Supabase courses 테이블 타입
 interface CourseRow {
@@ -32,11 +38,23 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 강사별 강좌 목록 조회
-  const fetchCoursesByTeacher = useCallback(async (teacher: string) => {
+  // 강사별 강좌 목록 조회 (P3: 캐시 적용)
+  const fetchCoursesByTeacher = useCallback(async (teacher: string, forceRefresh = false) => {
     if (!supabase) {
       setError('Supabase가 설정되지 않았습니다');
       return;
+    }
+
+    const cacheKey = `${COURSES_CACHE_KEY}${teacher}`;
+
+    // P3: 캐시가 fresh하고 강제 새로고침이 아니면 캐시 사용
+    if (!forceRefresh && !isCacheStale(cacheKey, STALE_TIME)) {
+      const cached = getFromCache<Course[]>(cacheKey);
+      if (cached) {
+        console.log(`[useCourses] 캐시 히트: ${teacher}`);
+        setCourses(cached);
+        return;
+      }
     }
 
     setLoading(true);
@@ -54,7 +72,11 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
 
       if (fetchError) throw fetchError;
 
-      setCourses((data || []).map(mapCourseFromSupabase));
+      const mappedCourses = (data || []).map(mapCourseFromSupabase);
+      setCourses(mappedCourses);
+
+      // P3: 캐시에 저장
+      setToCache(cacheKey, mappedCourses);
     } catch (err: any) {
       console.error('[useCourses] fetchCoursesByTeacher error:', err);
       setError(err.message || '강좌 목록 조회 실패');
@@ -63,61 +85,50 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     }
   }, []);
 
-  // 강좌 추가 (URL 크롤링)
+  // 강좌 추가 (URL 크롤링 + 백엔드 저장)
+  // P1: 데이터 무결성 개선 - 백엔드에서 저장 처리
   const addCourse = useCallback(async (url: string, teacher?: string, subject?: string) => {
-    if (!supabase) {
-      setError('Supabase가 설정되지 않았습니다');
-      return null;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      // 백엔드에서 크롤링
-      const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl`, {
+      // 백엔드에서 크롤링 + 저장 (통합 API)
+      const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl-and-save`, {
         method: 'POST',
         headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify({ url, teacher, subject }),
       });
 
       const json = await res.json();
 
       if (!json.success) {
-        setError(json.error || '강좌 정보를 가져올 수 없습니다');
+        setError(json.error || '강좌 추가 실패');
         return null;
       }
 
-      const { courseId, title, lecturer, curriculum, isCompleted, platform } = json.data;
-
-      // Supabase에 강좌 저장 (AbortError 재시도)
-      const courseData = {
-        id: courseId || `course-${Date.now()}`,
-        name: title || '제목 없음',
-        teacher_name: teacher || lecturer || '미지정',
-        subject: subject || null,
-        platform: platform || 'megastudy',
-        url,
-        lectures: curriculum || [],
-        lecture_count: curriculum?.length || 0,
-        is_completed: isCompleted || false,
-        last_crawled_at: new Date().toISOString(),
+      // 백엔드 응답을 Course 형식으로 변환
+      const savedCourse: Course = {
+        id: json.data.id,
+        name: json.data.name,
+        teacher: json.data.teacherName,
+        subject: json.data.subject,
+        platform: json.data.platform,
+        url: json.data.url,
+        lectureCount: json.data.lectureCount,
+        totalDuration: null,
+        isCompleted: json.data.isCompleted,
+        lastCrawledAt: json.data.lastCrawledAt,
+        chapters: json.data.lectures || [],
       };
 
-      const { data: savedCourse, error: upsertError } = await retryQuery<CourseRow>(() =>
-        supabase!
-          .from('courses')
-          .upsert(courseData, { onConflict: 'id' })
-          .select()
-          .single()
-      );
-
-      if (upsertError) throw upsertError;
+      // P3: 캐시 무효화 (새 강좌 추가됨)
+      invalidateCacheByPrefix(COURSES_CACHE_KEY);
+      invalidateCacheByPrefix(ALL_COURSES_CACHE_KEY);
 
       // 강사 목록 갱신
       if (onTeachersUpdate) await onTeachersUpdate();
 
-      return mapCourseFromSupabase(savedCourse);
+      return savedCourse;
     } catch (err: any) {
       console.error('[useCourses] addCourse error:', err);
       setError(err.message || '강좌 추가 실패');
@@ -127,81 +138,50 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     }
   }, [onTeachersUpdate]);
 
-  // 강좌 업데이트 (재크롤링)
+  // 강좌 업데이트 (재크롤링 + 백엔드 저장)
+  // P1: 데이터 무결성 개선 - 백엔드에서 저장 처리
   const updateCourse = useCallback(async (courseId: string) => {
-    if (!supabase) {
-      setError('Supabase가 설정되지 않았습니다');
-      return null;
-    }
-
     setLoading(true);
     setError(null);
 
     try {
-      // 기존 강좌 정보 조회 (AbortError 재시도)
-      const { data: existingCourse, error: fetchError } = await retryQuery<CourseRow>(() =>
-        supabase!
-          .from('courses')
-          .select('*')
-          .eq('id', courseId)
-          .single()
-      );
-
-      if (fetchError || !existingCourse) {
-        setError('강좌를 찾을 수 없습니다');
-        return null;
-      }
-
-      if (!existingCourse.url) {
-        setError('강좌 URL이 없어 업데이트할 수 없습니다');
-        return null;
-      }
-
-      const prevLectureCount = existingCourse.lecture_count || 0;
-
-      // 백엔드에서 재크롤링
-      const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl`, {
+      // 백엔드에서 재크롤링 + 저장 (통합 API)
+      const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl-and-update/${courseId}`, {
         method: 'POST',
         headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: existingCourse.url }),
       });
 
       const json = await res.json();
 
       if (!json.success) {
-        setError(json.error || '강좌 정보를 가져올 수 없습니다');
+        setError(json.error || '강좌 업데이트 실패');
         return null;
       }
 
-      const { curriculum, isCompleted } = json.data;
-
-      // Supabase 업데이트 (AbortError 재시도)
-      const { data: updatedCourse, error: updateError } = await retryQuery<CourseRow>(() =>
-        supabase!
-          .from('courses')
-          .update({
-            lectures: curriculum || [],
-            lecture_count: curriculum?.length || 0,
-            is_completed: isCompleted || false,
-            last_crawled_at: new Date().toISOString(),
-          })
-          .eq('id', courseId)
-          .select()
-          .single()
-      );
-
-      if (updateError) throw updateError;
-
+      // 로컬 상태 업데이트 (필요한 경우)
       setCourses((prev) =>
-        prev.map((c) => (c.id === courseId ? mapCourseFromSupabase(updatedCourse) : c))
+        prev.map((c) => {
+          if (c.id === courseId) {
+            return {
+              ...c,
+              lectureCount: json.data.lectureCount,
+              isCompleted: json.data.isCompleted,
+              lastCrawledAt: json.data.lastCrawledAt,
+            };
+          }
+          return c;
+        })
       );
 
-      const newLectureCount = curriculum?.length || 0;
+      // P3: 캐시 무효화 (강좌 업데이트됨)
+      invalidateCacheByPrefix(COURSES_CACHE_KEY);
+      invalidateCacheByPrefix(ALL_COURSES_CACHE_KEY);
+
       return {
-        prevLectureCount,
-        newLectureCount,
-        diff: newLectureCount - prevLectureCount,
-        isCompleted: isCompleted || false,
+        prevLectureCount: json.data.prevLectureCount,
+        newLectureCount: json.data.lectureCount,
+        diff: json.data.diff,
+        isCompleted: json.data.isCompleted,
       };
     } catch (err: any) {
       console.error('[useCourses] updateCourse error:', err);
@@ -257,6 +237,10 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
         prev.map((c) => (c.id === courseId ? mappedCourse : c))
       );
 
+      // P3: 캐시 무효화 (강좌 메타데이터 수정됨)
+      invalidateCacheByPrefix(COURSES_CACHE_KEY);
+      invalidateCacheByPrefix(ALL_COURSES_CACHE_KEY);
+
       if (onTeachersUpdate) await onTeachersUpdate();
 
       return mappedCourse;
@@ -269,9 +253,18 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     }
   }, [onTeachersUpdate]);
 
-  // 전체 강좌 목록 조회
-  const getAllCourses = useCallback(async () => {
+  // 전체 강좌 목록 조회 (P3: 캐시 적용)
+  const getAllCourses = useCallback(async (forceRefresh = false) => {
     if (!supabase) return [];
+
+    // P3: 캐시가 fresh하고 강제 새로고침이 아니면 캐시 사용
+    if (!forceRefresh && !isCacheStale(ALL_COURSES_CACHE_KEY, STALE_TIME)) {
+      const cached = getFromCache<Course[]>(ALL_COURSES_CACHE_KEY);
+      if (cached) {
+        console.log('[useCourses] 캐시 히트: getAllCourses');
+        return cached;
+      }
+    }
 
     try {
       // AbortError 재시도
@@ -283,7 +276,13 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       );
 
       if (fetchError) throw fetchError;
-      return (data || []).map(mapCourseFromSupabase);
+
+      const mappedCourses = (data || []).map(mapCourseFromSupabase);
+
+      // P3: 캐시에 저장
+      setToCache(ALL_COURSES_CACHE_KEY, mappedCourses);
+
+      return mappedCourses;
     } catch (err: any) {
       console.error('[useCourses] getAllCourses error:', err);
       return [];
@@ -314,6 +313,10 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       // 로컬 상태에서도 제거
       setCourses((prev) => prev.filter((c) => c.id !== courseId));
 
+      // P3: 캐시 무효화 (강좌 삭제됨)
+      invalidateCacheByPrefix(COURSES_CACHE_KEY);
+      invalidateCacheByPrefix(ALL_COURSES_CACHE_KEY);
+
       // 강사 목록 갱신 (강좌 수 변경 가능)
       if (onTeachersUpdate) await onTeachersUpdate();
 
@@ -332,6 +335,7 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
   }, []);
 
   // 여러 강좌 일괄 추가 (URL 배열)
+  // P1: 데이터 무결성 개선 - 백엔드에서 저장 처리
   const addCoursesBatch = useCallback(async (
     urls: string[],
     onProgress?: (progress: {
@@ -342,11 +346,6 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       current?: { url: string; success: boolean; name?: string; error?: string };
     }) => void
   ) => {
-    if (!supabase) {
-      setError('Supabase가 설정되지 않았습니다');
-      return { success: 0, failed: urls.length, results: [] };
-    }
-
     setLoading(true);
     setError(null);
 
@@ -363,8 +362,8 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       }
 
       try {
-        // 백엔드에서 크롤링
-        const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl`, {
+        // 백엔드에서 크롤링 + 저장 (통합 API)
+        const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl-and-save`, {
           method: 'POST',
           headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
@@ -385,42 +384,30 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
           continue;
         }
 
-        const { courseId, title, lecturer, curriculum, isCompleted, platform } = json.data;
-
-        // Supabase에 강좌 저장 (AbortError 재시도)
-        const courseData = {
-          id: courseId || `course-${Date.now()}-${i}`,
-          name: title || '제목 없음',
-          teacher_name: lecturer || '미지정',
-          subject: null,
-          platform: platform || 'megastudy',
-          url,
-          lectures: curriculum || [],
-          lecture_count: curriculum?.length || 0,
-          is_completed: isCompleted || false,
-          last_crawled_at: new Date().toISOString(),
+        // 백엔드 응답을 Course 형식으로 변환
+        const savedCourse: Course = {
+          id: json.data.id,
+          name: json.data.name,
+          teacher: json.data.teacherName,
+          subject: json.data.subject,
+          platform: json.data.platform,
+          url: json.data.url,
+          lectureCount: json.data.lectureCount,
+          totalDuration: null,
+          isCompleted: json.data.isCompleted,
+          lastCrawledAt: json.data.lastCrawledAt,
+          chapters: json.data.lectures || [],
         };
 
-        const { data: savedCourse, error: upsertError } = await retryQuery<CourseRow>(() =>
-          supabase!
-            .from('courses')
-            .upsert(courseData, { onConflict: 'id' })
-            .select()
-            .single()
-        );
-
-        if (upsertError) throw upsertError;
-
-        const mappedCourse = mapCourseFromSupabase(savedCourse);
         successCount++;
-        results.push({ url, success: true, course: mappedCourse });
+        results.push({ url, success: true, course: savedCourse });
 
         onProgress?.({
           total: urls.length,
           completed: i + 1,
           success: successCount,
           failed: failedCount,
-          current: { url, success: true, name: mappedCourse.name },
+          current: { url, success: true, name: savedCourse.name },
         });
 
       } catch (err: any) {
@@ -440,6 +427,12 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       if (i < urls.length - 1) {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
+    }
+
+    // P3: 캐시 무효화 (일괄 추가됨)
+    if (successCount > 0) {
+      invalidateCacheByPrefix(COURSES_CACHE_KEY);
+      invalidateCacheByPrefix(ALL_COURSES_CACHE_KEY);
     }
 
     // 강사 목록 갱신
