@@ -184,16 +184,16 @@ export function ManualForm({
               value={newRange}
               onChange={(e) => setNewRange(e.target.value)}
               placeholder="범위 (선택)"
-              className="flex-1 px-3 py-2 border border-[var(--paper-lines)] rounded-lg focus:ring-2 focus:ring-[var(--ink-blue)] focus:border-transparent outline-none text-sm"
+              className="flex-1 min-w-0 px-3 py-2 border border-[var(--paper-lines)] rounded-lg focus:ring-2 focus:ring-[var(--ink-blue)] focus:border-transparent outline-none text-sm"
             />
-            <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1 shrink-0">
               <input
                 type="number"
                 value={newMinutes}
                 onChange={(e) => setNewMinutes(Math.max(5, parseInt(e.target.value) || 0))}
                 min={5}
                 max={180}
-                className="w-16 px-2 py-2 border border-[var(--paper-lines)] rounded-lg focus:ring-2 focus:ring-[var(--ink-blue)] focus:border-transparent outline-none text-sm text-center"
+                className="w-14 px-1 py-2 border border-[var(--paper-lines)] rounded-lg focus:ring-2 focus:ring-[var(--ink-blue)] focus:border-transparent outline-none text-sm text-center"
               />
               <span className="text-sm text-[var(--pencil-gray)]">분</span>
             </div>

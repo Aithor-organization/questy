@@ -433,14 +433,14 @@ function CourseSelectionStep(props: {
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-          className="flex-1 px-3 py-2 border border-[var(--paper-lines)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ink-blue)]"
+          className="flex-1 min-w-0 px-3 py-2 border border-[var(--paper-lines)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--ink-blue)]"
         />
         <button
           onClick={handleSearch}
           disabled={props.isSearching}
-          className="px-4 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50"
+          className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors disabled:opacity-50 shrink-0"
         >
-          {props.isSearching ? '🔄' : '🔍'} 검색
+          {props.isSearching ? '🔄' : '🔍'}
         </button>
       </div>
 
@@ -691,10 +691,10 @@ function PreviewStep(props: {
           {props.summary.timeByType && (
             <div className="mt-3 pt-3 border-t border-blue-200">
               <div className="text-xs text-gray-600 mb-2">⏱️ 시간 분배</div>
-              <div className="flex gap-2 text-xs">
-                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded">📺 강의 {Math.round(props.summary.timeByType.lectureMinutes / 60)}시간</span>
-                <span className="bg-green-100 text-green-700 px-2 py-1 rounded">📝 복습 {Math.round(props.summary.timeByType.reviewMinutes / 60)}시간</span>
-                <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded">✏️ 문제풀이 {Math.round(props.summary.timeByType.practiceMinutes / 60)}시간</span>
+              <div className="flex gap-1.5 text-xs flex-wrap">
+                <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded whitespace-nowrap">📺 {Math.round(props.summary.timeByType.lectureMinutes / 60)}h</span>
+                <span className="bg-green-100 text-green-700 px-2 py-1 rounded whitespace-nowrap">📝 {Math.round(props.summary.timeByType.reviewMinutes / 60)}h</span>
+                <span className="bg-orange-100 text-orange-700 px-2 py-1 rounded whitespace-nowrap">✏️ {Math.round(props.summary.timeByType.practiceMinutes / 60)}h</span>
               </div>
             </div>
           )}

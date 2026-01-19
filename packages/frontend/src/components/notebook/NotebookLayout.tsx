@@ -52,7 +52,7 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
   }, [location.pathname, location.search]);
 
   return (
-    <div className="min-h-screen notebook-bg">
+    <div className="min-h-screen notebook-bg overflow-x-hidden">
       {/* 상단 탭 네비게이션 */}
       <nav className="sticky top-0 z-50 bg-[var(--paper-cream)] border-b border-[var(--paper-lines)] px-4 py-2">
         <div className="max-w-2xl mx-auto flex items-center justify-between">
@@ -137,7 +137,7 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
       />
 
       {/* 메인 콘텐츠 - 하단 네비게이션 높이만큼 패딩 추가 */}
-      <main className="max-w-2xl mx-auto px-4 py-6 pb-24">
+      <main className="max-w-2xl mx-auto px-4 py-6 pb-24 overflow-x-hidden">
         {children}
       </main>
 
