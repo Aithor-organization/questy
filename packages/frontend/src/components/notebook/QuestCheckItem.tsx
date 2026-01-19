@@ -285,6 +285,15 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
         </div>
       )}
 
+      {/* 문제풀이 퀘스트: 접힌 상태에서 완료 시간 표시 */}
+      {!isExpanded && quest.completed && isPracticeQuest(quest) && quest.timerRecord?.completed && (
+        <div className="flex items-center gap-2 mt-2 ml-9">
+          <span className="text-xs text-[var(--sticker-mint)] font-medium">
+            ✓ {formatDuration(quest.timerRecord.elapsedSeconds)} 완료
+          </span>
+        </div>
+      )}
+
       {/* 상세/접기 토글 */}
       {hasDetails && (
         <div className="flex justify-center mt-2">
