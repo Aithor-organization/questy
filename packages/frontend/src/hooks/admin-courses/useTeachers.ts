@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, retryQuery } from '../../lib/supabase';
 import type { Teacher } from './types';
 
 export function useTeachers() {
@@ -23,9 +23,12 @@ export function useTeachers() {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('courses')
-        .select('teacher_name, platform, subject');
+      // AbortError 재시도
+      const { data, error: fetchError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .select('teacher_name, platform, subject')
+      );
 
       if (fetchError) throw fetchError;
 
@@ -89,13 +92,16 @@ export function useTeachers() {
     setError(null);
 
     try {
-      const { error: insertError } = await supabase
-        .from('teachers')
-        .upsert({
-          name,
-          platform: platform || 'megastudy',
-          subjects: subject ? [subject] : [],
-        }, { onConflict: 'name,platform' });
+      // AbortError 재시도
+      const { error: insertError } = await retryQuery(() =>
+        supabase
+          .from('teachers')
+          .upsert({
+            name,
+            platform: platform || 'megastudy',
+            subjects: subject ? [subject] : [],
+          }, { onConflict: 'name,platform' })
+      );
 
       if (insertError) throw insertError;
 
@@ -129,10 +135,13 @@ export function useTeachers() {
       if (newData.subject !== undefined) updateFields.subject = newData.subject;
       if (newData.platform) updateFields.platform = newData.platform;
 
-      const { error: updateError } = await supabase
-        .from('courses')
-        .update(updateFields)
-        .eq('teacher_name', oldName);
+      // AbortError 재시도
+      const { error: updateError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .update(updateFields)
+          .eq('teacher_name', oldName)
+      );
 
       if (updateError) throw updateError;
 

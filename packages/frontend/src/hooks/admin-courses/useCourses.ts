@@ -4,7 +4,7 @@
  */
 
 import { useState, useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, retryQuery } from '../../lib/supabase';
 import {
   CRAWL_API_BASE,
   defaultHeaders,
@@ -28,11 +28,14 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     setError(null);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('teacher_name', teacher)
-        .order('created_at', { ascending: false });
+      // AbortError 발생 시 자동 재시도
+      const { data, error: fetchError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .select('*')
+          .eq('teacher_name', teacher)
+          .order('created_at', { ascending: false })
+      );
 
       if (fetchError) throw fetchError;
 
@@ -72,7 +75,7 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
 
       const { courseId, title, lecturer, curriculum, isCompleted, platform } = json.data;
 
-      // Supabase에 강좌 저장
+      // Supabase에 강좌 저장 (AbortError 재시도)
       const courseData = {
         id: courseId || `course-${Date.now()}`,
         name: title || '제목 없음',
@@ -86,11 +89,13 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
         last_crawled_at: new Date().toISOString(),
       };
 
-      const { data: savedCourse, error: upsertError } = await supabase
-        .from('courses')
-        .upsert(courseData, { onConflict: 'id' })
-        .select()
-        .single();
+      const { data: savedCourse, error: upsertError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .upsert(courseData, { onConflict: 'id' })
+          .select()
+          .single()
+      );
 
       if (upsertError) throw upsertError;
 
@@ -118,12 +123,14 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     setError(null);
 
     try {
-      // 기존 강좌 정보 조회
-      const { data: existingCourse, error: fetchError } = await supabase
-        .from('courses')
-        .select('*')
-        .eq('id', courseId)
-        .single();
+      // 기존 강좌 정보 조회 (AbortError 재시도)
+      const { data: existingCourse, error: fetchError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .select('*')
+          .eq('id', courseId)
+          .single()
+      );
 
       if (fetchError || !existingCourse) {
         setError('강좌를 찾을 수 없습니다');
@@ -153,18 +160,20 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
 
       const { curriculum, isCompleted } = json.data;
 
-      // Supabase 업데이트
-      const { data: updatedCourse, error: updateError } = await supabase
-        .from('courses')
-        .update({
-          lectures: curriculum || [],
-          lecture_count: curriculum?.length || 0,
-          is_completed: isCompleted || false,
-          last_crawled_at: new Date().toISOString(),
-        })
-        .eq('id', courseId)
-        .select()
-        .single();
+      // Supabase 업데이트 (AbortError 재시도)
+      const { data: updatedCourse, error: updateError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .update({
+            lectures: curriculum || [],
+            lecture_count: curriculum?.length || 0,
+            is_completed: isCompleted || false,
+            last_crawled_at: new Date().toISOString(),
+          })
+          .eq('id', courseId)
+          .select()
+          .single()
+      );
 
       if (updateError) throw updateError;
 
@@ -215,12 +224,15 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       if (data.platform !== undefined) updateFields.platform = data.platform;
       if (data.isCompleted !== undefined) updateFields.is_completed = data.isCompleted;
 
-      const { data: updatedCourse, error: updateError } = await supabase
-        .from('courses')
-        .update(updateFields)
-        .eq('id', courseId)
-        .select()
-        .single();
+      // AbortError 재시도
+      const { data: updatedCourse, error: updateError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .update(updateFields)
+          .eq('id', courseId)
+          .select()
+          .single()
+      );
 
       if (updateError) throw updateError;
 
@@ -247,10 +259,13 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     if (!supabase) return [];
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from('courses')
-        .select('*')
-        .order('teacher_name');
+      // AbortError 재시도
+      const { data, error: fetchError } = await retryQuery(() =>
+        supabase
+          .from('courses')
+          .select('*')
+          .order('teacher_name')
+      );
 
       if (fetchError) throw fetchError;
       return (data || []).map(mapCourseFromSupabase);
@@ -320,7 +335,7 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
 
         const { courseId, title, lecturer, curriculum, isCompleted, platform } = json.data;
 
-        // Supabase에 강좌 저장
+        // Supabase에 강좌 저장 (AbortError 재시도)
         const courseData = {
           id: courseId || `course-${Date.now()}-${i}`,
           name: title || '제목 없음',
@@ -334,11 +349,13 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
           last_crawled_at: new Date().toISOString(),
         };
 
-        const { data: savedCourse, error: upsertError } = await supabase
-          .from('courses')
-          .upsert(courseData, { onConflict: 'id' })
-          .select()
-          .single();
+        const { data: savedCourse, error: upsertError } = await retryQuery(() =>
+          supabase
+            .from('courses')
+            .upsert(courseData, { onConflict: 'id' })
+            .select()
+            .single()
+        );
 
         if (upsertError) throw upsertError;
 
