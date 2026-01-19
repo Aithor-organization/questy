@@ -88,16 +88,6 @@ function isPracticeQuest(quest: QuestWithPlan): boolean {
   return false;
 }
 
-// 시간을 "오후 3:30" 형식으로 포맷
-function formatTimeKorean(dateStr: string): string {
-  const date = new Date(dateStr);
-  const hours = date.getHours();
-  const minutes = date.getMinutes();
-  const period = hours >= 12 ? '오후' : '오전';
-  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
-  return `${period} ${displayHours}:${minutes.toString().padStart(2, '0')}`;
-}
-
 export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItemProps) {
   const navigate = useNavigate();
   const [isAnimating, setIsAnimating] = useState(false);
@@ -258,10 +248,17 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
           </span>
         )}
 
-        {/* 완료 뱃지 */}
+        {/* 완료 뱃지 + 타이머 시간 */}
         {quest.completed && (
-          <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--sticker-mint)] text-white">
-            완료
+          <span className="flex-shrink-0 flex items-center gap-1.5">
+            {quest.timerRecord?.completed && (
+              <span className="text-xs text-[var(--sticker-mint)] font-medium">
+                {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분
+              </span>
+            )}
+            <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--sticker-mint)] text-white">
+              완료
+            </span>
           </span>
         )}
       </div>
@@ -463,11 +460,6 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
               <span>✓</span>
               <span>
                 {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 학습 완료
-                {quest.timerRecord.endedAt && (
-                  <span className="text-[var(--pencil-gray)] ml-1">
-                    ({formatTimeKorean(quest.timerRecord.endedAt)})
-                  </span>
-                )}
               </span>
             </div>
           )}
