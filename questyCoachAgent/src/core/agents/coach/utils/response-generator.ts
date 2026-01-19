@@ -161,20 +161,46 @@ function buildQuestContext(questContext?: {
     planName?: string;
     completed?: boolean;
   }>;
+  activePlans?: Array<{
+    id: string;
+    title: string;
+    totalDays: number;
+    completedDays: number;
+    startDate: string;
+    targetEndDate: string;
+    status: 'ACTIVE' | 'COMPLETED' | 'PAUSED';
+    dailyQuests?: Array<{
+      day: number;
+      date: string;
+      unitTitle: string;
+      range?: string;
+      completed: boolean;
+      estimatedMinutes?: number;
+    }>;
+  }>;
+  weeklyStats?: {
+    totalQuests: number;
+    completedQuests: number;
+    completionRate: number;
+    streakDays: number;
+    averageMinutesPerDay: number;
+  };
   plansCount?: number;
   completedToday?: number;
   totalToday?: number;
 }): string {
   if (!questContext) return '';
 
-  const { todayQuests, plansCount, completedToday, totalToday } = questContext;
+  const { todayQuests, activePlans, weeklyStats, plansCount, completedToday, totalToday } = questContext;
+  const parts: string[] = [];
 
+  // 오늘의 퀘스트 현황
   if (todayQuests && todayQuests.length > 0) {
     const questList = todayQuests.map((q, i) =>
       `${i + 1}. [${q.completed ? '완료' : '진행중'}] ${q.unitTitle} (${q.estimatedMinutes}분) - ${q.planName}`
     ).join('\n');
 
-    return `
+    parts.push(`
 ## 오늘의 학습 현황 (매우 중요)
 - 진행률: ${completedToday}/${totalToday} 완료
 - 총 플랜: ${plansCount}개
@@ -182,19 +208,42 @@ function buildQuestContext(questContext?: {
 ${questList}
 
 학생이 "오늘 뭐 공부해?"라고 묻거나 학습 계획을 물어보면 **위의 퀘스트 목록을 기반으로** 구체적으로 안내하세요.
-이미 완료한 것은 칭찬하고, 남은 퀘스트는 격려하며 시작하도록 유도하세요.`;
-  }
-
-  if (plansCount && plansCount > 0) {
-    return `
+이미 완료한 것은 칭찬하고, 남은 퀘스트는 격려하며 시작하도록 유도하세요.`);
+  } else if (plansCount && plansCount > 0) {
+    parts.push(`
 ## 오늘의 학습 현황
 - 오늘은 예정된 퀘스트가 없습니다.
-- 밀린 공부가 있거나 휴식일일 수 있습니다. 학생에게 확인해보세요.`;
+- 밀린 공부가 있거나 휴식일일 수 있습니다. 학생에게 확인해보세요.`);
+  } else {
+    parts.push(`
+## 오늘의 학습 현황
+- 아직 생성된 플랜이 없습니다. 플랜 생성을 제안하세요.`);
   }
 
-  return `
-## 오늘의 학습 현황
-- 아직 생성된 플랜이 없습니다. 플랜 생성을 제안하세요.`;
+  // 활성 플랜 정보 (진도 조회용)
+  if (activePlans && activePlans.length > 0) {
+    const planList = activePlans.map(p => {
+      const progressPercent = p.totalDays > 0 ? Math.round((p.completedDays / p.totalDays) * 100) : 0;
+      return `- 📚 ${p.title}: ${p.completedDays}/${p.totalDays}일 완료 (${progressPercent}%) [${p.startDate} ~ ${p.targetEndDate}]`;
+    }).join('\n');
+
+    parts.push(`
+## 학생의 활성 플랜 (진도 조회 시 참고)
+${planList}
+
+학생이 "내 진도 어때?", "플랜 진행 상황", "얼마나 했어?" 등을 물어보면 **위의 활성 플랜 정보를 기반으로** 구체적인 진도와 격려 메시지를 제공하세요.`);
+  }
+
+  // 주간 통계 (진도 조회용)
+  if (weeklyStats) {
+    parts.push(`
+## 이번 주 학습 통계
+- 이번 주 완료율: ${weeklyStats.completionRate}% (${weeklyStats.completedQuests}/${weeklyStats.totalQuests})
+- 연속 학습: ${weeklyStats.streakDays}일 🔥
+- 평균 일일 학습시간: ${weeklyStats.averageMinutesPerDay}분`);
+  }
+
+  return parts.join('\n');
 }
 
 /**

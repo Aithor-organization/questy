@@ -130,13 +130,16 @@ export function ChatRoomPage() {
     initializeRoom();
   }, [targetRoomId, isChatStoreInitialized, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
 
-  // 첫 진입 시 스크롤: useLayoutEffect로 paint 전에 실행
+  // 첫 진입 시 스크롤: 메시지 로드 완료 후 맨 아래로 스크롤
   useLayoutEffect(() => {
-    if (isFirstScrollRef.current && messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: 'instant' });
-      isFirstScrollRef.current = false;
+    if (isFirstScrollRef.current && messagesEndRef.current && room?.messages && room.messages.length > 0) {
+      // requestAnimationFrame으로 DOM 렌더링 완료 후 스크롤
+      requestAnimationFrame(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
+        isFirstScrollRef.current = false;
+      });
     }
-  }, [room?.messages]);
+  }, [room?.messages, room?.messages?.length]);
 
   // 이후 메시지 추가 시: 부드럽게 스크롤
   useEffect(() => {
