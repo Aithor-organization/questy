@@ -21,6 +21,12 @@ interface FormData {
   startDate?: string; // ISO date string (YYYY-MM-DD)
 }
 
+/**
+ * API 응답용 DailyQuest 타입
+ * Note: @questybook/shared의 DailyQuest와 구조가 다름
+ * - 이 타입은 백엔드 API 응답 파싱용
+ * - questStore.ts의 DailyQuest는 클라이언트 상태 관리용으로 더 많은 필드 포함
+ */
 export interface DailyQuest {
   id?: string;        // 고유 식별자 (백엔드에서 제공되지 않을 수 있음)
   day: number;

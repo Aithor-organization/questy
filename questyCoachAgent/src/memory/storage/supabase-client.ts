@@ -17,7 +17,7 @@ export interface SupabaseStorageConfig {
 
 const DEFAULT_CONFIG: Required<SupabaseStorageConfig> = {
   supabaseUrl: process.env.SUPABASE_URL || '',
-  supabaseKey: process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY || '',
+  supabaseKey: process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '',
   embeddingApiKey: process.env.OPENAI_API_KEY || '',
 };
 

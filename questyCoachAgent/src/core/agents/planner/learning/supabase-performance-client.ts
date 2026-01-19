@@ -44,7 +44,7 @@ async function initSupabase(): Promise<boolean> {
   if (supabase) return !useFallback;
 
   const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_ANON_KEY;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY;
 
   if (!url || !key) {
     console.warn('[SupabasePerformanceClient] Supabase 설정 없음, 인메모리 폴백 사용');

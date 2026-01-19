@@ -3,30 +3,12 @@
  * 문제집 목차 및 학습계획표 추출
  */
 
-export interface Yes24Book {
-  productId: string;
-  title: string;
-  author: string;
-  publisher: string;
-  previewUrl: string;
-  thumbnailUrl: string;
-  // 교재 메타데이터 (수능 학습용)
-  metadata?: BookMetadata;
-}
+import type { Yes24Book, BookMetadata, PreviewImage } from '@questybook/shared';
 
-// 수능 학습에 유용한 교재 메타데이터
-export interface BookMetadata {
-  subject?: string;       // 과목: 수학, 국어, 영어, 과학탐구 등
-  targetGrade?: string;   // 대상: 고1, 고2, 고3, N수생, 전학년
-  bookType?: string;      // 유형: 개념서, 유형서, 기출문제집, 모의고사
-  category?: string;      // Yes24 카테고리
-  description?: string;   // 간략 설명 (100자 이내)
-}
-
-export interface PreviewPage {
-  pageNumber: number;
-  imageUrl: string;
-}
+// shared 패키지에서 타입 가져옴 - 중복 정의 제거
+// 기존 코드와의 호환성을 위해 re-export
+export type { Yes24Book, BookMetadata };
+export type PreviewPage = PreviewImage;
 
 // Yes24 검색 결과 파싱
 export async function searchBooks(query: string): Promise<Yes24Book[]> {

@@ -32,6 +32,12 @@ interface ActiveTimer {
   elapsedBeforePause: number;     // 일시정지 전 누적 시간 (초)
 }
 
+/**
+ * 클라이언트 상태 관리용 DailyQuest 타입
+ * Note: @questybook/shared의 DailyQuest와 구조가 다름
+ * - 이 타입은 프론트엔드 상태 관리 전용
+ * - timerRecord, practiceNote, isPractice 등 클라이언트 전용 필드 포함
+ */
 export interface DailyQuest {
   id: string;  // 고유 식별자
   day: number;

@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
+import { BookMetadataSchema } from '@questybook/shared';
 import { analyzeTableOfContents, DetectedStudyPlan, AnalyzedUnit } from '../lib/image-analyzer';
 import { generateDualPlans, generateQuestsWithAI, AIGeneratedQuest } from '../lib/ai-quest-generator';
 import { reviewPlanWithAI } from '../lib/ai-plan-reviewer';
@@ -12,14 +13,7 @@ const ImageSchema = z.object({
   type: z.enum(['jpg', 'png']),
 });
 
-// 교재 메타데이터 스키마 (수능 학습용)
-const BookMetadataSchema = z.object({
-  subject: z.string().optional(), // 과목: 수학, 국어, 영어 등
-  targetGrade: z.string().optional(), // 대상: 고1, 고2, 고3, N수생
-  bookType: z.string().optional(), // 유형: 개념서, 유형서, 기출문제집
-  category: z.string().optional(), // Yes24 카테고리
-  description: z.string().optional(), // 간략 설명
-});
+// BookMetadataSchema는 @questybook/shared에서 import
 
 const GenerateRequestSchema = z.object({
   materialName: z.string().min(1, '교재 이름을 입력해주세요').max(100),

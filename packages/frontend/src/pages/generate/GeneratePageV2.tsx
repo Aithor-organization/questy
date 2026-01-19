@@ -210,20 +210,22 @@ function NewPlanContent() {
               </div>
             )}
 
-            {/* 남은 생성 횟수 표시 */}
-            <div className={`text-center text-sm mb-3 ${
-              remainingGenerations === 0 ? 'text-red-500 font-medium' : 'text-gray-500'
-            }`}>
-              {remainingGenerations === 0 ? (
-                '🚫 오늘의 플랜 생성 횟수를 모두 사용했습니다'
-              ) : (
-                `✨ 오늘 남은 생성 횟수: ${remainingGenerations}회`
-              )}
-            </div>
+            {/* 남은 생성 횟수 표시 (직접 만들기 모드에서는 숨김) */}
+            {inputMode !== 'manual' && (
+              <div className={`text-center text-sm mb-3 ${
+                remainingGenerations === 0 ? 'text-red-500 font-medium' : 'text-gray-500'
+              }`}>
+                {remainingGenerations === 0 ? (
+                  '🚫 오늘의 플랜 생성 횟수를 모두 사용했습니다'
+                ) : (
+                  `✨ 오늘 남은 생성 횟수: ${remainingGenerations}회`
+                )}
+              </div>
+            )}
 
-            {/* 생성 버튼 */}
+            {/* 생성 버튼 (직접 만들기 모드는 생성 횟수 제한 없음) */}
             <GenerateButton
-              canGenerate={canGenerate && remainingGenerations > 0}
+              canGenerate={canGenerate && (inputMode === 'manual' || remainingGenerations > 0)}
               isLoading={isLoading || analyzingBook}
               onGenerate={onGenerate}
             />
