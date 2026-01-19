@@ -165,11 +165,13 @@ export class MimacParser {
 
       for (const item of crclmList) {
         if (item.mvptName) {
+          // HTML 태그 제거 (예: <font color=red><b>[Part 01]</font></b> → [Part 01])
+          const cleanName = this.stripHtmlTags(item.mvptName);
           // 시간 정보가 있으면 포함
           const duration = item.lctrTime ? this.formatDuration(item.lctrTime) : '';
           const formattedLecture = duration
-            ? `${item.crclmNo}. ${item.mvptName} (${duration})`
-            : `${item.crclmNo}. ${item.mvptName}`;
+            ? `${item.crclmNo}. ${cleanName} (${duration})`
+            : `${item.crclmNo}. ${cleanName}`;
           curriculum.push(formattedLecture);
         }
       }
@@ -195,6 +197,21 @@ export class MimacParser {
       return mins > 0 ? `${hours}시간 ${mins}분` : `${hours}시간`;
     }
     return `${minutes}분`;
+  }
+
+  /**
+   * HTML 태그 제거
+   * 예: <font color=red><b>[Part 01]</font></b> → [Part 01]
+   */
+  private static stripHtmlTags(text: string): string {
+    return text
+      .replace(/<[^>]+>/g, '')  // HTML 태그 제거
+      .replace(/&nbsp;/g, ' ')  // &nbsp; → 공백
+      .replace(/&amp;/g, '&')   // &amp; → &
+      .replace(/&lt;/g, '<')    // &lt; → <
+      .replace(/&gt;/g, '>')    // &gt; → >
+      .replace(/\s+/g, ' ')     // 연속 공백 → 단일 공백
+      .trim();
   }
 
   // URL 정규화
