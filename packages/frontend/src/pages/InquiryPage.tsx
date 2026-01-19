@@ -39,16 +39,8 @@ export function InquiryPage() {
       setError('제목을 입력해주세요');
       return;
     }
-    if (title.trim().length < 5) {
-      setError('제목은 최소 5자 이상 입력해주세요');
-      return;
-    }
     if (!content.trim()) {
       setError('내용을 입력해주세요');
-      return;
-    }
-    if (content.trim().length < 10) {
-      setError('내용은 최소 10자 이상 입력해주세요');
       return;
     }
 

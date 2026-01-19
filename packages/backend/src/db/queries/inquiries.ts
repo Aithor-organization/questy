@@ -81,6 +81,9 @@ function mapInquiry(row: any): schema.Inquiry {
   return {
     id: row.id,
     userId: row.user_id,
+    userEmail: row.user_email,
+    userName: row.user_name,
+    category: row.category,
     title: row.title,
     content: row.content,
     status: row.status,
@@ -159,6 +162,9 @@ export async function createInquiryAsync(data: schema.NewInquiry): Promise<schem
   const insertData = {
     id: data.id,
     user_id: data.userId,
+    user_email: data.userEmail,
+    user_name: data.userName,
+    category: data.category,
     title: data.title,
     content: data.content,
     status: data.status || 'pending',

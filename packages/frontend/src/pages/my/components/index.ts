@@ -7,3 +7,4 @@ export { EditLearningModal } from './EditLearningModal';
 export { UserInfoCard } from './UserInfoCard';
 export { LearningProfileCard } from './LearningProfileCard';
 export { MembershipCard } from './MembershipCard';
+export { MyInquiriesCard } from './MyInquiriesCard';

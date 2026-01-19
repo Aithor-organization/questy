@@ -95,21 +95,42 @@ adminUsersRoutes.get('/users', async (c) => {
       return c.json({ success: false, error: '사용자 목록 조회 실패' }, 500);
     }
 
-    // auth.users에서 이메일과 이름 조회 (Admin API 사용)
+    // auth.users에서 이메일과 이름 일괄 조회 (N+1 문제 해결)
     const userIds = memberships?.map(m => m.user_id) || [];
     const userInfo: Record<string, { email: string; name: string }> = {};
 
-    for (const userId of userIds) {
-      try {
-        const { data: userData } = await supabase.auth.admin.getUserById(userId);
-        if (userData?.user) {
-          const email = userData.user.email || '';
-          const name = userData.user.user_metadata?.name || email.split('@')[0] || '이름 없음';
-          userInfo[userId] = { email, name };
+    // listUsers로 일괄 조회 (페이지네이션으로 모든 사용자 가져오기)
+    try {
+      let page = 1;
+      const perPage = 1000; // 최대 1000명씩 조회
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: listData, error: listError } = await supabase.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+
+        if (listError || !listData?.users) {
+          console.warn('[AdminUsers] listUsers error:', listError?.message);
+          break;
         }
-      } catch (e) {
-        // 개별 사용자 조회 실패는 무시
+
+        // 조회된 사용자 중 필요한 것만 매핑
+        for (const authUser of listData.users) {
+          if (userIds.includes(authUser.id)) {
+            const email = authUser.email || '';
+            const name = authUser.user_metadata?.name || email.split('@')[0] || '이름 없음';
+            userInfo[authUser.id] = { email, name };
+          }
+        }
+
+        // 다음 페이지 확인
+        hasMore = listData.users.length === perPage;
+        page++;
       }
+    } catch (e) {
+      console.warn('[AdminUsers] Batch user fetch failed:', e);
     }
 
     // 데이터 병합

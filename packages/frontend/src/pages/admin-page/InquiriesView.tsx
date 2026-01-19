@@ -256,22 +256,38 @@ function InquiryCard({
             <p className="text-sm text-gray-800 whitespace-pre-wrap">{inquiry.content}</p>
           </div>
 
-          {/* 관리자 메모 */}
+          {/* 답변 작성 */}
           <div className="mb-3">
-            <label className="block text-xs font-medium text-gray-600 mb-1">
-              관리자 메모
+            <label className="block text-xs font-medium text-green-600 mb-1 flex items-center gap-1">
+              <MessageSquare size={12} />
+              답변 작성 (사용자에게 표시됨)
             </label>
             <textarea
               value={adminNote}
               onChange={(e) => setAdminNote(e.target.value)}
-              placeholder="처리 내용이나 메모를 입력하세요"
-              rows={2}
-              className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:border-blue-400 resize-none"
+              placeholder="사용자에게 보여질 답변을 작성하세요"
+              rows={3}
+              className="w-full px-3 py-2 border border-green-300 rounded-lg text-sm focus:outline-none focus:border-green-500 resize-none bg-green-50"
             />
+            {inquiry.adminNote && adminNote !== inquiry.adminNote && (
+              <p className="text-xs text-orange-600 mt-1">* 답변이 수정되었습니다</p>
+            )}
           </div>
 
           {/* 상태 변경 버튼 */}
           <div className="flex flex-wrap gap-2">
+            {/* 답변 저장 버튼 (답변 내용이 있을 때) */}
+            {adminNote && adminNote.trim() && (
+              <button
+                onClick={() => onUpdateStatus(inquiry.id, 'resolved', adminNote)}
+                disabled={updating}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 disabled:opacity-50 flex items-center gap-1.5 shadow-sm"
+              >
+                {updating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
+                답변 저장 및 완료
+              </button>
+            )}
+
             {inquiry.status === 'pending' && (
               <button
                 onClick={() => onUpdateStatus(inquiry.id, 'in_progress', adminNote)}
@@ -279,37 +295,29 @@ function InquiryCard({
                 className="px-3 py-1.5 bg-blue-500 text-white rounded text-sm font-medium hover:bg-blue-600 disabled:opacity-50 flex items-center gap-1"
               >
                 {updating ? <Loader2 size={14} className="animate-spin" /> : <AlertCircle size={14} />}
-                처리 시작
+                처리 중으로 변경
               </button>
             )}
-            {(inquiry.status === 'pending' || inquiry.status === 'in_progress') && (
-              <button
-                onClick={() => onUpdateStatus(inquiry.id, 'resolved', adminNote)}
-                disabled={updating}
-                className="px-3 py-1.5 bg-green-500 text-white rounded text-sm font-medium hover:bg-green-600 disabled:opacity-50 flex items-center gap-1"
-              >
-                {updating ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle size={14} />}
-                해결 완료
-              </button>
-            )}
-            {inquiry.status !== 'closed' && (
+
+            {inquiry.status !== 'closed' && inquiry.status !== 'resolved' && (
               <button
                 onClick={() => onUpdateStatus(inquiry.id, 'closed', adminNote)}
                 disabled={updating}
                 className="px-3 py-1.5 bg-gray-500 text-white rounded text-sm font-medium hover:bg-gray-600 disabled:opacity-50 flex items-center gap-1"
               >
                 {updating ? <Loader2 size={14} className="animate-spin" /> : <XCircle size={14} />}
-                종료
+                답변 없이 종료
               </button>
             )}
-            {inquiry.status !== 'pending' && (
+
+            {(inquiry.status === 'resolved' || inquiry.status === 'closed') && (
               <button
                 onClick={() => onUpdateStatus(inquiry.id, 'pending', adminNote)}
                 disabled={updating}
                 className="px-3 py-1.5 bg-yellow-500 text-white rounded text-sm font-medium hover:bg-yellow-600 disabled:opacity-50 flex items-center gap-1"
               >
                 {updating ? <Loader2 size={14} className="animate-spin" /> : <Clock size={14} />}
-                대기로 변경
+                다시 열기
               </button>
             )}
           </div>

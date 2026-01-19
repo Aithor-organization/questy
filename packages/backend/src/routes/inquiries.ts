@@ -9,11 +9,13 @@ import { Hono } from 'hono';
 import {
   getAllInquiries,
   getInquiry,
+  getUserInquiries,
   createInquiry,
   updateInquiryStatus,
   deleteInquiry,
   getAllInquiriesAsync,
   getInquiryAsync,
+  getUserInquiriesAsync,
   createInquiryAsync,
   updateInquiryStatusAsync,
   deleteInquiryAsync,
@@ -36,6 +38,33 @@ inquiryRoutes.get('/', async (c) => {
     return c.json({ success: true, data: inquiries });
   } catch (error) {
     console.error('[Inquiries] Get all error:', error);
+    return c.json({ success: false, error: '문의 목록 조회 실패' }, 500);
+  }
+});
+
+// 사용자별 문의 조회 (본인 문의 목록)
+inquiryRoutes.get('/user/:email', async (c) => {
+  try {
+    const email = decodeURIComponent(c.req.param('email'));
+
+    if (!email) {
+      return c.json({ success: false, error: '이메일이 필요합니다' }, 400);
+    }
+
+    // 이메일로 문의 조회 (userId가 없을 수 있으므로 이메일로 조회)
+    const allInquiries = useSupabase
+      ? await getAllInquiriesAsync()
+      : getAllInquiries();
+
+    // 이메일로 필터링
+    const userInquiries = allInquiries.filter(
+      (inq: { userEmail: string }) => inq.userEmail === email
+    );
+
+    console.log(`[Inquiries] User inquiries for ${email}: ${userInquiries.length}`);
+    return c.json({ success: true, data: userInquiries });
+  } catch (error) {
+    console.error('[Inquiries] Get user inquiries error:', error);
     return c.json({ success: false, error: '문의 목록 조회 실패' }, 500);
   }
 });
@@ -68,14 +97,6 @@ inquiryRoutes.post('/', async (c) => {
     // 유효성 검사
     if (!userEmail || !userName || !category || !title || !content) {
       return c.json({ success: false, error: '필수 필드가 누락되었습니다' }, 400);
-    }
-
-    if (title.length < 5) {
-      return c.json({ success: false, error: '제목은 최소 5자 이상이어야 합니다' }, 400);
-    }
-
-    if (content.length < 10) {
-      return c.json({ success: false, error: '내용은 최소 10자 이상이어야 합니다' }, 400);
     }
 
     const inquiryData = {

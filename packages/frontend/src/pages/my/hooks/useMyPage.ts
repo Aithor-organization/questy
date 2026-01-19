@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../../../stores/authStore';
 import { supabase } from '../../../lib/supabase';
 import type { ProfileData } from '../types';
+import type { PostgrestError } from '@supabase/supabase-js';
 
 export function useMyPage() {
   const navigate = useNavigate();
@@ -39,7 +40,7 @@ export function useMyPage() {
     }
   }, [userProfile]);
 
-  // 프로필 데이터 로드 (authStore에 없을 때만 Supabase에서 가져옴)
+  // 프로필 데이터 로드 (authStore 단일 소스 사용 - 이중 조회 제거)
   useEffect(() => {
     async function loadProfile() {
       // 이미 authStore에 프로필이 있으면 스킵
@@ -49,51 +50,30 @@ export function useMyPage() {
         return;
       }
 
-      if (!user || !supabase) {
+      if (!user) {
         setIsLoadingProfile(false);
         return;
       }
 
       try {
-        // authStore의 loadUserProfile 사용 (persist됨)
+        // authStore의 loadUserProfile만 사용 (단일 소스)
+        // loadUserProfile이 내부적으로 Supabase 조회 및 persist 처리
         const loadedProfile = await loadUserProfile();
         if (loadedProfile) {
           setProfile(loadedProfile);
         } else {
-          // Supabase에서 직접 가져오기 (폴백)
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
-
-          if (error) {
-            setProfile(null);
-          } else if (data) {
-            const profileData: ProfileData = {
-              age: data.age,
-              examYear: data.exam_year || 0,
-              targetUniversity: data.target_university || '',
-              targetGrades: data.target_grades || {},
-              currentGrades: data.current_grades || {},
-              selectedTamgu1: data.selected_tamgu1 || '',
-              selectedTamgu2: data.selected_tamgu2 || '',
-              subscribedPlatforms: data.subscribed_platforms || [],
-              dailyStudyHours: data.daily_study_hours || 8,
-            };
-            setProfile(profileData);
-            // authStore에도 저장 (persist)
-            setUserProfile(profileData);
-          }
+          // 프로필 없음 (온보딩 미완료 사용자)
+          setProfile(null);
         }
       } catch (err) {
         console.error('[MyPage] Profile load error:', err);
+        setProfile(null);
       } finally {
         setIsLoadingProfile(false);
       }
     }
     loadProfile();
-  }, [user, userProfile, loadUserProfile, setUserProfile]);
+  }, [user, userProfile, loadUserProfile]);
 
   const handleLogout = () => {
     logout();
@@ -181,17 +161,16 @@ export function useMyPage() {
     setIsSavingProfile(true);
 
     try {
+      // 세션 체크
       const { data: sessionData } = await supabase.auth.getSession();
       if (!sessionData?.session) {
         setProfileError('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+        setIsSavingProfile(false);  // UI 버그 수정: 세션 만료 시에도 상태 리셋
         return;
       }
 
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('요청 시간 초과 (10초)')), 10000);
-      });
-
-      const upsertPromise = supabase
+      // Supabase upsert 실행 (타임아웃 제거 - Promise.race 메모리 누수 방지)
+      const { error } = await supabase
         .from('user_profiles')
         .upsert({
           id: user.id,
@@ -209,10 +188,14 @@ export function useMyPage() {
         })
         .select();
 
-      const { error } = await Promise.race([upsertPromise, timeoutPromise]);
-
       if (error) {
-        setProfileError(`저장에 실패했습니다: ${error.message}`);
+        // 에러 타입별 처리
+        const pgError = error as PostgrestError;
+        if (pgError.code === 'PGRST301') {
+          setProfileError('로그인 세션이 만료되었습니다. 다시 로그인해주세요.');
+        } else {
+          setProfileError(`저장에 실패했습니다: ${error.message}`);
+        }
         return;
       }
 

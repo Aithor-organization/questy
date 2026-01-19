@@ -6,6 +6,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { supabase } from '../lib/supabase';
+import { clearStudentIdCache } from '../lib/chat-api';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
 // 사용자 인터페이스
@@ -89,6 +90,9 @@ const AUTH_TIMEOUT = 3000;
 // 백그라운드 세션 검증 상태
 let isVerifyingSession = false;
 
+// 리스너 등록 상태 (중복 등록 방지)
+let isListenerRegistered = false;
+
 // 타입 정의
 type SetState = (partial: Partial<AuthStore> | ((state: AuthStore) => Partial<AuthStore>)) => void;
 type GetState = () => AuthStore;
@@ -156,9 +160,17 @@ async function fetchStudentIdInBackground(userId: string, set: SetState, get: Ge
   }
 }
 
-// 인증 상태 변경 리스너 설정
+// 인증 상태 변경 리스너 설정 (중복 등록 방지)
 function setupAuthStateListener(set: SetState): void {
   if (!supabase) return;
+
+  // 이미 리스너가 등록되어 있으면 중복 등록 방지
+  if (isListenerRegistered) {
+    console.log('[Auth] Listener already registered, skipping');
+    return;
+  }
+  isListenerRegistered = true;
+  console.log('[Auth] Setting up auth state listener');
 
   const client = supabase; // TypeScript null 체크용
 
@@ -187,21 +199,20 @@ function setupAuthStateListener(set: SetState): void {
             .single();
           studentId = newStudent?.id || null;
 
-          // 신규 사용자: student_progress 초기화 (이메일 회원가입과 동일)
+          // 신규 사용자: student_progress와 user_memberships 병렬 생성 (성능 최적화)
           if (studentId) {
-            await client.from('student_progress').insert({
-              student_id: studentId,
-            });
-            console.log('[Auth] New OAuth user: student_progress created');
+            await Promise.all([
+              client.from('student_progress').insert({
+                student_id: studentId,
+              }),
+              client.from('user_memberships').insert({
+                user_id: newSession.user.id,
+                membership_type: 'pending',
+                status: 'pending',
+              }),
+            ]);
+            console.log('[Auth] New OAuth user: student_progress & user_memberships created (parallel)');
           }
-
-          // 신규 사용자: user_memberships 레코드 생성 (pending 상태)
-          await client.from('user_memberships').insert({
-            user_id: newSession.user.id,
-            membership_type: 'pending',
-            status: 'pending',
-          });
-          console.log('[Auth] New OAuth user: user_memberships created');
         } else {
           studentId = student.id;
         }
@@ -298,16 +309,25 @@ export const useAuthStore = create<AuthStore>()(
           }
         }
 
-        // 자동로그인이 아닌데 브라우저가 닫혔다가 열렸으면 (sessionActive 없음) 로그아웃
+        // 자동로그인이 아닌데 브라우저가 닫혔다가 열렸으면 (sessionActive 없음)
+        // 단, 모바일에서 새로고침 시 sessionStorage가 초기화될 수 있으므로
+        // Supabase 세션이 유효하면 로그아웃하지 않음
         if (!rememberMe && !sessionActive) {
           const persistedUser = get().user;
           if (persistedUser) {
-            console.log('[Auth] 자동로그인 미설정 & 브라우저 재시작 - 로그아웃 처리');
-            await supabase.auth.signOut();
-            set({ isLoading: false, user: null, session: null, isAuthenticated: false });
-            // zustand persist 데이터도 정리
-            localStorage.removeItem('questybook-auth');
-            return;
+            // Supabase 세션 먼저 확인 (모바일 새로고침 대응)
+            const { data: { session: currentSession } } = await supabase.auth.getSession();
+            if (!currentSession) {
+              // Supabase 세션도 없으면 진짜 로그아웃
+              console.log('[Auth] 자동로그인 미설정 & 세션 없음 - 로그아웃 처리');
+              await supabase.auth.signOut();
+              set({ isLoading: false, user: null, session: null, isAuthenticated: false });
+              localStorage.removeItem('questybook-auth');
+              return;
+            }
+            // Supabase 세션이 유효하면 sessionStorage 복구하고 계속 진행
+            console.log('[Auth] 모바일 새로고침 감지 - 세션 유지');
+            sessionStorage.setItem('questybook_session_active', 'true');
           }
         }
 
@@ -522,20 +542,20 @@ export const useAuthStore = create<AuthStore>()(
               console.error('[Auth] Student creation error:', studentError);
             }
 
-            // 3. student_progress 초기화
+            // 3. student_progress와 user_memberships 병렬 생성 (성능 최적화)
             if (student?.id) {
-              await supabase.from('student_progress').insert({
-                student_id: student.id,
-              });
+              await Promise.all([
+                supabase.from('student_progress').insert({
+                  student_id: student.id,
+                }),
+                supabase.from('user_memberships').insert({
+                  user_id: data.user.id,
+                  membership_type: 'pending',
+                  status: 'pending',
+                }),
+              ]);
+              console.log('[Auth] New user: student_progress & user_memberships created (parallel)');
             }
-
-            // 4. user_memberships 레코드 생성 (pending 상태)
-            await supabase.from('user_memberships').insert({
-              user_id: data.user.id,
-              membership_type: 'pending',
-              status: 'pending',
-            });
-            console.log('[Auth] New user: user_memberships created');
 
             // 회원가입 성공 - 자동 로그인 상태 유지 (온보딩으로 이동)
             const user = mapSupabaseUser(data.user, student?.id);
@@ -603,6 +623,9 @@ export const useAuthStore = create<AuthStore>()(
 
       logout: async () => {
         console.log('[Auth] 로그아웃 시작 - 모든 데이터 정리');
+
+        // 0. chat-api 캐시 정리 (다른 사용자 데이터 누수 방지)
+        clearStudentIdCache();
 
         // 1. Supabase 세션 종료
         if (supabase) {
@@ -754,10 +777,15 @@ export const useAuthStore = create<AuthStore>()(
             .single();
 
           if (error) {
-            // 프로필이 없으면 온보딩 미완료
-            console.log('[Auth] No profile found, onboarding needed');
-            set({ user: { ...currentUser, onboardingCompleted: false } });
-            return false;
+            // PGRST116 (행 없음)만 온보딩 미완료로 처리
+            if (error.code === 'PGRST116') {
+              console.log('[Auth] No profile found, onboarding needed');
+              set({ user: { ...currentUser, onboardingCompleted: false } });
+              return false;
+            }
+            // 다른 에러(네트워크, 권한 등)는 상태 변경하지 않음 - 기존 상태 유지
+            console.warn('[Auth] Onboarding check error:', error.code, error.message);
+            return currentUser.onboardingCompleted ?? false;
           }
 
           // 학습 목표(target_university)가 설정되어 있으면 온보딩 완료로 간주
@@ -774,8 +802,9 @@ export const useAuthStore = create<AuthStore>()(
           set({ user: { ...currentUser, onboardingCompleted: completed } });
           return completed;
         } catch (err) {
+          // 네트워크 에러 등 예외 시 기존 상태 유지
           console.error('[Auth] Check onboarding error:', err);
-          return false;
+          return currentUser.onboardingCompleted ?? false;
         }
       },
 
@@ -802,7 +831,14 @@ export const useAuthStore = create<AuthStore>()(
             .single();
 
           if (error) {
-            console.log('[Auth] No user profile found');
+            // 에러 코드별 분류 처리
+            // PGRST116: 행 없음 (프로필 미생성) - 정상 케이스
+            // 다른 에러: 네트워크/권한 문제 - 로깅 필요
+            if (error.code === 'PGRST116') {
+              console.log('[Auth] No user profile found (not created yet)');
+            } else {
+              console.warn('[Auth] User profile load error:', error.code, error.message);
+            }
             return null;
           }
 
@@ -822,7 +858,8 @@ export const useAuthStore = create<AuthStore>()(
           console.log('[Auth] User profile loaded:', profile.targetUniversity);
           return profile;
         } catch (err) {
-          console.error('[Auth] Load user profile error:', err);
+          // 네트워크 에러 등 예외 처리
+          console.error('[Auth] Load user profile exception:', err);
           return null;
         }
       },

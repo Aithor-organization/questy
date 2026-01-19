@@ -34,7 +34,7 @@ export interface DbChatMessage {
 let cachedStudentId: string | null = null;
 let studentIdPromise: Promise<string | null> | null = null;
 
-// 사용자의 student_id 가져오기 (캐싱)
+// 사용자의 student_id 가져오기 (캐싱, 자동 생성)
 async function getStudentId(): Promise<string | null> {
   if (!supabase) return null;
 
@@ -47,22 +47,42 @@ async function getStudentId(): Promise<string | null> {
   studentIdPromise = (async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return null;
-
-      // students 테이블에서 user_id로 student_id 조회
-      const { data: student, error } = await supabase
-        .from('students')
-        .select('id')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error || !student) {
-        console.error('[ChatAPI] student 조회 실패:', error?.message);
+      if (!user) {
+        console.log('[ChatAPI] 로그인된 사용자 없음');
         return null;
       }
 
-      cachedStudentId = student.id;
-      return student.id;
+      // students 테이블에서 user_id로 student_id 조회
+      const { data: student } = await supabase
+        .from('students')
+        .select('id')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (student?.id) {
+        cachedStudentId = student.id;
+        console.log('[ChatAPI] student 조회 성공:', student.id);
+        return student.id;
+      }
+
+      // student 레코드가 없으면 자동 생성 (기존 사용자 지원)
+      console.log('[ChatAPI] student 레코드 없음, 자동 생성 중...');
+      const userName = user.user_metadata?.name || user.email?.split('@')[0] || '학생';
+
+      const { data: newStudent, error: createError } = await supabase
+        .from('students')
+        .insert({ user_id: user.id, name: userName })
+        .select('id')
+        .single();
+
+      if (createError) {
+        console.error('[ChatAPI] student 자동 생성 실패:', createError.message);
+        return null;
+      }
+
+      cachedStudentId = newStudent.id;
+      console.log('[ChatAPI] student 자동 생성 완료:', newStudent.id);
+      return newStudent.id;
     } catch (error) {
       console.error('[ChatAPI] getStudentId 에러:', error);
       return null;

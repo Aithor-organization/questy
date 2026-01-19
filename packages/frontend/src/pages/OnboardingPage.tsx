@@ -9,8 +9,9 @@ import { ChevronRight, ChevronLeft, Sparkles, User, Target, BookOpen, Clock } fr
 import { supabase } from '../lib/supabase';
 import { useAuthStore } from '../stores/authStore';
 
-// authStore에서 setOnboardingCompleted 직접 접근용
+// authStore에서 함수들 직접 접근용
 const getSetOnboardingCompleted = () => useAuthStore.getState().setOnboardingCompleted;
+const getLoadMembership = () => useAuthStore.getState().loadMembership;
 
 // 고정 과목 (필수)
 const FIXED_SUBJECTS = ['국어', '수학', '영어', '한국사'] as const;
@@ -191,9 +192,35 @@ export function OnboardingPage() {
         return;
       }
 
-      // 성공 - 로컬 상태 업데이트 후 메인 페이지로 이동
+      // 성공 - 로컬 상태 업데이트
       getSetOnboardingCompleted()(true);
-      navigate('/', { replace: true });
+      console.log('[Onboarding] onboardingCompleted set to true');
+
+      // 상태 업데이트가 React에 반영될 시간 확보 (race condition 방지)
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // 멤버십 상태 확인 (타임아웃 3초 - 느리면 기본값 사용)
+      let membershipStatus: string | null = null;
+      try {
+        const membershipPromise = getLoadMembership()();
+        const timeoutPromise = new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000));
+        const membership = await Promise.race([membershipPromise, timeoutPromise]);
+        membershipStatus = membership?.status || null;
+        console.log('[Onboarding] Membership status:', membershipStatus);
+      } catch (err) {
+        console.warn('[Onboarding] Membership check failed, using default:', err);
+      }
+
+      // 페이지 이동 전 상태 재확인 (안전장치)
+      console.log('[Onboarding] Navigating to:', membershipStatus === 'active' ? '/' : '/pending');
+
+      // 페이지 이동 (멤버십 확인 실패 시 pending으로 안전하게 이동)
+      if (membershipStatus === 'active') {
+        navigate('/', { replace: true });
+      } else {
+        // pending이거나 확인 실패 시 pending 페이지로
+        navigate('/pending', { replace: true });
+      }
     } catch (err) {
       console.error('[Onboarding] Error:', err);
       setError('오류가 발생했습니다');
@@ -249,7 +276,7 @@ export function OnboardingPage() {
                 {/* 나이 */}
                 <div>
                   <label className="block text-sm font-medium text-[var(--ink-black)] mb-2">
-                    나이
+                    나이(만)
                   </label>
                   <input
                     type="number"

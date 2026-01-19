@@ -12,6 +12,7 @@ import {
   UserInfoCard,
   LearningProfileCard,
   MembershipCard,
+  MyInquiriesCard,
 } from './components';
 
 export function MyPage() {
@@ -55,6 +56,9 @@ export function MyPage() {
           isLoading={isLoadingProfile}
           onEdit={openEditLearning}
         />
+
+        {/* 내 문의 내역 카드 */}
+        <MyInquiriesCard userEmail={user?.email} />
 
         {/* 고객 지원 카드 */}
         <div className="bg-white/10 rounded-lg p-6 mb-6 border border-[var(--paper-lines)]">
