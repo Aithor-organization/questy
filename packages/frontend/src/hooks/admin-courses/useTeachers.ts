@@ -160,6 +160,44 @@ export function useTeachers() {
     }
   }, [fetchTeachers]);
 
+  // 강사 삭제 (해당 강사의 모든 강좌도 함께 삭제)
+  const deleteTeacher = useCallback(async (teacherName: string) => {
+    if (!supabase) {
+      setError('Supabase가 설정되지 않았습니다');
+      return false;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 해당 강사의 모든 강좌 삭제 (cascade)
+      const { error: deleteError } = await retryQuery<null>(() =>
+        supabase!
+          .from('courses')
+          .delete()
+          .eq('teacher_name', teacherName)
+      );
+
+      if (deleteError) throw deleteError;
+
+      // teachers 테이블에서도 삭제 시도 (있는 경우)
+      await supabase!
+        .from('teachers')
+        .delete()
+        .eq('name', teacherName);
+
+      await fetchTeachers();
+      return true;
+    } catch (err: any) {
+      console.error('[useTeachers] deleteTeacher error:', err);
+      setError(err.message || '강사 삭제 실패');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchTeachers]);
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -171,6 +209,7 @@ export function useTeachers() {
     fetchTeachers,
     addTeacher,
     editTeacher,
+    deleteTeacher,
     clearError,
   };
 }

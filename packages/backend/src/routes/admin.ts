@@ -4,14 +4,17 @@
  */
 
 import { Hono } from 'hono';
-import { getMegastudyCrawler, getMimacCrawler } from '../crawlers/index.js';
+import { getMegastudyCrawler, getMimacCrawler, getEtoosCrawler } from '../crawlers/index.js';
 
 /**
  * URL에서 플랫폼 감지
  */
-function detectPlatformFromUrl(url: string): 'megastudy' | 'mimac' {
+function detectPlatformFromUrl(url: string): 'megastudy' | 'mimac' | 'etoos' {
   if (url.includes('mimacstudy.com')) {
     return 'mimac';
+  }
+  if (url.includes('etoos.com')) {
+    return 'etoos';
   }
   return 'megastudy';
 }
@@ -23,6 +26,9 @@ function getCrawlerForUrl(url: string) {
   const platform = detectPlatformFromUrl(url);
   if (platform === 'mimac') {
     return getMimacCrawler();
+  }
+  if (platform === 'etoos') {
+    return getEtoosCrawler();
   }
   return getMegastudyCrawler();
 }

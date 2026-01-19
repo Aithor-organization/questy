@@ -36,6 +36,7 @@ export function useAdminCourses() {
     fetchTeachers: teacherHook.fetchTeachers,
     addTeacher: teacherHook.addTeacher,
     editTeacher: teacherHook.editTeacher,
+    deleteTeacher: teacherHook.deleteTeacher,
 
     // 강좌 관련
     courses: courseHook.courses,
@@ -44,6 +45,7 @@ export function useAdminCourses() {
     addCoursesBatch: courseHook.addCoursesBatch,
     updateCourse: courseHook.updateCourse,
     editCourse: courseHook.editCourse,
+    deleteCourse: courseHook.deleteCourse,
     getAllCourses: courseHook.getAllCourses,
 
     // 배치 업데이트

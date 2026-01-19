@@ -4,12 +4,13 @@
  */
 
 import { useState } from 'react';
-import { X, Loader2 } from 'lucide-react';
+import { X, Loader2, Trash2, AlertTriangle } from 'lucide-react';
 import type { Teacher } from '../types';
 
 interface EditTeacherModalProps {
   onClose: () => void;
   onEdit: (oldName: string, newData: { name?: string; subject?: string; platform?: string }) => Promise<boolean>;
+  onDelete?: (teacherName: string) => Promise<boolean>;
   teacher: Teacher;
   loading: boolean;
 }
@@ -17,12 +18,14 @@ interface EditTeacherModalProps {
 export function EditTeacherModal({
   onClose,
   onEdit,
+  onDelete,
   teacher,
   loading,
 }: EditTeacherModalProps) {
   const [name, setName] = useState(teacher.name);
   const [platform, setPlatform] = useState(teacher.platform || 'megastudy');
   const [subject, setSubject] = useState(teacher.subjects[0] || '');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -32,6 +35,12 @@ export function EditTeacherModal({
       platform,
       subject: subject || undefined,
     });
+    if (success) onClose();
+  };
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    const success = await onDelete(teacher.name);
     if (success) onClose();
   };
 
@@ -92,15 +101,64 @@ export function EditTeacherModal({
             </p>
           </div>
 
-          <button
-            type="submit"
-            disabled={loading || !name.trim()}
-            className="w-full py-2.5 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
-          >
-            {loading && <Loader2 size={18} className="animate-spin" />}
-            저장
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="submit"
+              disabled={loading || !name.trim()}
+              className="flex-1 py-2.5 bg-blue-500 text-white rounded-lg font-medium hover:bg-blue-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {loading && <Loader2 size={18} className="animate-spin" />}
+              저장
+            </button>
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => setShowDeleteConfirm(true)}
+                disabled={loading}
+                className="px-4 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                title="강사 삭제"
+              >
+                <Trash2 size={18} />
+              </button>
+            )}
+          </div>
         </form>
+
+        {/* 삭제 확인 다이얼로그 */}
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+              <div className="flex items-center gap-3 mb-4 text-red-600">
+                <AlertTriangle size={24} />
+                <h3 className="text-lg font-bold">강사 삭제 확인</h3>
+              </div>
+              <p className="text-gray-700 mb-2">
+                <strong>{teacher.name}</strong> 강사를 삭제하시겠습니까?
+              </p>
+              <p className="text-sm text-red-600 mb-4 bg-red-50 p-2 rounded-lg">
+                ⚠️ 이 강사의 모든 강좌 <strong>({teacher.courseCount}개)</strong>도 함께 삭제됩니다.
+                이 작업은 되돌릴 수 없습니다.
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  disabled={loading}
+                  className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+                >
+                  취소
+                </button>
+                <button
+                  onClick={handleDelete}
+                  disabled={loading}
+                  className="flex-1 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {loading && <Loader2 size={18} className="animate-spin" />}
+                  삭제
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

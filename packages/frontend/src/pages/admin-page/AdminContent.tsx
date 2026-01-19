@@ -57,10 +57,12 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
     fetchTeachers,
     addTeacher,
     editTeacher,
+    deleteTeacher,
     fetchCoursesByTeacher,
     addCourse,
     addCoursesBatch,
     editCourse,
+    deleteCourse,
     updateCourse,
     clearError,
     getAllCourses,
@@ -241,6 +243,7 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
               setEditingCourse(course);
               setModalType('edit-course');
             }}
+            onDeleteCourse={deleteCourse}
             onUpdateCourse={handleUpdateCourse}
             updateResult={updateResult}
           />
@@ -256,6 +259,7 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
               setEditingCourse(course);
               setModalType('edit-course');
             }}
+            onDeleteCourse={deleteCourse}
             onUpdateCourse={handleUpdateCourse}
             updateResult={updateResult}
           />
@@ -305,8 +309,13 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
             onClose={() => {
               setModalType('none');
               setEditingTeacher(null);
+              // 강사 삭제 시 선택된 강사 초기화
+              if (selectedTeacher === editingTeacher.name) {
+                setSelectedTeacher(null);
+              }
             }}
             onEdit={editTeacher}
+            onDelete={deleteTeacher}
             teacher={editingTeacher}
             loading={loading}
           />
@@ -504,6 +513,7 @@ function TeacherView({
   setSelectedTeacher,
   onEditTeacher,
   onEditCourse,
+  onDeleteCourse,
   onUpdateCourse,
   updateResult,
 }: {
@@ -514,6 +524,7 @@ function TeacherView({
   setSelectedTeacher: (name: string) => void;
   onEditTeacher: (teacher: Teacher) => void;
   onEditCourse: (course: Course) => void;
+  onDeleteCourse: (courseId: string) => Promise<boolean>;
   onUpdateCourse: (courseId: string) => void;
   updateResult: { courseId: string; diff: number } | null;
 }) {
@@ -592,6 +603,7 @@ function TeacherView({
                 course={course}
                 onUpdate={() => onUpdateCourse(course.id)}
                 onEdit={() => onEditCourse(course)}
+                onDelete={() => onDeleteCourse(course.id)}
                 updateResult={updateResult?.courseId === course.id ? updateResult.diff : null}
                 loading={loading}
               />
@@ -617,6 +629,7 @@ function OutdatedView({
   loading,
   onRefresh,
   onEditCourse,
+  onDeleteCourse,
   onUpdateCourse,
   updateResult,
 }: {
@@ -624,6 +637,7 @@ function OutdatedView({
   loading: boolean;
   onRefresh: () => void;
   onEditCourse: (course: Course) => void;
+  onDeleteCourse: (courseId: string) => Promise<boolean>;
   onUpdateCourse: (courseId: string) => void;
   updateResult: { courseId: string; diff: number } | null;
 }) {
@@ -667,6 +681,7 @@ function OutdatedView({
             course={course}
             onUpdate={() => onUpdateCourse(course.id)}
             onEdit={() => onEditCourse(course)}
+            onDelete={() => onDeleteCourse(course.id)}
             updateResult={updateResult?.courseId === course.id ? updateResult.diff : null}
             loading={false}
             showTeacher

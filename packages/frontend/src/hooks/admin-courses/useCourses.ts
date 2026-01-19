@@ -290,6 +290,43 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     }
   }, []);
 
+  // 강좌 삭제
+  const deleteCourse = useCallback(async (courseId: string) => {
+    if (!supabase) {
+      setError('Supabase가 설정되지 않았습니다');
+      return false;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // 강좌 삭제
+      const { error: deleteError } = await retryQuery<null>(() =>
+        supabase!
+          .from('courses')
+          .delete()
+          .eq('id', courseId)
+      );
+
+      if (deleteError) throw deleteError;
+
+      // 로컬 상태에서도 제거
+      setCourses((prev) => prev.filter((c) => c.id !== courseId));
+
+      // 강사 목록 갱신 (강좌 수 변경 가능)
+      if (onTeachersUpdate) await onTeachersUpdate();
+
+      return true;
+    } catch (err: any) {
+      console.error('[useCourses] deleteCourse error:', err);
+      setError(err.message || '강좌 삭제 실패');
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }, [onTeachersUpdate]);
+
   const clearError = useCallback(() => {
     setError(null);
   }, []);
@@ -423,6 +460,7 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     addCoursesBatch,
     updateCourse,
     editCourse,
+    deleteCourse,
     getAllCourses,
     clearError,
   };

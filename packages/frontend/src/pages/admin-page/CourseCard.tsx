@@ -3,13 +3,15 @@
  * 강좌 카드 컴포넌트
  */
 
-import { RefreshCw, CheckCircle, Clock, Pencil } from 'lucide-react';
+import { useState } from 'react';
+import { RefreshCw, CheckCircle, Clock, Pencil, Trash2, AlertTriangle, Loader2 } from 'lucide-react';
 import { isOutdated, type Course } from './types';
 
 interface CourseCardProps {
   course: Course;
   onUpdate: () => void;
   onEdit?: () => void;
+  onDelete?: () => Promise<boolean>;
   updateResult: number | null;
   loading: boolean;
   showTeacher?: boolean;
@@ -19,11 +21,24 @@ export function CourseCard({
   course,
   onUpdate,
   onEdit,
+  onDelete,
   updateResult,
   loading,
   showTeacher = false,
 }: CourseCardProps) {
   const outdated = isOutdated(course.lastCrawledAt);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDelete = async () => {
+    if (!onDelete) return;
+    setDeleting(true);
+    const success = await onDelete();
+    setDeleting(false);
+    if (success) {
+      setShowDeleteConfirm(false);
+    }
+  };
 
   return (
     <div className={`bg-white border rounded-xl p-4 shadow-sm ${outdated && !course.isCompleted ? 'border-orange-300' : 'border-gray-200'}`}>
@@ -80,6 +95,16 @@ export function CourseCard({
             </button>
           )}
 
+          {onDelete && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="flex items-center gap-1 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg text-sm font-medium hover:bg-red-100 transition-colors"
+              title="강좌 삭제"
+            >
+              <Trash2 size={14} />
+            </button>
+          )}
+
           <button
             onClick={onUpdate}
             disabled={loading || !course.url}
@@ -104,6 +129,40 @@ export function CourseCard({
                 )}
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* 삭제 확인 모달 */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl w-full max-w-sm p-6">
+            <div className="flex items-center gap-3 mb-4 text-red-600">
+              <AlertTriangle size={24} />
+              <h3 className="text-lg font-bold">강좌 삭제 확인</h3>
+            </div>
+            <p className="text-gray-700 mb-4">
+              <strong>{course.name}</strong> 강좌를 삭제하시겠습니까?
+              <br />
+              <span className="text-sm text-gray-500">이 작업은 되돌릴 수 없습니다.</span>
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1 py-2.5 bg-red-500 text-white rounded-lg font-medium hover:bg-red-600 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleting && <Loader2 size={18} className="animate-spin" />}
+                삭제
+              </button>
+            </div>
           </div>
         </div>
       )}
