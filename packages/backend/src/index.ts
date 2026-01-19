@@ -17,6 +17,7 @@ import { curriculumRoutes } from './routes/curriculum';
 import { adminRoutes } from './routes/admin';
 import { adminUsersRoutes } from './routes/admin-users';
 import { inquiryRoutes } from './routes/inquiries';
+import { cronRoutes } from './routes/cron';
 
 const app = new Hono();
 
@@ -50,6 +51,7 @@ app.route('/api/curriculum', curriculumRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/admin', adminUsersRoutes);
 app.route('/api/inquiries', inquiryRoutes);
+app.route('/api/cron', cronRoutes);
 
 // 서버 시작
 const port = Number(process.env.PORT) || 3001;
