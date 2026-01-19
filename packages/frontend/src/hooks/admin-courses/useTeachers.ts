@@ -24,8 +24,12 @@ export function useTeachers() {
 
     try {
       // AbortError 재시도
-      const { data, error: fetchError } = await retryQuery(() =>
-        supabase
+      const { data, error: fetchError } = await retryQuery<Array<{
+        teacher_name: string;
+        platform: string | null;
+        subject: string | null;
+      }>>(() =>
+        supabase!
           .from('courses')
           .select('teacher_name, platform, subject')
       );
@@ -93,8 +97,8 @@ export function useTeachers() {
 
     try {
       // AbortError 재시도
-      const { error: insertError } = await retryQuery(() =>
-        supabase
+      const { error: insertError } = await retryQuery<null>(() =>
+        supabase!
           .from('teachers')
           .upsert({
             name,
@@ -136,8 +140,8 @@ export function useTeachers() {
       if (newData.platform) updateFields.platform = newData.platform;
 
       // AbortError 재시도
-      const { error: updateError } = await retryQuery(() =>
-        supabase
+      const { error: updateError } = await retryQuery<null>(() =>
+        supabase!
           .from('courses')
           .update(updateFields)
           .eq('teacher_name', oldName)
