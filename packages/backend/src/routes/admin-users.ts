@@ -533,28 +533,43 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
       approvedAt = now;
     }
 
-    // 일괄 멤버십 업데이트
-    const { data, error } = await supabase
-      .from('user_memberships')
-      .update({
-        membership_type: membershipType,
-        status,
-        approved_at: approvedAt,
-        expires_at: expiresAt,
-        admin_note: adminNote || null,
-        updated_at: now,
-      })
-      .in('user_id', userIds)
-      .select();
+    // 일괄 멤버십 업데이트 (개별 업데이트로 안정성 확보)
+    const updatePromises = userIds.map((userId) =>
+      supabase
+        .from('user_memberships')
+        .update({
+          membership_type: membershipType,
+          status,
+          approved_at: approvedAt,
+          expires_at: expiresAt,
+          admin_note: adminNote || null,
+          updated_at: now,
+        })
+        .eq('user_id', userId)
+        .select()
+        .single()
+    );
 
-    if (error) {
-      console.error('[AdminUsers] Bulk membership update error:', error);
-      // 실제 에러 메시지를 클라이언트에 전달하여 디버깅 용이하게
+    const results = await Promise.allSettled(updatePromises);
+    const successCount = results.filter((r) => r.status === 'fulfilled' && r.value.data).length;
+    const failures = results.filter((r) => r.status === 'rejected' || (r.status === 'fulfilled' && r.value.error));
+
+    if (failures.length === userIds.length) {
+      // 모든 업데이트 실패
+      const firstError = failures[0];
+      const errorMsg = firstError.status === 'rejected'
+        ? firstError.reason?.message
+        : (firstError as PromiseFulfilledResult<any>).value?.error?.message;
+      console.error('[AdminUsers] Bulk membership update all failed:', errorMsg);
       return c.json({
         success: false,
-        error: `일괄 멤버십 변경 실패: ${error.message}`,
-        details: error.code,
+        error: `일괄 멤버십 변경 실패: ${errorMsg || '알 수 없는 오류'}`,
       }, 500);
+    }
+
+    // 부분 성공도 성공으로 처리 (일부 실패 시 로그)
+    if (failures.length > 0) {
+      console.warn(`[AdminUsers] Bulk update partial failure: ${successCount}/${userIds.length} succeeded`);
     }
 
     console.log(`[AdminUsers] Bulk membership changed: ${userIds.length} users -> ${membershipType}`);
@@ -589,7 +604,7 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
     return c.json({
       success: true,
       data: {
-        updatedCount: data?.length || 0,
+        updatedCount: successCount,
         membershipType,
         status,
         emailsSent,
