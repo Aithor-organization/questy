@@ -264,12 +264,131 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     setError(null);
   }, []);
 
+  // 여러 강좌 일괄 추가 (URL 배열)
+  const addCoursesBatch = useCallback(async (
+    urls: string[],
+    onProgress?: (progress: {
+      total: number;
+      completed: number;
+      success: number;
+      failed: number;
+      current?: { url: string; success: boolean; name?: string; error?: string };
+    }) => void
+  ) => {
+    if (!supabase) {
+      setError('Supabase가 설정되지 않았습니다');
+      return { success: 0, failed: urls.length, results: [] };
+    }
+
+    setLoading(true);
+    setError(null);
+
+    const results: Array<{ url: string; success: boolean; course?: Course; error?: string }> = [];
+    let successCount = 0;
+    let failedCount = 0;
+
+    for (let i = 0; i < urls.length; i++) {
+      const url = urls[i].trim();
+      if (!url) {
+        failedCount++;
+        results.push({ url, success: false, error: 'URL이 비어있습니다' });
+        continue;
+      }
+
+      try {
+        // 백엔드에서 크롤링
+        const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl`, {
+          method: 'POST',
+          headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ url }),
+        });
+
+        const json = await res.json();
+
+        if (!json.success) {
+          failedCount++;
+          results.push({ url, success: false, error: json.error || '크롤링 실패' });
+          onProgress?.({
+            total: urls.length,
+            completed: i + 1,
+            success: successCount,
+            failed: failedCount,
+            current: { url, success: false, error: json.error },
+          });
+          continue;
+        }
+
+        const { courseId, title, lecturer, curriculum, isCompleted, platform } = json.data;
+
+        // Supabase에 강좌 저장
+        const courseData = {
+          id: courseId || `course-${Date.now()}-${i}`,
+          name: title || '제목 없음',
+          teacher_name: lecturer || '미지정',
+          subject: null,
+          platform: platform || 'megastudy',
+          url,
+          lectures: curriculum || [],
+          lecture_count: curriculum?.length || 0,
+          is_completed: isCompleted || false,
+          last_crawled_at: new Date().toISOString(),
+        };
+
+        const { data: savedCourse, error: upsertError } = await supabase
+          .from('courses')
+          .upsert(courseData, { onConflict: 'id' })
+          .select()
+          .single();
+
+        if (upsertError) throw upsertError;
+
+        const mappedCourse = mapCourseFromSupabase(savedCourse);
+        successCount++;
+        results.push({ url, success: true, course: mappedCourse });
+
+        onProgress?.({
+          total: urls.length,
+          completed: i + 1,
+          success: successCount,
+          failed: failedCount,
+          current: { url, success: true, name: mappedCourse.name },
+        });
+
+      } catch (err: any) {
+        console.error(`[useCourses] addCoursesBatch error for ${url}:`, err);
+        failedCount++;
+        results.push({ url, success: false, error: err.message || '저장 실패' });
+        onProgress?.({
+          total: urls.length,
+          completed: i + 1,
+          success: successCount,
+          failed: failedCount,
+          current: { url, success: false, error: err.message },
+        });
+      }
+
+      // 요청 간 딜레이 (크롤링 서버 부하 방지)
+      if (i < urls.length - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+    }
+
+    // 강사 목록 갱신
+    if (onTeachersUpdate && successCount > 0) {
+      await onTeachersUpdate();
+    }
+
+    setLoading(false);
+    return { success: successCount, failed: failedCount, results };
+  }, [onTeachersUpdate]);
+
   return {
     courses,
     loading,
     error,
     fetchCoursesByTeacher,
     addCourse,
+    addCoursesBatch,
     updateCourse,
     editCourse,
     getAllCourses,

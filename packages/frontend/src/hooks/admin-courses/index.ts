@@ -41,6 +41,7 @@ export function useAdminCourses() {
     courses: courseHook.courses,
     fetchCoursesByTeacher: courseHook.fetchCoursesByTeacher,
     addCourse: courseHook.addCourse,
+    addCoursesBatch: courseHook.addCoursesBatch,
     updateCourse: courseHook.updateCourse,
     editCourse: courseHook.editCourse,
     getAllCourses: courseHook.getAllCourses,

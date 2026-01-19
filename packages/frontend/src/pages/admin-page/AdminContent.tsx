@@ -57,6 +57,7 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
     editTeacher,
     fetchCoursesByTeacher,
     addCourse,
+    addCoursesBatch,
     editCourse,
     updateCourse,
     clearError,
@@ -278,8 +279,16 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
         )}
         {modalType === 'add-course' && (
           <AddCourseModal
-            onClose={() => setModalType('none')}
+            onClose={() => {
+              setModalType('none');
+              // 강좌 추가 후 강사 목록 및 선택된 강사의 강좌 목록 새로고침
+              fetchTeachers();
+              if (selectedTeacher) {
+                fetchCoursesByTeacher(selectedTeacher);
+              }
+            }}
             onAdd={addCourse}
+            onAddBatch={addCoursesBatch}
             teachers={teachers}
             loading={loading}
           />
