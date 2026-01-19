@@ -65,6 +65,39 @@ function isVideoLectureQuest(quest: QuestWithPlan): boolean {
   return false;
 }
 
+// 문제풀이/자습 퀘스트 여부 판별
+function isPracticeQuest(quest: QuestWithPlan): boolean {
+  const title = quest.unitTitle || '';
+  const range = quest.range || '';
+
+  // 문제풀이 관련 키워드
+  const practiceKeywords = ['자습', '문제풀이', '문제', '연습', '실전'];
+
+  // isPractice 플래그가 있으면 문제풀이
+  if (quest.isPractice) {
+    return true;
+  }
+
+  // 키워드가 있으면 문제풀이
+  for (const keyword of practiceKeywords) {
+    if (title.includes(keyword) || range.includes(keyword)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// 시간을 "오후 3:30" 형식으로 포맷
+function formatTimeKorean(dateStr: string): string {
+  const date = new Date(dateStr);
+  const hours = date.getHours();
+  const minutes = date.getMinutes();
+  const period = hours >= 12 ? '오후' : '오전';
+  const displayHours = hours > 12 ? hours - 12 : hours === 0 ? 12 : hours;
+  return `${period} ${displayHours}:${minutes.toString().padStart(2, '0')}`;
+}
+
 export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItemProps) {
   const navigate = useNavigate();
   const [isAnimating, setIsAnimating] = useState(false);
@@ -232,6 +265,24 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
           </span>
         )}
       </div>
+
+      {/* 문제풀이 퀘스트: 접힌 상태에서도 학습시작 버튼 표시 */}
+      {!isExpanded && showTimer && isPracticeQuest(quest) && (
+        <div className="flex items-center gap-2 mt-2 ml-9">
+          <button
+            onClick={handleStartTimer}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--sticker-mint)] text-white rounded-lg hover:opacity-90 transition-opacity font-medium text-xs"
+          >
+            <span>▶</span>
+            <span>{hasTimerRecord ? '이어서 학습' : '학습 시작'}</span>
+          </button>
+          {hasTimerRecord && quest.timerRecord && (
+            <span className="text-xs text-[var(--pencil-gray)]">
+              {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 진행 중
+            </span>
+          )}
+        </div>
+      )}
 
       {/* === 확장 상태: 상세 정보 === */}
       {isExpanded && (
@@ -412,6 +463,11 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
               <span>✓</span>
               <span>
                 {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 학습 완료
+                {quest.timerRecord.endedAt && (
+                  <span className="text-[var(--pencil-gray)] ml-1">
+                    ({formatTimeKorean(quest.timerRecord.endedAt)})
+                  </span>
+                )}
               </span>
             </div>
           )}
