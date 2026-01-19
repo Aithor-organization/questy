@@ -19,6 +19,13 @@ export const supabase = supabaseUrl && supabaseAnonKey
         autoRefreshToken: true,
         persistSession: true,
         detectSessionInUrl: true,  // OAuth 콜백 URL에서 세션 감지
+        storageKey: 'questy-auth-token',  // 명시적 storage key
+        flowType: 'implicit',  // Web Locks API AbortError 방지 (PKCE 대신 implicit flow 사용)
+      },
+      global: {
+        headers: {
+          'x-application-name': 'questy',
+        },
       },
     })
   : null;
