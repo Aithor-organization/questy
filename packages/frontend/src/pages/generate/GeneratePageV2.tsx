@@ -9,6 +9,8 @@ import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { NotebookLayout, NotebookPage } from '../../components/notebook';
 import { useGeneratePage } from './useGeneratePage';
+import { useMembershipCheck } from '../../hooks/useMembershipCheck';
+import { TrialEndedModal } from '../../components/TrialEndedModal';
 import {
   InputModeSelector,
   UploadForm,
@@ -123,6 +125,14 @@ function NewPlanContent() {
     handleReset,
   } = useGeneratePage();
 
+  // 멤버십 체크 (AI 기능 사용 가능 여부)
+  const {
+    checkAndShowModal,
+    showTrialEndedModal,
+    attemptedFeature,
+    closeModal,
+  } = useMembershipCheck();
+
   // 생성 가능 여부 체크
   const canGenerate = inputMode === 'upload'
     ? images.length > 0
@@ -130,12 +140,22 @@ function NewPlanContent() {
     ? selectedBook !== null && selectedPages.length > 0
     : manualUnits.length > 0 && materialName.trim().length > 0;
 
-  // 생성 핸들러
-  const onGenerate = inputMode === 'upload'
-    ? handleGenerate
-    : inputMode === 'search'
-    ? handleAnalyzeBook
-    : handleManualGenerate;
+  // 생성 핸들러 (멤버십 체크 포함)
+  const onGenerate = () => {
+    // 멤버십 체크 (AI 퀘스트 생성은 베타테스터 전용)
+    if (!checkAndShowModal('AI 퀘스트 생성')) {
+      return; // 모달이 표시되고 함수 종료
+    }
+
+    // 실제 생성 함수 호출
+    if (inputMode === 'upload') {
+      handleGenerate();
+    } else if (inputMode === 'search') {
+      handleAnalyzeBook();
+    } else {
+      handleManualGenerate();
+    }
+  };
 
   return (
     <>
@@ -251,6 +271,13 @@ function NewPlanContent() {
           onSave={handleSavePlan}
         />
       )}
+
+      {/* 체험판 종료 모달 */}
+      <TrialEndedModal
+        isOpen={showTrialEndedModal}
+        onClose={closeModal}
+        featureName={attemptedFeature ?? undefined}
+      />
     </>
   );
 }

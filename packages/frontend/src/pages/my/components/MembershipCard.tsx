@@ -11,6 +11,7 @@ import { useAuthStore, type MembershipType } from '../../../stores/authStore';
 // 멤버십 타입 라벨
 const membershipTypeLabels: Record<MembershipType, string> = {
   pending: '승인 대기',
+  regular: '일반인',
   beta_tester: '베타테스터',
   lab_member: '실험단',
 };
@@ -18,6 +19,7 @@ const membershipTypeLabels: Record<MembershipType, string> = {
 // 멤버십 타입 설명
 const membershipDescriptions: Record<MembershipType, string> = {
   pending: '관리자의 승인을 기다리고 있습니다',
+  regular: '체험 기간이 종료되었습니다. AI 기능 이용이 제한됩니다.',
   beta_tester: '7일간 서비스를 무료로 체험할 수 있습니다',
   lab_member: '무기한으로 서비스를 이용할 수 있습니다',
 };

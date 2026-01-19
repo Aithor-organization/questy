@@ -10,7 +10,7 @@ import { sendEmail, getMembershipApprovalEmail } from '../lib/email.js';
 export const adminUsersRoutes = new Hono();
 
 // 멤버십 유형
-type MembershipType = 'pending' | 'beta_tester' | 'lab_member';
+type MembershipType = 'pending' | 'regular' | 'beta_tester' | 'lab_member';
 type MembershipStatus = 'pending' | 'active' | 'expired' | 'revoked';
 
 // 사용자 정보 인터페이스
@@ -176,7 +176,7 @@ adminUsersRoutes.post('/users/:userId/membership', async (c) => {
     };
 
     // 유효한 멤버십 유형 확인
-    if (!['pending', 'beta_tester', 'lab_member'].includes(membershipType)) {
+    if (!['pending', 'regular', 'beta_tester', 'lab_member'].includes(membershipType)) {
       return c.json({ success: false, error: '유효하지 않은 멤버십 유형입니다' }, 400);
     }
 
@@ -188,8 +188,13 @@ adminUsersRoutes.post('/users/:userId/membership', async (c) => {
     let approvedAt: string | null = null;
 
     if (membershipType === 'pending') {
-      // 대기자로 변경 (강등)
+      // 대기자로 변경 (신규 가입 대기)
       status = 'pending';
+      expiresAt = null;
+      approvedAt = null;
+    } else if (membershipType === 'regular') {
+      // 일반인으로 변경 (체험판 만료 강등)
+      status = 'expired';
       expiresAt = null;
       approvedAt = null;
     } else if (membershipType === 'beta_tester') {
@@ -447,21 +452,21 @@ adminUsersRoutes.get('/membership/status', async (c) => {
       }
     }
 
-    // 만료된 베타테스터는 대기자로 강등
+    // 만료된 베타테스터는 일반인으로 강등 (pending은 신규 가입자용)
     if (isExpired && membership.status === 'active' && membership.membership_type === 'beta_tester') {
       await supabase
         .from('user_memberships')
         .update({
-          membership_type: 'pending',
-          status: 'pending',
+          membership_type: 'regular',
+          status: 'expired',
           expires_at: null,
           updated_at: new Date().toISOString(),
         })
         .eq('user_id', user.id);
 
-      currentType = 'pending';
-      currentStatus = 'pending';
-      console.log(`[AdminUsers] Beta tester expired, demoted to pending: ${user.id}`);
+      currentType = 'regular';
+      currentStatus = 'expired';
+      console.log(`[AdminUsers] Beta tester expired, demoted to regular: ${user.id}`);
     }
 
     return c.json({
@@ -503,7 +508,7 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
       return c.json({ success: false, error: '선택된 사용자가 없습니다' }, 400);
     }
 
-    if (!['pending', 'beta_tester', 'lab_member'].includes(membershipType)) {
+    if (!['pending', 'regular', 'beta_tester', 'lab_member'].includes(membershipType)) {
       return c.json({ success: false, error: '유효하지 않은 멤버십 유형입니다' }, 400);
     }
 
@@ -516,6 +521,9 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
 
     if (membershipType === 'pending') {
       status = 'pending';
+    } else if (membershipType === 'regular') {
+      // 일반인 (체험판 만료 강등)
+      status = 'expired';
     } else if (membershipType === 'beta_tester') {
       status = 'active';
       expiresAt = calculateBetaTesterExpiry();
@@ -546,9 +554,9 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
 
     console.log(`[AdminUsers] Bulk membership changed: ${userIds.length} users -> ${membershipType}`);
 
-    // 승인 시 이메일 발송 (pending이 아닌 경우)
+    // 승인 시 이메일 발송 (beta_tester, lab_member인 경우만)
     let emailsSent = 0;
-    if (membershipType !== 'pending') {
+    if (membershipType === 'beta_tester' || membershipType === 'lab_member') {
       for (const userId of userIds) {
         try {
           const { data: userData } = await supabase.auth.admin.getUserById(userId);

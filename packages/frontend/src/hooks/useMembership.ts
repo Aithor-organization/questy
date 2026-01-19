@@ -8,7 +8,7 @@ import { supabase } from '../lib/supabase';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
-export type MembershipType = 'pending' | 'beta_tester' | 'lab_member';
+export type MembershipType = 'pending' | 'regular' | 'beta_tester' | 'lab_member';
 export type MembershipStatus = 'pending' | 'active' | 'expired' | 'revoked';
 
 export interface MembershipData {
@@ -80,11 +80,12 @@ export function useMembership(): UseMembershipReturn {
   // 승인된 상태인지 확인 (active 상태)
   const isApproved = membership?.status === 'active' && !membership.isExpired;
 
-  // 대기 중인지 확인
-  const isPending = membership?.status === 'pending';
+  // 대기 중인지 확인 (type이 pending인 경우만 - 신규 가입 대기자)
+  const isPending = membership?.type === 'pending';
 
-  // 만료되었는지 확인
-  const isExpired = membership?.isExpired || membership?.status === 'expired';
+  // 만료되었는지 확인 (beta_tester가 만료된 경우)
+  // regular는 만료 상태지만 메인 페이지 접근 가능 (AI 기능만 제한)
+  const isExpired = membership?.type === 'beta_tester' && (membership?.isExpired || membership?.status === 'expired');
 
   return {
     membership,

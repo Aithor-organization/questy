@@ -7,6 +7,8 @@
 import { useState } from 'react';
 import { NotebookPage } from '../../components/notebook/NotebookPage';
 import { useCurriculumGeneration } from '../../hooks/useCurriculumGeneration';
+import { useMembershipCheck } from '../../hooks/useMembershipCheck';
+import { TrialEndedModal } from '../../components/TrialEndedModal';
 import type { Course, SelectedCourse, SubjectRatio, SubjectHours } from '../../types/curriculum';
 
 type Step = 'settings' | 'courses' | 'preview';
@@ -40,6 +42,24 @@ export function CurriculumContent() {
     isGenerating,
     generateError,
   } = useCurriculumGeneration();
+
+  // 멤버십 체크 (AI 기능 사용 가능 여부)
+  const {
+    checkAndShowModal,
+    showTrialEndedModal,
+    attemptedFeature,
+    closeModal,
+  } = useMembershipCheck();
+
+  // 퀘스트 생성 (멤버십 체크 포함)
+  const handleGenerateWithCheck = () => {
+    // 멤버십 체크 (AI 커리큘럼 생성은 베타테스터 전용)
+    if (!checkAndShowModal('AI 커리큘럼 생성')) {
+      return false; // 모달이 표시되고 함수 종료
+    }
+    generateQuests();
+    return true;
+  };
 
   return (
     <>
@@ -89,8 +109,10 @@ export function CurriculumContent() {
             onUpdateStartChapter={updateCourseStartChapter}
             onBack={() => setStep('settings')}
             onNext={() => {
-              generateQuests();
-              setStep('preview');
+              // 멤버십 체크 후 생성
+              if (handleGenerateWithCheck()) {
+                setStep('preview');
+              }
             }}
           />
         )}
@@ -176,6 +198,13 @@ export function CurriculumContent() {
           </ul>
         </div>
       </NotebookPage>
+
+      {/* 체험판 종료 모달 */}
+      <TrialEndedModal
+        isOpen={showTrialEndedModal}
+        onClose={closeModal}
+        featureName={attemptedFeature ?? undefined}
+      />
     </>
   );
 }

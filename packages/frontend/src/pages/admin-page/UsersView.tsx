@@ -305,6 +305,13 @@ export function UsersView() {
                   대기자
                 </button>
                 <button
+                  onClick={() => bulkUpdateMembership('regular')}
+                  disabled={bulkActionLoading}
+                  className="px-3 py-1.5 bg-gray-500 text-white rounded-lg text-xs font-medium hover:bg-gray-600 disabled:opacity-50"
+                >
+                  일반인
+                </button>
+                <button
                   onClick={() => bulkUpdateMembership('beta_tester')}
                   disabled={bulkActionLoading}
                   className="px-3 py-1.5 bg-blue-500 text-white rounded-lg text-xs font-medium hover:bg-blue-600 disabled:opacity-50"
@@ -491,6 +498,11 @@ function UserCard({
         ? 'bg-yellow-500 text-white border-yellow-500'
         : 'bg-yellow-50 text-yellow-700 border-yellow-200 hover:border-yellow-400'}`;
     }
+    if (type === 'regular') {
+      return `${baseStyle} ${isSelected
+        ? 'bg-gray-500 text-white border-gray-500'
+        : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-gray-400'}`;
+    }
     if (type === 'beta_tester') {
       return `${baseStyle} ${isSelected
         ? 'bg-blue-500 text-white border-blue-500'
@@ -560,6 +572,13 @@ function UserCard({
             disabled={isLoading}
           >
             대기자
+          </button>
+          <button
+            onClick={() => setSelectedType('regular')}
+            className={getMembershipButtonStyle('regular')}
+            disabled={isLoading}
+          >
+            일반인
           </button>
           <button
             onClick={() => setSelectedType('beta_tester')}

@@ -39,28 +39,22 @@ function ProtectedRoute({ children, skipOnboarding = false, skipMembershipCheck 
   skipOnboarding?: boolean;
   skipMembershipCheck?: boolean;
 }) {
-  const { isAuthenticated, user } = useAuthStore();
-  const { isPending, isExpired, isLoading: isMembershipLoading } = useMembership();
+  const { isAuthenticated, needsOnboarding } = useAuthStore();
+  const { isPending, isLoading: isMembershipLoading } = useMembership();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // 온보딩 체크 (skipOnboarding이 아닌 경우에만)
-  if (!skipOnboarding && user && user.onboardingCompleted === false) {
+  // 온보딩 체크 (회원가입 직후에만 - needsOnboarding 플래그 사용)
+  if (!skipOnboarding && needsOnboarding) {
     return <Navigate to="/onboarding" replace />;
   }
 
   // 멤버십 체크 (skipMembershipCheck가 아닌 경우에만)
-  if (!skipMembershipCheck && !isMembershipLoading) {
-    // 승인 대기 중인 경우 대기 페이지로
-    if (isPending) {
-      return <Navigate to="/pending" replace />;
-    }
-    // 멤버십 만료된 경우도 대기 페이지로 (만료 메시지 표시)
-    if (isExpired) {
-      return <Navigate to="/pending" replace />;
-    }
+  // pending(대기자)만 대기 페이지로, 나머지(regular, beta_tester, lab_member)는 메인 접근 가능
+  if (!skipMembershipCheck && !isMembershipLoading && isPending) {
+    return <Navigate to="/pending" replace />;
   }
 
   return <>{children}</>;
@@ -88,16 +82,16 @@ function ScrollToTop() {
   return null;
 }
 
-// 온보딩 전용 라우트 (로그인 필요, 온보딩 미완료 시만 접근)
+// 온보딩 전용 라우트 (회원가입 직후에만 접근 가능)
 function OnboardingRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, user } = useAuthStore();
+  const { isAuthenticated, needsOnboarding } = useAuthStore();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
   }
 
-  // 이미 온보딩 완료한 경우 메인으로
-  if (user?.onboardingCompleted === true) {
+  // 회원가입 직후가 아니면 메인으로 (기존 사용자는 온보딩 스킵)
+  if (!needsOnboarding) {
     return <Navigate to="/" replace />;
   }
 

@@ -12,6 +12,8 @@ import { useChatStore, DEFAULT_ROOM_ID } from '../../stores/chatStore';
 import { useQuestStore, getTodayDateString } from '../../stores/questStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useStreamingChat } from '../../hooks/useStreamingChat';
+import { useMembershipCheck } from '../../hooks/useMembershipCheck';
+import { TrialEndedModal } from '../../components/TrialEndedModal';
 import { MessageList } from './components/MessageList';
 import { ChatInput } from './components/ChatInput';
 import { QuickActions } from './components/QuickActions';
@@ -53,6 +55,14 @@ export function ChatRoomPage() {
 
   // Auth store에서 사용자 프로필 가져오기 (온보딩 데이터)
   const { userProfile, loadUserProfile } = useAuthStore();
+
+  // 멤버십 체크 (AI 기능 사용 가능 여부)
+  const {
+    checkAndShowModal,
+    showTrialEndedModal,
+    attemptedFeature,
+    closeModal,
+  } = useMembershipCheck();
 
   const [inputValue, setInputValue] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
@@ -175,6 +185,11 @@ export function ChatRoomPage() {
 
   const handleSendMessage = async (message: string) => {
     if (!message.trim()) return;
+
+    // 멤버십 체크 (AI 코치 채팅은 베타테스터 전용)
+    if (!checkAndShowModal('AI 코치 채팅')) {
+      return; // 모달이 표시되고 함수 종료
+    }
 
     // 주간 통계 계산
     const today = new Date();
@@ -324,6 +339,13 @@ export function ChatRoomPage() {
           disabled={isStreaming}
         />
       </div>
+
+      {/* 체험판 종료 모달 */}
+      <TrialEndedModal
+        isOpen={showTrialEndedModal}
+        onClose={closeModal}
+        featureName={attemptedFeature ?? undefined}
+      />
     </NotebookLayout>
   );
 }

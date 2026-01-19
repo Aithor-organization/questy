@@ -33,7 +33,11 @@ export interface UserProfile {
 }
 
 // 멤버십 데이터 인터페이스
-export type MembershipType = 'pending' | 'beta_tester' | 'lab_member';
+// pending: 승인 대기자 (신규 가입)
+// regular: 일반인 (체험판 만료 후 강등)
+// beta_tester: 베타테스터 (7일 체험판)
+// lab_member: 실험단 (무기한)
+export type MembershipType = 'pending' | 'regular' | 'beta_tester' | 'lab_member';
 export type MembershipStatus = 'pending' | 'active' | 'expired' | 'revoked';
 
 export interface MembershipData {
@@ -54,6 +58,7 @@ interface AuthStore {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  needsOnboarding: boolean;  // 회원가입 직후에만 true (세션 동안만 유지)
 
   // 액션
   login: (email: string, password: string, rememberMe?: boolean) => Promise<boolean>;
@@ -67,6 +72,7 @@ interface AuthStore {
   syncName: (name: string) => void;
   checkOnboardingStatus: () => Promise<boolean>;
   setOnboardingCompleted: (completed: boolean) => void;
+  clearNeedsOnboarding: () => void;  // 온보딩 완료 후 플래그 초기화
   loadUserProfile: () => Promise<UserProfile | null>;  // 학습 프로필 로드
   setUserProfile: (profile: UserProfile | null) => void;  // 프로필 업데이트
   loadMembership: () => Promise<MembershipData | null>;  // 멤버십 로드
@@ -230,6 +236,7 @@ function setupAuthStateListener(set: SetState): void {
         session: newSession,
         isAuthenticated: true,
         isLoading: false,
+        ...(isNewUser && { needsOnboarding: true }),  // 신규 가입 시에만 온보딩 표시
       });
 
       if (studentId) {
@@ -278,6 +285,7 @@ export const useAuthStore = create<AuthStore>()(
       isAuthenticated: false,
       isLoading: true,
       error: null,
+      needsOnboarding: false,  // 회원가입 시에만 true로 설정됨
 
       // Supabase Auth 초기화 (앱 시작 시 호출) - 최적화 버전
       initializeAuth: async () => {
@@ -566,6 +574,7 @@ export const useAuthStore = create<AuthStore>()(
               session: data.session,
               isAuthenticated: true,
               isLoading: false,
+              needsOnboarding: true,  // 회원가입 시에만 온보딩 표시
             });
 
             if (student?.id) {
@@ -814,6 +823,11 @@ export const useAuthStore = create<AuthStore>()(
         if (currentUser) {
           set({ user: { ...currentUser, onboardingCompleted: completed } });
         }
+      },
+
+      // 온보딩 플래그 초기화 (온보딩 완료 후 호출)
+      clearNeedsOnboarding: () => {
+        set({ needsOnboarding: false });
       },
 
       // 학습 프로필 로드 (온보딩 데이터)

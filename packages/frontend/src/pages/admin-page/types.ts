@@ -12,7 +12,11 @@ export type ModalType = 'none' | 'add-teacher' | 'add-course' | 'batch-update' |
 export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries' | 'users';
 
 // 멤버십 타입
-export type MembershipType = 'pending' | 'beta_tester' | 'lab_member';
+// pending: 승인 대기자 (신규 가입)
+// regular: 일반인 (체험판 만료 후 강등)
+// beta_tester: 베타테스터 (7일 체험판)
+// lab_member: 실험단 (무기한)
+export type MembershipType = 'pending' | 'regular' | 'beta_tester' | 'lab_member';
 export type MembershipStatus = 'pending' | 'active' | 'expired' | 'revoked';
 
 // 사용자 멤버십 정보
