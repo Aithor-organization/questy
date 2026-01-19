@@ -32,7 +32,7 @@ interface ActiveTimer {
   elapsedBeforePause: number;     // 일시정지 전 누적 시간 (초)
 }
 
-interface DailyQuest {
+export interface DailyQuest {
   id: string;  // 고유 식별자
   day: number;
   date: string;

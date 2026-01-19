@@ -8,6 +8,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useQuestStore, getTodayDateString } from '../stores/questStore';
 import { useChatStore, DEFAULT_ROOM_ID } from '../stores/chatStore';
 import { NotebookLayout, NotebookPage, QuestCheckItem } from '../components/notebook';
+import { RescheduleModal } from '../components/RescheduleModal';
 
 export function PlanDetailPageV2() {
   const { planId } = useParams<{ planId: string }>();
@@ -23,6 +24,9 @@ export function PlanDetailPageV2() {
 
   // 개발중 메시지 표시 상태
   const [showDevMessage, setShowDevMessage] = useState(false);
+
+  // 밀린 퀘스트 재조정 모달 상태
+  const [showOverdueModal, setShowOverdueModal] = useState(false);
 
   const plan = planId ? getPlanById(planId) : undefined;
 
@@ -50,6 +54,11 @@ export function PlanDetailPageV2() {
   // 미완료 퀘스트 수 (과거 날짜)
   const overdueCount = useMemo(() => {
     return plan.dailyQuests.filter(q => !q.completed && q.date < todayStr).length;
+  }, [plan.dailyQuests, todayStr]);
+
+  // 밀린 퀘스트 목록 (과거 날짜 + 미완료)
+  const overdueQuests = useMemo(() => {
+    return plan.dailyQuests.filter(q => !q.completed && q.date < todayStr);
   }, [plan.dailyQuests, todayStr]);
 
   // 미완료 퀘스트 수 (전체)
@@ -298,7 +307,7 @@ export function PlanDetailPageV2() {
                 </div>
               </div>
               <button
-                onClick={() => setShowDevMessage(true)}
+                onClick={() => setShowOverdueModal(true)}
                 className="px-3 py-1.5 bg-[var(--ink-blue)] text-white text-sm rounded-full hover:bg-blue-600"
               >
                 재조정
@@ -362,6 +371,15 @@ export function PlanDetailPageV2() {
           </div>
         </NotebookPage>
       )}
+
+      {/* 밀린 퀘스트 재조정 모달 */}
+      <RescheduleModal
+        isOpen={showOverdueModal}
+        onClose={() => setShowOverdueModal(false)}
+        overdueQuests={overdueQuests}
+        planName={plan.materialName}
+        onReschedule={handleQuestReschedule}
+      />
     </NotebookLayout>
   );
 }

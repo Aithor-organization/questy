@@ -184,6 +184,13 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
 
         {/* 제목 */}
         <div className="flex-1 min-w-0">
+          {/* 밀린 퀘스트 표시 */}
+          {canReschedule && (
+            <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded mb-1">
+              <span className="inline-block w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+              밀린 퀘스트
+            </span>
+          )}
           <span
             className={`font-medium line-clamp-2 ${
               quest.completed ? 'line-through text-[var(--pencil-gray)]' : 'text-[var(--ink-black)]'
@@ -192,6 +199,12 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
             <span className="text-[var(--ink-blue)] mr-1">{quest.unitNumber}.</span>
             {quest.unitTitle}
           </span>
+          {/* 밀린 퀘스트 안내 메모 */}
+          {canReschedule && !isExpanded && (
+            <p className="text-[10px] text-amber-500 mt-0.5">
+              👆 눌러서 일정 조정
+            </p>
+          )}
         </div>
 
         {/* 시간 */}
