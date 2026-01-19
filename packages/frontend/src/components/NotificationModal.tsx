@@ -183,8 +183,13 @@ function QuestNotificationItem({
           <p className="text-xs text-[var(--pencil-gray)] mt-0.5">
             {quest.planName} · {quest.estimatedMinutes}분
           </p>
+          {/* 스케줄 조정 프롬프트 */}
+          <p className="text-xs text-amber-600 font-medium mt-1 flex items-center gap-1">
+            <span className="inline-block w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
+            스케줄 조정해주세요!
+          </p>
         </div>
-        <div className="flex-shrink-0 text-[var(--pencil-gray)]">
+        <div className="flex-shrink-0 text-amber-500">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
