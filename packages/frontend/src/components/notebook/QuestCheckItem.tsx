@@ -27,6 +27,21 @@ function formatDateKorean(dateStr: string): string {
   return `${month}/${day}(${dayOfWeek})`;
 }
 
+// 초를 "44분38초" 또는 "1시간20분20초" 형식으로 포맷
+function formatDuration(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}시간${minutes}분${seconds}초`;
+  }
+  if (minutes > 0) {
+    return `${minutes}분${seconds}초`;
+  }
+  return `${seconds}초`;
+}
+
 // 인강(영상 강의) 퀘스트 여부 판별
 function isVideoLectureQuest(quest: QuestWithPlan): boolean {
   const title = quest.unitTitle || '';
@@ -237,17 +252,6 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
           </span>
         )}
 
-        {/* 확장 화살표 (상세 정보 있을 때만) */}
-        {hasDetails && (
-          <span
-            className={`text-[var(--pencil-gray)] transition-transform duration-200 ${
-              isExpanded ? 'rotate-180' : ''
-            }`}
-          >
-            ▼
-          </span>
-        )}
-
         {/* 완료 뱃지 + 타이머 시간 */}
         {quest.completed && (
           <span className="flex-shrink-0 flex items-center gap-1.5">
@@ -275,9 +279,18 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
           </button>
           {hasTimerRecord && quest.timerRecord && (
             <span className="text-xs text-[var(--pencil-gray)]">
-              {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 진행 중
+              이어서 {formatDuration(quest.timerRecord.elapsedSeconds)}
             </span>
           )}
+        </div>
+      )}
+
+      {/* 상세/접기 토글 */}
+      {hasDetails && (
+        <div className="flex justify-center mt-2">
+          <span className="text-xs text-[var(--pencil-gray)]">
+            {isExpanded ? '▲ 접기' : '상세 ▼'}
+          </span>
         </div>
       )}
 
@@ -443,7 +456,7 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
               </button>
               {hasTimerRecord && quest.timerRecord && (
                 <span className="text-xs text-[var(--pencil-gray)]">
-                  이어서 {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 진행 중
+                  이어서 {formatDuration(quest.timerRecord.elapsedSeconds)}
                 </span>
               )}
               {!hasTimerRecord && quest.estimatedMinutes > 0 && (
@@ -459,7 +472,7 @@ export function QuestCheckItem({ quest, onToggle, onReschedule }: QuestCheckItem
             <div className="flex items-center gap-2 text-sm text-[var(--sticker-mint)]">
               <span>✓</span>
               <span>
-                {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 학습 완료
+                {formatDuration(quest.timerRecord.elapsedSeconds)} 학습 완료
               </span>
             </div>
           )}
