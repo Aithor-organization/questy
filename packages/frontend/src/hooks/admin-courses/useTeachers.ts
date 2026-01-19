@@ -66,6 +66,11 @@ export function useTeachers() {
 
       setTeachers(teacherList);
     } catch (err: any) {
+      // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
+      if (err?.name === 'AbortError') {
+        console.log('[useTeachers] fetchTeachers cancelled');
+        return;
+      }
       console.error('[useTeachers] fetchTeachers error:', err);
       setError(err.message || '강사 목록 조회 실패');
     } finally {

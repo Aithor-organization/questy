@@ -135,7 +135,12 @@ async function verifySessionInBackground(set: SetState, get: GetState): Promise<
     setupAuthStateListener(set);
 
     console.log('[Auth] ✅ Background: Session verified');
-  } catch (err) {
+  } catch (err: any) {
+    // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
+    if (err?.name === 'AbortError') {
+      console.log('[Auth] Background verification cancelled');
+      return;
+    }
     console.error('[Auth] Background verification error:', err);
   } finally {
     isVerifyingSession = false;
@@ -810,7 +815,12 @@ export const useAuthStore = create<AuthStore>()(
 
           set({ user: { ...currentUser, onboardingCompleted: completed } });
           return completed;
-        } catch (err) {
+        } catch (err: any) {
+          // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
+          if (err?.name === 'AbortError') {
+            console.log('[Auth] Onboarding check cancelled');
+            return currentUser.onboardingCompleted ?? false;
+          }
           // 네트워크 에러 등 예외 시 기존 상태 유지
           console.error('[Auth] Check onboarding error:', err);
           return currentUser.onboardingCompleted ?? false;
@@ -871,7 +881,12 @@ export const useAuthStore = create<AuthStore>()(
           set({ userProfile: profile });
           console.log('[Auth] User profile loaded:', profile.targetUniversity);
           return profile;
-        } catch (err) {
+        } catch (err: any) {
+          // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
+          if (err?.name === 'AbortError') {
+            console.log('[Auth] User profile load cancelled');
+            return null;
+          }
           // 네트워크 에러 등 예외 처리
           console.error('[Auth] Load user profile exception:', err);
           return null;

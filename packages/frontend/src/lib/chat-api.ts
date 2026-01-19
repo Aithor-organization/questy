@@ -83,7 +83,12 @@ async function getStudentId(): Promise<string | null> {
       cachedStudentId = newStudent.id;
       console.log('[ChatAPI] student 자동 생성 완료:', newStudent.id);
       return newStudent.id;
-    } catch (error) {
+    } catch (error: any) {
+      // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
+      if (error?.name === 'AbortError') {
+        console.log('[ChatAPI] getStudentId cancelled');
+        return null;
+      }
       console.error('[ChatAPI] getStudentId 에러:', error);
       return null;
     } finally {
