@@ -358,19 +358,16 @@ cronRoutes.post('/evening-reminder', async (c) => {
 });
 
 /**
- * 수동 테스트용 엔드포인트
+ * Health Check 엔드포인트 (인증 불필요)
  * GET /api/cron/test
  */
 cronRoutes.get('/test', async (c) => {
-  if (!verifyCronSecret(c)) {
-    return c.json({ success: false, error: 'Unauthorized' }, 401);
-  }
-
   return c.json({
-    success: true,
-    message: 'Cron endpoint is working',
-    time: new Date().toISOString(),
+    status: 'ok',
+    message: 'Cron routes are working',
+    timestamp: new Date().toISOString(),
     kstTime: new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString(),
+    cronSecretConfigured: !!CRON_SECRET,
   });
 });
 
