@@ -154,7 +154,7 @@ async function fetchStudentIdInBackground(userId: string, set: SetState, get: Ge
 
   try {
     // AbortError 재시도 로직 적용
-    const { data: student } = await retryQuery(() =>
+    const { data: student } = await retryQuery<{ id: string }>(() =>
       supabase!
         .from('students')
         .select('id')
@@ -794,7 +794,10 @@ export const useAuthStore = create<AuthStore>()(
 
         try {
           // AbortError 재시도 로직 적용
-          const { data, error } = await retryQuery(() =>
+          const { data, error } = await retryQuery<{
+            onboarding_completed: boolean | null;
+            target_university: string | null;
+          }>(() =>
             supabase!
               .from('user_profiles')
               .select('onboarding_completed, target_university')
@@ -861,7 +864,17 @@ export const useAuthStore = create<AuthStore>()(
 
         try {
           // AbortError 재시도 로직 적용
-          const { data, error } = await retryQuery(() =>
+          const { data, error } = await retryQuery<{
+            age: number | null;
+            exam_year: number | null;
+            target_university: string | null;
+            target_grades: Record<string, number> | null;
+            current_grades: Record<string, number> | null;
+            selected_tamgu1: string | null;
+            selected_tamgu2: string | null;
+            subscribed_platforms: string[] | null;
+            daily_study_hours: number | null;
+          }>(() =>
             supabase!
               .from('user_profiles')
               .select('*')
@@ -869,13 +882,13 @@ export const useAuthStore = create<AuthStore>()(
               .single()
           );
 
-          if (error) {
+          if (error || !data) {
             // 에러 코드별 분류 처리
             // PGRST116: 행 없음 (프로필 미생성) - 정상 케이스
             // 다른 에러: 네트워크/권한 문제 - 로깅 필요
-            if (error.code === 'PGRST116') {
+            if (error?.code === 'PGRST116') {
               console.log('[Auth] No user profile found (not created yet)');
-            } else {
+            } else if (error) {
               console.warn('[Auth] User profile load error:', error.code, error.message);
             }
             return null;

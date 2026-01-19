@@ -3,7 +3,7 @@
  * Anon Key 사용 - RLS 정책에 따라 접근 제한됨
  */
 
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -84,7 +84,10 @@ export async function retryQuery<T>(
   queryFn: () => PromiseLike<{ data: T | null; error: any }>
 ): Promise<{ data: T | null; error: any }> {
   try {
-    return await withRetry(() => queryFn());
+    return await withRetry(async () => {
+      const result = await queryFn();
+      return result;
+    });
   } catch (error: any) {
     return { data: null, error };
   }
