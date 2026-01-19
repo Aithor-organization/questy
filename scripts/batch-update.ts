@@ -13,6 +13,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import * as iconvLite from 'iconv-lite';
 
 // ============================================
 // 환경변수 & 설정
@@ -46,21 +47,10 @@ const log = {
 // 크롤러 유틸리티 (간소화 버전)
 // ============================================
 
-// iconv-lite 동적 import (ESM 호환)
-let iconv: typeof import('iconv-lite') | null = null;
-
-async function loadIconv() {
-  if (!iconv) {
-    iconv = await import('iconv-lite');
-  }
-  return iconv;
-}
-
 /**
  * EUC-KR 인코딩 페이지 fetch
  */
 async function fetchHtmlEucKr(url: string, retries = 3): Promise<string | null> {
-  const iconvLib = await loadIconv();
 
   for (let attempt = 0; attempt < retries; attempt++) {
     try {
@@ -85,7 +75,7 @@ async function fetchHtmlEucKr(url: string, retries = 3): Promise<string | null> 
       }
 
       const buffer = await response.arrayBuffer();
-      return iconvLib.decode(Buffer.from(buffer), 'euc-kr');
+      return iconvLite.decode(Buffer.from(buffer), 'euc-kr');
 
     } catch (error) {
       log.warn(`Attempt ${attempt + 1}/${retries} failed for ${url}: ${error}`);

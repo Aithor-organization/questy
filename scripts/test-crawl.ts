@@ -6,7 +6,19 @@
 // iconv-lite import
 import * as iconvLite from 'iconv-lite';
 
-const TEST_URL = 'https://www.megastudy.net/teacher_v2/chr/lecture_detailview.asp?CHR_CD=58265&TEC_CD=megakdw';
+// 강좌 상세 페이지 (구매 정보)
+const DETAIL_URL = 'https://www.megastudy.net/teacher_v2/chr/lecture_detailview.asp?CHR_CD=58265&TEC_CD=megakdw';
+
+// 커리큘럼 페이지 (강의 목록) - JavaScript로 AJAX 로딩됨
+const CURRICULUM_URL = 'https://www.megastudy.net/teacher_v2/curriculum/curriculum.asp?CHR_CD=58265&tec_cd=megakdw';
+
+// AJAX 엔드포인트 - 선생님 전체 커리큘럼 표
+const CURRICULUM_AJAX_URL = 'https://www.megastudy.net/teacher_v2/curriculum/curriculum_tbl_ax.asp?tec_cd=megakdw&dom_cd=1&HomeCd=148&MainFlg=N';
+
+// AJAX 엔드포인트 - 특정 강좌의 강의 목록 (CHR_CD=58265)
+const COURSE_DETAIL_AJAX_URL = 'https://www.megastudy.net/teacher_v2/curriculum/Tbl_ChrDtl_Ax.asp?row_no=1&chr_cd=58265';
+
+const TEST_URL = COURSE_DETAIL_AJAX_URL;  // 특정 강좌 강의 목록 테스트
 
 async function fetchHtmlEucKr(url: string): Promise<string | null> {
 
@@ -112,9 +124,92 @@ function parseHtml(html: string) {
   const isCompleted = /완강|종강|마감/i.test(html);
   console.log(`\n  🏁 완강 여부: ${isCompleted ? '완강' : '진행중'}`);
 
-  // HTML 일부 출력 (디버깅용)
-  console.log('\n📜 HTML 샘플 (처음 2000자):\n');
-  console.log(html.substring(0, 2000));
+  // 강의 목록 영역 찾기 (디버깅)
+  console.log('\n🔍 강의 목록 영역 검색:');
+
+  // 커리큘럼/강의목록 관련 키워드 검색
+  const keywords = ['curriculum', 'lecture_list', 'lec_list', 'chr_list', '강의목록', '커리큘럼'];
+  keywords.forEach(kw => {
+    const idx = html.toLowerCase().indexOf(kw.toLowerCase());
+    if (idx !== -1) {
+      console.log(`  📍 "${kw}" 발견 위치: ${idx}`);
+      console.log(`     주변 내용: ${html.substring(idx, idx + 200).replace(/\s+/g, ' ')}`);
+    }
+  });
+
+  // class에 list가 포함된 div/ul 찾기
+  const listPattern = /<(div|ul|table)[^>]*class="[^"]*list[^"]*"[^>]*>/gi;
+  let listMatch;
+  console.log('\n📋 list 관련 태그:');
+  let count = 0;
+  while ((listMatch = listPattern.exec(html)) !== null && count < 5) {
+    console.log(`  ${listMatch[0].substring(0, 100)}`);
+    count++;
+  }
+
+  // AJAX로 강의 목록을 불러오는지 확인
+  const ajaxPattern = /(?:ajax|fetch|load)\s*\([^)]*(?:curriculum|lecture|chr)[^)]*\)/gi;
+  let ajaxMatch;
+  console.log('\n🌐 AJAX 호출 패턴:');
+  while ((ajaxMatch = ajaxPattern.exec(html)) !== null) {
+    console.log(`  ${ajaxMatch[0]}`);
+  }
+
+  // 강좌 정보 관련 변수 찾기
+  const varPattern = /var\s+(?:chr|lec|course|curriculum)[^;]*;/gi;
+  let varMatch;
+  console.log('\n📦 관련 JavaScript 변수:');
+  count = 0;
+  while ((varMatch = varPattern.exec(html)) !== null && count < 10) {
+    console.log(`  ${varMatch[0].substring(0, 150)}`);
+    count++;
+  }
+
+  // 강좌명 찾기 (다양한 패턴)
+  console.log('\n📚 강좌명 검색:');
+  const coursePatterns = [
+    /class="[^"]*lec[_-]?(?:name|tit|title)[^"]*"[^>]*>([^<]+)</gi,
+    /class="[^"]*chr[_-]?(?:name|tit|title)[^"]*"[^>]*>([^<]+)</gi,
+    /class="[^"]*course[_-]?(?:name|tit|title)[^"]*"[^>]*>([^<]+)</gi,
+    /<h[1-4][^>]*>([^<]{10,100})<\/h[1-4]>/gi,
+  ];
+  coursePatterns.forEach((pattern, idx) => {
+    let match;
+    while ((match = pattern.exec(html)) !== null) {
+      const text = match[1].trim();
+      if (text.length > 5 && !text.includes('메가스터디')) {
+        console.log(`  패턴${idx + 1}: ${text.substring(0, 80)}`);
+      }
+    }
+  });
+
+  // CHR_CD (강좌코드) 관련 검색
+  console.log('\n🔢 CHR_CD 관련:');
+  const chrPattern = /CHR_CD['":\s=]*['"]?(\d+)['"]?/gi;
+  let chrMatch;
+  const chrCodes = new Set<string>();
+  while ((chrMatch = chrPattern.exec(html)) !== null) {
+    chrCodes.add(chrMatch[1]);
+  }
+  console.log(`  발견된 CHR_CD: ${Array.from(chrCodes).join(', ')}`);
+
+  // detail_view 또는 lecture 관련 div 찾기
+  console.log('\n📦 주요 컨텐츠 영역:');
+  const contentPattern = /<div[^>]*(?:id|class)="[^"]*(?:detail|content|lecture|info)[^"]*"[^>]*>/gi;
+  let contentMatch;
+  let contentCount = 0;
+  while ((contentMatch = contentPattern.exec(html)) !== null && contentCount < 8) {
+    const startIdx = contentMatch.index;
+    console.log(`  ${contentMatch[0].substring(0, 80)}`);
+    // 해당 div 내용 일부 출력
+    const snippet = html.substring(startIdx, startIdx + 300).replace(/\s+/g, ' ');
+    console.log(`    → ${snippet.substring(0, 150)}...`);
+    contentCount++;
+  }
+
+  // HTML 중간 부분 (강좌 정보가 있을 가능성)
+  console.log('\n📜 HTML 중간 부분 (50000-52000자):\n');
+  console.log(html.substring(50000, 52000));
 }
 
 async function main() {
