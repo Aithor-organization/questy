@@ -17,7 +17,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { UserLearningProfile, MembershipType, MembershipStatus } from './types';
+import type { UserLearningProfile, MembershipType } from './types';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
