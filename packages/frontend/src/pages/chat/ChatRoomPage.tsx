@@ -30,6 +30,7 @@ export function ChatRoomPage() {
     addMessage,
     markRoomAsRead,
     getPendingResponseForRoom,
+    loadRoomMessages,
     isInitialized: isChatStoreInitialized,
   } = useChatStore();
 
@@ -70,6 +71,17 @@ export function ChatRoomPage() {
     }
   }, [targetRoomId]);
 
+  // 채팅방 메시지 지연 로드 (채팅방 진입 시)
+  useEffect(() => {
+    if (!isChatStoreInitialized) return;
+
+    const currentRoom = getRoomById(targetRoomId) || getDefaultRoom();
+    if (currentRoom) {
+      // 메시지가 없으면 로드 (지연 로딩)
+      loadRoomMessages(currentRoom.id);
+    }
+  }, [targetRoomId, isChatStoreInitialized, getRoomById, getDefaultRoom, loadRoomMessages]);
+
   // 초기화: 환영 메시지 및 읽음 처리 (chatStore 초기화 후 1회만)
   useEffect(() => {
     async function initializeRoom() {
@@ -86,15 +98,23 @@ export function ChatRoomPage() {
       await markRoomAsRead(targetRoomId);
 
       // 기본 채팅방이고 메시지가 없으면 환영 메시지 (async)
+      // 메시지 로드 후 확인 (loadedRoomIds 체크는 store 내부에서 처리)
       if (currentRoom.isDefault && currentRoom.messages.length === 0) {
-        await addMessage(targetRoomId, {
-          role: 'assistant',
-          content: `안녕하세요! 저는 AI 학습 코치예요! 🌟\n\n무엇을 도와드릴까요? 학습 질문, 계획 상담, 아니면 그냥 수다도 좋아요! 😊`,
-          agentRole: 'COACH',
-        });
+        // 메시지 로드가 완료될 때까지 약간 대기
+        setTimeout(async () => {
+          const updatedRoom = getRoomById(targetRoomId) || getDefaultRoom();
+          if (updatedRoom?.isDefault && updatedRoom.messages.length === 0) {
+            await addMessage(targetRoomId, {
+              role: 'assistant',
+              content: `안녕하세요! 저는 AI 학습 코치예요! 🌟\n\n무엇을 도와드릴까요? 학습 질문, 계획 상담, 아니면 그냥 수다도 좋아요! 😊`,
+              agentRole: 'COACH',
+            });
+          }
+          setIsInitialized(true);
+        }, 100);
+      } else {
+        setIsInitialized(true);
       }
-
-      setIsInitialized(true);
     }
 
     initializeRoom();

@@ -95,6 +95,7 @@ interface ChatStore {
   pendingResponses: PendingResponse[];
   isLoading: boolean;
   isInitialized: boolean;
+  loadedRoomIds: Set<string>; // 메시지가 로드된 채팅방 ID들
 
   // 초기화
   initializeChat: () => Promise<void>;
@@ -105,6 +106,7 @@ interface ChatStore {
   deleteRoom: (roomId: string) => Promise<void>;
   getRoomById: (roomId: string) => ChatRoom | undefined;
   getDefaultRoom: () => ChatRoom | undefined;
+  loadRoomMessages: (roomId: string) => Promise<void>; // 지연 로딩
 
   // 메시지 액션
   addMessage: (roomId: string, message: Omit<ChatMessage, 'id' | 'timestamp' | 'isRead'>) => Promise<string | null>;
@@ -164,8 +166,9 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   pendingResponses: [],
   isLoading: false,
   isInitialized: false,
+  loadedRoomIds: new Set<string>(),
 
-  // Supabase에서 채팅 데이터 로드
+  // Supabase에서 채팅 데이터 로드 (메시지는 지연 로딩)
   initializeChat: async () => {
     const { isInitialized, isLoading } = get();
     if (isInitialized || isLoading) {
@@ -174,7 +177,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     }
 
     set({ isLoading: true });
-    console.log('[ChatStore] 초기화 시작...');
+    console.log('[ChatStore] 초기화 시작 (빠른 로딩)...');
 
     try {
       // 1. 기본 채팅방 가져오기 또는 생성
@@ -185,28 +188,62 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
         return;
       }
 
-      // 2. 모든 채팅방 조회
+      // 2. 모든 채팅방 조회 (메시지 없이 메타데이터만)
       const dbRooms = await chatApi.fetchChatRooms();
 
-      // 3. 각 채팅방의 메시지 조회
-      const roomsWithMessages: ChatRoom[] = await Promise.all(
-        dbRooms.map(async (dbRoom) => {
-          const dbMessages = await chatApi.fetchMessages(dbRoom.id);
-          const messages = dbMessages.map(dbMessageToFrontend);
-          return dbRoomToFrontend(dbRoom, messages);
-        })
+      // 3. 채팅방 메타데이터만 저장 (메시지는 빈 배열)
+      const roomsWithoutMessages: ChatRoom[] = dbRooms.map((dbRoom) =>
+        dbRoomToFrontend(dbRoom, [])
       );
 
-      console.log(`[ChatStore] ${roomsWithMessages.length}개 채팅방 로드 완료`);
+      console.log(`[ChatStore] ${roomsWithoutMessages.length}개 채팅방 메타 로드 완료 (메시지는 지연 로딩)`);
 
       set({
-        rooms: roomsWithMessages,
+        rooms: roomsWithoutMessages,
         isLoading: false,
         isInitialized: true,
+        loadedRoomIds: new Set<string>(),
       });
     } catch (error) {
       console.error('[ChatStore] 초기화 실패:', error);
       set({ isLoading: false });
+    }
+  },
+
+  // 특정 채팅방 메시지 로드 (지연 로딩)
+  loadRoomMessages: async (roomId: string) => {
+    const { loadedRoomIds } = get();
+
+    // 이미 로드된 경우 스킵
+    if (loadedRoomIds.has(roomId)) {
+      console.log(`[ChatStore] 채팅방 ${roomId} 메시지 이미 로드됨`);
+      return;
+    }
+
+    console.log(`[ChatStore] 채팅방 ${roomId} 메시지 로드 중...`);
+
+    try {
+      const dbMessages = await chatApi.fetchMessages(roomId);
+      const messages = dbMessages.map(dbMessageToFrontend);
+
+      // 상태 업데이트
+      set((state) => {
+        const newLoadedIds = new Set(state.loadedRoomIds);
+        newLoadedIds.add(roomId);
+
+        return {
+          rooms: state.rooms.map((room) =>
+            room.id === roomId
+              ? { ...room, messages }
+              : room
+          ),
+          loadedRoomIds: newLoadedIds,
+        };
+      });
+
+      console.log(`[ChatStore] 채팅방 ${roomId} 메시지 ${messages.length}개 로드 완료`);
+    } catch (error) {
+      console.error(`[ChatStore] 채팅방 ${roomId} 메시지 로드 실패:`, error);
     }
   },
 
@@ -219,6 +256,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
       pendingResponses: [],
       isLoading: false,
       isInitialized: false,
+      loadedRoomIds: new Set<string>(),
     });
     console.log('[ChatStore] 상태 초기화됨');
   },
