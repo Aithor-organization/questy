@@ -111,6 +111,7 @@ interface SmartRescheduleResult {
 
 interface QuestStore {
   plans: QuestPlan[];
+  isHydrated: boolean;  // persist 스토어 hydration 완료 여부
   addPlan: (plan: Omit<QuestPlan, 'id' | 'createdAt'>) => void;
   removePlan: (planId: string) => void;
   toggleQuestComplete: (planId: string, questId: string) => void;
@@ -157,6 +158,7 @@ export const useQuestStore = create<QuestStore>()(
   persist(
     (set, get) => ({
       plans: [],
+      isHydrated: false,  // persist hydration 완료 전
       activeTimer: null,
 
       addPlan: (plan) => {
@@ -731,3 +733,9 @@ export const useQuestStore = create<QuestStore>()(
     }
   )
 );
+
+// Hydration 완료 시 isHydrated를 true로 설정
+useQuestStore.persist.onFinishHydration(() => {
+  useQuestStore.setState({ isHydrated: true });
+  console.log('[QuestStore] Hydration 완료 (onFinishHydration)');
+});

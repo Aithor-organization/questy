@@ -235,6 +235,13 @@ chatRoutes.post('/stream', async (c) => {
 
     console.log(`[Coach/Stream] Starting stream for: "${message.slice(0, 50)}..."${userProfile?.targetUniversity ? ` (목표: ${userProfile.targetUniversity})` : ''}`);
 
+    // 디버그: questContext 확인
+    console.log(`[Coach/Stream] questContext:`, {
+      activePlansCount: questContext?.activePlans?.length ?? 0,
+      todayQuestsCount: questContext?.todayQuests?.length ?? 0,
+      weeklyStats: questContext?.weeklyStats,
+    });
+
     // SSE 스트리밍 응답
     return streamSSE(c, async (stream) => {
       let fullMessage = '';

@@ -50,7 +50,7 @@ export function ChatRoomPage() {
   } = useStreamingChat(targetRoomId);
 
   // Quest store에서 퀘스트 정보 가져오기
-  const { plans, getQuestsByDate } = useQuestStore();
+  const { plans, getQuestsByDate, isHydrated: isQuestStoreHydrated } = useQuestStore();
   const todayQuests = getQuestsByDate(getTodayDateString());
 
   // Auth store에서 사용자 프로필 가져오기 (온보딩 데이터)
@@ -130,16 +130,17 @@ export function ChatRoomPage() {
     initializeRoom();
   }, [targetRoomId, isChatStoreInitialized, getRoomById, getDefaultRoom, addMessage, markRoomAsRead]);
 
-  // 첫 진입 시 스크롤: 메시지 로드 완료 후 맨 아래로 스크롤
+  // 첫 진입 시 스크롤: 페이지 초기화 완료 후 맨 아래로 스크롤
   useLayoutEffect(() => {
-    if (isFirstScrollRef.current && messagesEndRef.current && room?.messages && room.messages.length > 0) {
+    // isInitialized가 true일 때만 스크롤 실행 (로딩 화면 → 실제 화면 전환 후)
+    if (isInitialized && isFirstScrollRef.current && messagesEndRef.current && room?.messages && room.messages.length > 0) {
       // requestAnimationFrame으로 DOM 렌더링 완료 후 스크롤
       requestAnimationFrame(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: 'instant' });
         isFirstScrollRef.current = false;
       });
     }
-  }, [room?.messages, room?.messages?.length]);
+  }, [isInitialized, room?.messages, room?.messages?.length]);
 
   // 이후 메시지 추가 시: 부드럽게 스크롤
   useEffect(() => {
@@ -227,6 +228,14 @@ export function ChatRoomPage() {
       }
     }
 
+    // QuestStore hydration 상태 확인
+    if (!isQuestStoreHydrated) {
+      console.warn('[ChatRoomPage] QuestStore가 아직 hydration되지 않음. plans가 비어있을 수 있음.');
+    }
+
+    // 디버그: 플랜 정보 로그
+    console.log('[ChatRoomPage] handleSendMessage - plans:', plans.length, 'hydrated:', isQuestStoreHydrated);
+
     // 퀘스트 컨텍스트 구성 (activePlans 포함)
     const questContext = {
       todayQuests: todayQuests.map(q => ({
@@ -272,6 +281,13 @@ export function ChatRoomPage() {
       completedToday: todayQuests.filter(q => q.completed).length,
       totalToday: todayQuests.length,
     };
+
+    // 디버그: 전송할 컨텍스트 확인
+    console.log('[ChatRoomPage] questContext:', {
+      activePlansCount: questContext.activePlans.length,
+      todayQuestsCount: questContext.todayQuests.length,
+      weeklyStats: questContext.weeklyStats,
+    });
 
     // 스트리밍으로 메시지 전송 (실시간 응답 표시)
     // userProfile이 null이면 undefined로 전달 (있는 경우에만 AI에게 전달)
