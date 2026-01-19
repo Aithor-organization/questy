@@ -167,14 +167,28 @@ export class AnalystAgent extends BaseAgent {
     const masteryCount = Array.isArray(memoryContext.masteryInfo)
       ? memoryContext.masteryInfo.length
       : 0;
+
+    // 각 플랜의 상세 진도 정보 구성
+    const planDetails = activePlans.length > 0
+      ? activePlans.map(plan => {
+          const progress = plan.totalSessions > 0
+            ? Math.round((plan.completedSessions / plan.totalSessions) * 100)
+            : 0;
+          return `- ${plan.title}: ${plan.completedSessions}/${plan.totalSessions}일 완료 (${progress}%)`;
+        }).join('\n')
+      : '(활성 플랜 없음)';
+
     const prompt = `${this.systemPrompt}
 
 현재 학생: ${studentProfile?.name ?? '알 수 없음'}
 활성 플랜: ${activePlans.length}개
 학습 항목: ${masteryCount}개
 
+## 플랜별 진도 현황
+${planDetails}
+
 분석 유형: ${analysisType}
-학생의 질문에 대해 학습 데이터 분석 관점에서 상세하게 응답해주세요.`;
+학생의 질문에 대해 위의 플랜별 진도 데이터를 기반으로 구체적인 분석과 격려를 해주세요.`;
 
     yield* this.generateStreamResponse(prompt, message, {
       model: 'gemini-3-flash',
