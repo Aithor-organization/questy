@@ -72,13 +72,19 @@ export class EtoosParser {
    * 강의 제목 추출
    */
   private static extractTitle(html: string): string {
-    // 패턴 1: <h2 class="tit">...</h2>
+    // 패턴 1: <p class="title_main">...</p> (최신 페이지 구조)
+    const titleMainMatch = html.match(/<p\s+class="title_main">([^<]+)<\/p>/i);
+    if (titleMainMatch) {
+      return titleMainMatch[1].trim();
+    }
+
+    // 패턴 2: <h2 class="tit">...</h2>
     const titleMatch = html.match(/<h2[^>]*class="tit"[^>]*>([^<]+)<\/h2>/i);
     if (titleMatch) {
       return titleMatch[1].trim();
     }
 
-    // 패턴 2: New 20XX 패턴
+    // 패턴 3: New 20XX 패턴
     const newMatch = html.match(/>(New\s+\d{4}[^<]+)</);
     if (newMatch) {
       return newMatch[1].trim();
