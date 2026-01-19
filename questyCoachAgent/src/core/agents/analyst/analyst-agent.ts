@@ -68,7 +68,10 @@ export class AnalystAgent extends BaseAgent {
     context: DirectorContext
   ): Promise<AgentResponse> {
     const { message } = request;
-    const { studentProfile, activePlans, memoryContext } = context;
+    const { studentProfile, memoryContext } = context;
+
+    // 활성 플랜 가져오기: fullScheduleContext (프론트엔드) 우선, 없으면 내부 registry 사용
+    const activePlans = this.getActivePlans(context);
 
     // 일정 조정 요청 감지
     if (QuestActions.isScheduleRequest(message)) {
@@ -149,7 +152,8 @@ export class AnalystAgent extends BaseAgent {
     }
 
     // 분석 유형별 스트리밍
-    const { studentProfile, activePlans, memoryContext } = context;
+    const { studentProfile, memoryContext } = context;
+    const activePlans = this.getActivePlans(context);
     const analysisType = classifyAnalysisRequest(message);
 
     // PLAN_REVIEW는 별도 메서드 필요
@@ -238,5 +242,36 @@ export class AnalystAgent extends BaseAgent {
     pattern: Omit<ReviewPatternMemory, 'id' | 'type' | 'createdAt' | 'lastUsedAt' | 'usageCount'>
   ): Promise<string> {
     return createReviewPattern(pattern);
+  }
+
+  /**
+   * 활성 플랜 가져오기 (프론트엔드 컨텍스트 우선)
+   * - fullScheduleContext.activePlans: 프론트엔드에서 전달한 실제 사용자 플랜 (totalDays/completedDays)
+   * - context.activePlans: 내부 StudentRegistry (보통 비어있음)
+   */
+  private getActivePlans(context: DirectorContext): DirectorContext['activePlans'] {
+    // 프론트엔드 데이터가 있으면 형식 변환해서 사용
+    const frontendPlans = context.fullScheduleContext?.activePlans;
+    if (frontendPlans && frontendPlans.length > 0) {
+      console.log(`[AnalystAgent] Using fullScheduleContext.activePlans: ${frontendPlans.length} plans`);
+      // 프론트엔드 형식 (totalDays/completedDays) → 내부 형식 (totalSessions/completedSessions) 변환
+      return frontendPlans.map(plan => ({
+        id: plan.id,
+        studentId: '',
+        textbookId: '',
+        subject: (plan.subject ?? '기타') as import('../../../types/memory.js').Subject,
+        title: plan.title,
+        totalSessions: plan.totalDays,
+        completedSessions: plan.completedDays,
+        startDate: new Date(plan.startDate),
+        targetEndDate: new Date(plan.targetEndDate),
+        status: plan.status,
+        sessions: [],
+      }));
+    }
+
+    // 프론트엔드 데이터 없으면 내부 registry 사용
+    console.log(`[AnalystAgent] Using internal activePlans: ${context.activePlans.length} plans`);
+    return context.activePlans;
   }
 }
