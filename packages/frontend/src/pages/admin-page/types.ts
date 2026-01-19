@@ -9,7 +9,32 @@ import type { Teacher, Course } from '../../hooks/useAdminCourses';
 export type ModalType = 'none' | 'add-teacher' | 'add-course' | 'batch-update' | 'edit-teacher' | 'edit-course';
 
 // 뷰 탭 타입
-export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries' | 'users';
+export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries' | 'users' | 'learning-profiles';
+
+// 학습 프로필 타입
+export interface UserLearningProfile {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+  profile: {
+    age: number | null;
+    examYear: number;
+    targetUniversity: string | null;
+    targetGrades: Record<string, number> | null;
+    currentGrades: Record<string, number> | null;
+    selectedTamgu1: string | null;
+    selectedTamgu2: string | null;
+    subscribedPlatforms: string[] | null;
+    dailyStudyHours: number | null;
+    onboardingCompleted: boolean;
+    onboardingCompletedAt: string | null;
+  } | null;
+  membership: {
+    type: MembershipType;
+    status: MembershipStatus;
+  } | null;
+}
 
 // 멤버십 타입
 // pending: 승인 대기자 (신규 가입)

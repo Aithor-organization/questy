@@ -19,11 +19,13 @@ import {
   Clock,
   Pencil,
   MessageSquare,
+  GraduationCap,
 } from 'lucide-react';
 import { useAdminCourses } from '../../hooks/useAdminCourses';
 import { CourseCard } from './CourseCard';
 import { InquiriesView } from './InquiriesView';
 import { UsersView } from './UsersView';
+import { LearningProfilesView } from './LearningProfilesView';
 import {
   AddTeacherModal,
   AddCourseModal,
@@ -269,6 +271,11 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
           <UsersView />
         )}
 
+        {/* 학습 프로필 탭 내용 */}
+        {viewTab === 'learning-profiles' && (
+          <LearningProfilesView />
+        )}
+
         {/* 모달 */}
         {modalType === 'add-teacher' && (
           <AddTeacherModal
@@ -472,6 +479,17 @@ function ViewTabs({
       >
         <Users size={16} />
         사용자 관리
+      </button>
+      <button
+        onClick={() => setViewTab('learning-profiles')}
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+          viewTab === 'learning-profiles'
+            ? 'bg-teal-500 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        <GraduationCap size={16} />
+        학습 프로필
       </button>
     </div>
   );

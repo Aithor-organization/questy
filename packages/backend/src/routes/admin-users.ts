@@ -704,6 +704,132 @@ adminUsersRoutes.delete('/users/bulk', async (c) => {
 });
 
 /**
+ * 사용자 학습 프로필 조회 (관리자용)
+ * GET /api/admin/users/learning-profiles
+ */
+adminUsersRoutes.get('/users/learning-profiles', async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    // 관리자 권한 확인
+    const authHeader = c.req.header('Authorization');
+    if (!authHeader) {
+      return c.json({ success: false, error: '인증이 필요합니다' }, 401);
+    }
+
+    // user_profiles + user_memberships 조인하여 조회
+    const { data: profiles, error } = await supabase
+      .from('user_profiles')
+      .select(`
+        id,
+        age,
+        exam_year,
+        target_university,
+        target_grades,
+        current_grades,
+        selected_tamgu1,
+        selected_tamgu2,
+        subscribed_platforms,
+        daily_study_hours,
+        onboarding_completed,
+        onboarding_completed_at,
+        created_at
+      `)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('[AdminUsers] Get learning profiles error:', error);
+      return c.json({ success: false, error: '학습 프로필 조회 실패' }, 500);
+    }
+
+    // 사용자 ID 목록
+    const userIds = profiles?.map(p => p.id) || [];
+    const userInfo: Record<string, { email: string; name: string }> = {};
+    const membershipInfo: Record<string, { type: MembershipType; status: MembershipStatus }> = {};
+
+    // auth.users에서 이메일과 이름 일괄 조회
+    try {
+      let page = 1;
+      const perPage = 1000;
+      let hasMore = true;
+
+      while (hasMore) {
+        const { data: listData, error: listError } = await supabase.auth.admin.listUsers({
+          page,
+          perPage,
+        });
+
+        if (listError || !listData?.users) {
+          console.warn('[AdminUsers] listUsers error:', listError?.message);
+          break;
+        }
+
+        for (const authUser of listData.users) {
+          if (userIds.includes(authUser.id)) {
+            const email = authUser.email || '';
+            const name = authUser.user_metadata?.name || email.split('@')[0] || '이름 없음';
+            userInfo[authUser.id] = { email, name };
+          }
+        }
+
+        hasMore = listData.users.length === perPage;
+        page++;
+      }
+    } catch (e) {
+      console.warn('[AdminUsers] Batch user fetch failed:', e);
+    }
+
+    // 멤버십 정보 조회
+    const { data: memberships } = await supabase
+      .from('user_memberships')
+      .select('user_id, membership_type, status')
+      .in('user_id', userIds);
+
+    if (memberships) {
+      for (const m of memberships) {
+        membershipInfo[m.user_id] = {
+          type: m.membership_type,
+          status: m.status,
+        };
+      }
+    }
+
+    // 데이터 병합
+    const result = profiles?.map(p => {
+      const info = userInfo[p.id];
+      const membership = membershipInfo[p.id];
+      return {
+        id: p.id,
+        name: info?.name || '이름 없음',
+        email: info?.email || '',
+        createdAt: p.created_at,
+        profile: {
+          age: p.age,
+          examYear: p.exam_year || 0,
+          targetUniversity: p.target_university,
+          targetGrades: p.target_grades,
+          currentGrades: p.current_grades,
+          selectedTamgu1: p.selected_tamgu1,
+          selectedTamgu2: p.selected_tamgu2,
+          subscribedPlatforms: p.subscribed_platforms,
+          dailyStudyHours: p.daily_study_hours,
+          onboardingCompleted: p.onboarding_completed || false,
+          onboardingCompletedAt: p.onboarding_completed_at,
+        },
+        membership: membership || null,
+      };
+    }) || [];
+
+    return c.json({ success: true, data: result });
+  } catch (error: any) {
+    console.error('[AdminUsers] Get learning profiles error:', error);
+    return c.json({ success: false, error: error.message || '학습 프로필 조회 실패' }, 500);
+  }
+});
+
+/**
  * 대기 중인 사용자 수 조회
  * GET /api/admin/users/pending/count
  */
