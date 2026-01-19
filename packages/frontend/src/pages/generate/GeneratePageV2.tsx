@@ -108,6 +108,8 @@ function NewPlanContent() {
     isLoading,
     error,
     manualUnits,
+    remainingGenerations,
+    pendingPlanData,
     setInputMode,
     setImages,
     setMaterialName,
@@ -123,6 +125,8 @@ function NewPlanContent() {
     handleManualGenerate,
     handleSavePlan,
     handleReset,
+    handleApplyPendingPlan,
+    handleDismissPendingPlan,
   } = useGeneratePage();
 
   // 멤버십 체크 (AI 기능 사용 가능 여부)
@@ -206,9 +210,20 @@ function NewPlanContent() {
               </div>
             )}
 
+            {/* 남은 생성 횟수 표시 */}
+            <div className={`text-center text-sm mb-3 ${
+              remainingGenerations === 0 ? 'text-red-500 font-medium' : 'text-gray-500'
+            }`}>
+              {remainingGenerations === 0 ? (
+                '🚫 오늘의 플랜 생성 횟수를 모두 사용했습니다'
+              ) : (
+                `✨ 오늘 남은 생성 횟수: ${remainingGenerations}회`
+              )}
+            </div>
+
             {/* 생성 버튼 */}
             <GenerateButton
-              canGenerate={canGenerate}
+              canGenerate={canGenerate && remainingGenerations > 0}
               isLoading={isLoading || analyzingBook}
               onGenerate={onGenerate}
             />
@@ -237,6 +252,40 @@ function NewPlanContent() {
               </ul>
             )}
           </div>
+
+          {/* 미적용 플랜 카드 */}
+          {pendingPlanData && (
+            <div className="mt-6 p-4 bg-amber-50 border-2 border-amber-200 rounded-xl shadow-sm">
+              <div className="flex items-start justify-between gap-3 mb-3">
+                <div>
+                  <h4 className="font-semibold text-amber-800 flex items-center gap-2">
+                    📋 적용하지 않은 플랜이 있어요
+                  </h4>
+                  <p className="text-sm text-amber-700 mt-1">
+                    <span className="font-medium">{pendingPlanData.result.materialName}</span>
+                  </p>
+                  <p className="text-xs text-amber-600 mt-0.5">
+                    ⏱️ {pendingPlanData.timeRemaining} 후 자동 삭제됩니다
+                  </p>
+                </div>
+                <button
+                  onClick={handleDismissPendingPlan}
+                  className="text-amber-500 hover:text-amber-700 p-1"
+                  title="삭제"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleApplyPendingPlan}
+                  className="flex-1 py-2 px-4 bg-amber-500 text-white rounded-lg text-sm font-medium hover:bg-amber-600 transition-colors"
+                >
+                  플랜 보기
+                </button>
+              </div>
+            </div>
+          )}
         </>
       ) : (
         <>

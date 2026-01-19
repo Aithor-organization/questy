@@ -3,23 +3,38 @@
  * 퀘스트 생성 페이지 상태 관리 및 비즈니스 로직
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuestGeneration } from '../../hooks/useQuestGeneration';
-import type { GeneratedPlan } from '../../hooks/useQuestGeneration';
+import type { GeneratedPlan, GenerateResult } from '../../hooks/useQuestGeneration';
 import { useQuestStore } from '../../stores/questStore';
 import { API_BASE_URL } from '../../config';
 import type { Yes24Book, PreviewImage } from '@questybook/shared';
 import type { ImageData, InputMode, GenerateStep } from './types';
 import type { ManualUnit } from './components';
+import {
+  savePendingPlan,
+  getPendingPlan,
+  clearPendingPlan,
+  getPendingPlanTimeRemaining,
+  formatTimeRemaining,
+} from '../../lib/plan-generation-storage';
 
 export function useGeneratePage() {
   const navigate = useNavigate();
-  const { generate, result, isLoading, error, reset } = useQuestGeneration();
+  const { generate, result, isLoading, error, reset, remainingGenerations } = useQuestGeneration();
   const { addPlan } = useQuestStore();
 
   // 입력 모드
   const [inputMode, setInputMode] = useState<InputMode>('upload');
+
+  // 미적용 플랜 상태
+  const [pendingPlanData, setPendingPlanData] = useState<{
+    result: GenerateResult;
+    totalDays: number;
+    excludeWeekends: boolean;
+    timeRemaining: string;
+  } | null>(null);
 
   // 폼 상태
   const [images, setImages] = useState<ImageData[]>([]);
@@ -41,6 +56,67 @@ export function useGeneratePage() {
 
   // 플랜 상세 보기 상태
   const [viewingPlan, setViewingPlan] = useState<GeneratedPlan | null>(null);
+
+  // 미적용 플랜 로드 (컴포넌트 마운트 시)
+  useEffect(() => {
+    const loadPendingPlan = () => {
+      const pending = getPendingPlan();
+      if (pending) {
+        const timeRemaining = formatTimeRemaining(getPendingPlanTimeRemaining());
+        setPendingPlanData({
+          result: pending.result,
+          totalDays: pending.totalDays,
+          excludeWeekends: pending.excludeWeekends,
+          timeRemaining,
+        });
+      }
+    };
+
+    loadPendingPlan();
+
+    // 1분마다 남은 시간 업데이트
+    const interval = setInterval(() => {
+      const pending = getPendingPlan();
+      if (pending) {
+        const timeRemaining = formatTimeRemaining(getPendingPlanTimeRemaining());
+        setPendingPlanData(prev => prev ? { ...prev, timeRemaining } : null);
+      } else {
+        setPendingPlanData(null);
+      }
+    }, 60000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // 플랜 생성 완료 시 localStorage에 저장
+  useEffect(() => {
+    if (result && result.plans.length > 0) {
+      savePendingPlan(result, totalDays, excludeWeekends);
+      // 새 결과가 생기면 pending 상태 업데이트
+      setPendingPlanData({
+        result,
+        totalDays,
+        excludeWeekends,
+        timeRemaining: formatTimeRemaining(getPendingPlanTimeRemaining()),
+      });
+    }
+  }, [result, totalDays, excludeWeekends]);
+
+  // 미적용 플랜 적용하기 (결과 화면으로 이동)
+  const handleApplyPendingPlan = useCallback(() => {
+    if (pendingPlanData) {
+      // result 상태를 직접 설정할 수 없으므로, 플랜 상세 모달을 직접 열기
+      if (pendingPlanData.result.plans.length > 0) {
+        setViewingPlan(pendingPlanData.result.plans[0]);
+      }
+    }
+  }, [pendingPlanData]);
+
+  // 미적용 플랜 삭제
+  const handleDismissPendingPlan = useCallback(() => {
+    clearPendingPlan();
+    setPendingPlanData(null);
+  }, []);
 
   // 책 선택 시 미리보기 로드
   const handleBookSelect = async (book: Yes24Book) => {
@@ -213,7 +289,9 @@ export function useGeneratePage() {
 
   // 플랜 저장
   const handleSavePlan = (plan: GeneratedPlan) => {
-    if (!result) return;
+    // result가 없어도 pendingPlanData에서 가져올 수 있음
+    const sourceResult = result || pendingPlanData?.result;
+    if (!sourceResult) return;
 
     const totalMinutes = plan.dailyQuests.reduce((sum, q) => sum + q.estimatedMinutes, 0);
     const questUnits = new Set(plan.dailyQuests.map(q => q.unitNumber));
@@ -225,7 +303,7 @@ export function useGeneratePage() {
     }));
 
     addPlan({
-      materialName: result.materialName,
+      materialName: sourceResult.materialName,
       dailyQuests: questsWithIds,
       summary: {
         totalDays: plan.totalDays,
@@ -233,9 +311,13 @@ export function useGeneratePage() {
         averageMinutesPerDay: Math.round(totalMinutes / plan.totalDays),
         totalEstimatedHours: plan.totalEstimatedHours,
       },
-      recommendations: result.recommendations,
-      aiMessage: result.aiMessage,
+      recommendations: sourceResult.recommendations,
+      aiMessage: sourceResult.aiMessage,
     });
+
+    // 저장 시 미적용 플랜 삭제
+    clearPendingPlan();
+    setPendingPlanData(null);
 
     navigate('/');
   };
@@ -274,6 +356,9 @@ export function useGeneratePage() {
     error,
     // 직접 만들기
     manualUnits,
+    // 생성 제한 및 미적용 플랜
+    remainingGenerations,
+    pendingPlanData,
     // 액션
     setInputMode,
     setImages,
@@ -290,5 +375,7 @@ export function useGeneratePage() {
     handleManualGenerate,
     handleSavePlan,
     handleReset,
+    handleApplyPendingPlan,
+    handleDismissPendingPlan,
   };
 }

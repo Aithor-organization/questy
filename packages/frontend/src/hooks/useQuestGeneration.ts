@@ -1,5 +1,10 @@
 import { useState, useCallback } from 'react';
 import type { BookMetadata } from '@questybook/shared';
+import {
+  canGeneratePlan,
+  incrementGenerationCount,
+  getRemainingGenerations,
+} from '../lib/plan-generation-storage';
 
 interface ImageData {
   base64: string;
@@ -95,6 +100,7 @@ interface UseQuestGenerationReturn {
   review: PlanReview | null;
   error: string | null;
   reset: () => void;
+  remainingGenerations: number;
 }
 
 import { API_BASE_URL } from '../config';
@@ -110,6 +116,12 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
   const [error, setError] = useState<string | null>(null);
 
   const generate = useCallback(async (data: FormData) => {
+    // 생성 횟수 제한 체크
+    if (!canGeneratePlan()) {
+      setError(`오늘의 플랜 생성 횟수(3회)를 모두 사용했습니다. 내일 다시 시도해주세요.`);
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setResult(null);
@@ -179,6 +191,9 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
       const resultData = json.data as GenerateResult;
       setResult(resultData);
       setIsLoading(false);
+
+      // 생성 성공 시 카운트 증가
+      incrementGenerationCount();
 
       // 플랜 생성 완료 후 자동으로 첫 번째 플랜 리뷰 시작
       if (resultData.plans.length > 0) {
@@ -334,5 +349,6 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
     review,
     error,
     reset,
+    remainingGenerations: getRemainingGenerations(),
   };
 }
