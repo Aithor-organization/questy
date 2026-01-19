@@ -45,7 +45,7 @@ export async function sendEmail({ to, subject, html }: SendEmailOptions) {
 
 // 멤버십 승인 이메일 템플릿
 export function getMembershipApprovalEmail(userName: string, membershipType: string) {
-  const typeKorean = membershipType === 'beta_tester' ? '베타 테스터' : '랩 멤버';
+  const typeKorean = membershipType === 'beta_tester' ? '베타테스터' : '실험단';
 
   return {
     subject: `[Questy] ${typeKorean} 멤버십이 승인되었습니다! 🎉`,
