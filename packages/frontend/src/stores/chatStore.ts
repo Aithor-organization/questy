@@ -160,6 +160,57 @@ function dbRoomToFrontend(dbRoom: DbChatRoom, messages: ChatMessage[]): ChatRoom
 // 기본 채팅방 ID (로컬 폴백용)
 export const DEFAULT_ROOM_ID = 'ai-coach-default';
 
+// localStorage 캐시 키 접두사
+const CACHE_PREFIX = 'chat_messages_';
+const CACHE_TTL = 24 * 60 * 60 * 1000; // 24시간
+
+// localStorage 캐시 헬퍼 함수
+function getCachedMessages(roomId: string): ChatMessage[] | null {
+  try {
+    const cached = localStorage.getItem(`${CACHE_PREFIX}${roomId}`);
+    if (!cached) return null;
+
+    const { messages, cachedAt } = JSON.parse(cached);
+    // TTL 체크 (24시간 이상 된 캐시는 무효)
+    if (Date.now() - cachedAt > CACHE_TTL) {
+      localStorage.removeItem(`${CACHE_PREFIX}${roomId}`);
+      return null;
+    }
+    return messages;
+  } catch {
+    return null;
+  }
+}
+
+function setCachedMessages(roomId: string, messages: ChatMessage[]): void {
+  try {
+    // 최근 100개 메시지만 캐시
+    const toCache = messages.slice(-100);
+    localStorage.setItem(
+      `${CACHE_PREFIX}${roomId}`,
+      JSON.stringify({ messages: toCache, cachedAt: Date.now() })
+    );
+  } catch (e) {
+    // localStorage 용량 초과 등 에러 시 무시
+    console.warn('[ChatStore] 캐시 저장 실패:', e);
+  }
+}
+
+function clearMessageCache(roomId?: string): void {
+  try {
+    if (roomId) {
+      localStorage.removeItem(`${CACHE_PREFIX}${roomId}`);
+    } else {
+      // 모든 채팅 캐시 삭제
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith(CACHE_PREFIX))
+        .forEach((key) => localStorage.removeItem(key));
+    }
+  } catch {
+    // 무시
+  }
+}
+
 export const useChatStore = create<ChatStore>()((set, get) => ({
   rooms: [],
   notifications: [],
@@ -210,7 +261,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     }
   },
 
-  // 특정 채팅방 메시지 로드 (지연 로딩)
+  // 특정 채팅방 메시지 로드 (캐시 우선 + 백그라운드 동기화)
   loadRoomMessages: async (roomId: string) => {
     const { loadedRoomIds } = get();
 
@@ -222,6 +273,18 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
 
     console.log(`[ChatStore] 채팅방 ${roomId} 메시지 로드 중...`);
 
+    // 1. 먼저 localStorage 캐시에서 로드 (즉시 표시)
+    const cachedMessages = getCachedMessages(roomId);
+    if (cachedMessages && cachedMessages.length > 0) {
+      console.log(`[ChatStore] 캐시에서 ${cachedMessages.length}개 메시지 즉시 로드`);
+      set((state) => ({
+        rooms: state.rooms.map((room) =>
+          room.id === roomId ? { ...room, messages: cachedMessages } : room
+        ),
+      }));
+    }
+
+    // 2. Supabase에서 최신 데이터 가져오기 (백그라운드)
     try {
       const dbMessages = await chatApi.fetchMessages(roomId);
       const messages = dbMessages.map(dbMessageToFrontend);
@@ -241,15 +304,29 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
         };
       });
 
-      console.log(`[ChatStore] 채팅방 ${roomId} 메시지 ${messages.length}개 로드 완료`);
+      // 3. localStorage 캐시 갱신
+      setCachedMessages(roomId, messages);
+
+      console.log(`[ChatStore] 채팅방 ${roomId} 메시지 ${messages.length}개 동기화 완료`);
     } catch (error) {
-      console.error(`[ChatStore] 채팅방 ${roomId} 메시지 로드 실패:`, error);
+      // 캐시가 있었으면 캐시로 진행, 없으면 에러
+      if (cachedMessages && cachedMessages.length > 0) {
+        console.warn(`[ChatStore] Supabase 동기화 실패, 캐시 데이터 사용:`, error);
+        set((state) => {
+          const newLoadedIds = new Set(state.loadedRoomIds);
+          newLoadedIds.add(roomId);
+          return { loadedRoomIds: newLoadedIds };
+        });
+      } else {
+        console.error(`[ChatStore] 채팅방 ${roomId} 메시지 로드 실패:`, error);
+      }
     }
   },
 
   // 채팅 상태 초기화 (로그아웃 시)
   resetChat: () => {
     clearStudentIdCache(); // studentId 캐시도 초기화
+    clearMessageCache(); // localStorage 캐시도 초기화
     set({
       rooms: [],
       notifications: [],
@@ -258,7 +335,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
       isInitialized: false,
       loadedRoomIds: new Set<string>(),
     });
-    console.log('[ChatStore] 상태 초기화됨');
+    console.log('[ChatStore] 상태 초기화됨 (캐시 포함)');
   },
 
   // 채팅방 생성
@@ -298,7 +375,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     return get().rooms.find((r) => r.isDefault);
   },
 
-  // 메시지 추가 (Supabase에 저장)
+  // 메시지 추가 (Supabase에 저장 + 캐시 업데이트)
   addMessage: async (roomId, message) => {
     // Supabase에 저장
     const dbMessage = await chatApi.addMessage(
@@ -318,16 +395,24 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     const newMessage = dbMessageToFrontend(dbMessage);
 
     // 로컬 상태 업데이트
-    set((state) => ({
-      rooms: state.rooms.map((room) =>
+    set((state) => {
+      const updatedRooms = state.rooms.map((room) =>
         room.id === roomId
           ? {
               ...room,
               messages: [...room.messages, newMessage].slice(-100),
             }
           : room
-      ),
-    }));
+      );
+
+      // localStorage 캐시도 업데이트
+      const updatedRoom = updatedRooms.find((r) => r.id === roomId);
+      if (updatedRoom) {
+        setCachedMessages(roomId, updatedRoom.messages);
+      }
+
+      return { rooms: updatedRooms };
+    });
 
     return newMessage.id;
   },
@@ -351,6 +436,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   // 채팅방 메시지 삭제
   clearRoomMessages: async (roomId) => {
     await chatApi.clearRoomMessages(roomId);
+    clearMessageCache(roomId); // 해당 방 캐시도 삭제
 
     set((state) => ({
       rooms: state.rooms.map((room) =>
