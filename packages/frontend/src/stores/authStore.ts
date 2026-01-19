@@ -5,7 +5,7 @@
 
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-import { supabase } from '../lib/supabase';
+import { supabase, retryQuery } from '../lib/supabase';
 import { clearStudentIdCache } from '../lib/chat-api';
 import type { User as SupabaseUser, Session } from '@supabase/supabase-js';
 
@@ -153,11 +153,14 @@ async function fetchStudentIdInBackground(userId: string, set: SetState, get: Ge
   if (!supabase) return;
 
   try {
-    const { data: student } = await supabase
-      .from('students')
-      .select('id')
-      .eq('user_id', userId)
-      .single();
+    // AbortError 재시도 로직 적용
+    const { data: student } = await retryQuery(() =>
+      supabase!
+        .from('students')
+        .select('id')
+        .eq('user_id', userId)
+        .single()
+    );
 
     if (student?.id) {
       const currentUser = get().user;
@@ -790,11 +793,14 @@ export const useAuthStore = create<AuthStore>()(
         console.log('[Auth] Checking onboarding status from DB...');
 
         try {
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('onboarding_completed, target_university')
-            .eq('id', currentUser.id)
-            .single();
+          // AbortError 재시도 로직 적용
+          const { data, error } = await retryQuery(() =>
+            supabase!
+              .from('user_profiles')
+              .select('onboarding_completed, target_university')
+              .eq('id', currentUser.id)
+              .single()
+          );
 
           if (error) {
             // PGRST116 (행 없음)만 온보딩 미완료로 처리
@@ -854,11 +860,14 @@ export const useAuthStore = create<AuthStore>()(
         }
 
         try {
-          const { data, error } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .single();
+          // AbortError 재시도 로직 적용
+          const { data, error } = await retryQuery(() =>
+            supabase!
+              .from('user_profiles')
+              .select('*')
+              .eq('id', currentUser.id)
+              .single()
+          );
 
           if (error) {
             // 에러 코드별 분류 처리

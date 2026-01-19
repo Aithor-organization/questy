@@ -55,14 +55,25 @@ export interface DetectedStudyPlan {
 export interface AnalysisResult {
   units: AnalyzedUnit[];
   studyPlan: DetectedStudyPlan;
+  isValidTableOfContents: boolean;
+  invalidReason?: string;
 }
 
 // 목차 이미지 분석 시스템 프롬프트
 const SYSTEM_PROMPT = `당신은 교재 목차/학습계획표 이미지를 분석하는 AI입니다.
-이미지에서 단원 정보와 학습계획표(있는 경우)를 **최대한 상세하게** 추출하여 JSON 형식으로 반환하세요.
+먼저 이미지가 **목차/학습계획표가 맞는지 검증**한 후, 맞다면 단원 정보를 추출하여 JSON 형식으로 반환하세요.
+
+## 이미지 검증 (필수)
+다음의 경우 "isValidTableOfContents": false를 반환하세요:
+- 목차나 학습계획표가 아닌 이미지 (예: 풍경, 인물, 음식, 문제 풀이 페이지 등)
+- 텍스트가 거의 없거나 읽을 수 없는 이미지
+- 단원 번호나 제목 형식이 전혀 보이지 않는 이미지
+- 본문 내용만 있고 목차 구조가 없는 이미지
 
 출력 형식:
 {
+  "isValidTableOfContents": true/false,
+  "invalidReason": "목차가 아닌 이유 (검증 실패 시에만)",
   "units": [
     {
       "unitNumber": 1,
@@ -167,19 +178,27 @@ export async function analyzeTableOfContents(
   // 사용량 로깅
   logApiUsage(DEFAULT_MODEL, response.usage);
 
-  const content = response.choices[0]?.message?.content || '{"units":[],"studyPlan":null}';
+  const content = response.choices[0]?.message?.content || '{"units":[],"studyPlan":null,"isValidTableOfContents":false}';
 
   try {
     const result = JSON.parse(content);
+
+    // 목차가 아닌 이미지로 판단된 경우
+    const isValid = result.isValidTableOfContents !== false;
+
     return {
       units: result.units || [],
       studyPlan: result.studyPlan || DEFAULT_STUDY_PLAN,
+      isValidTableOfContents: isValid,
+      invalidReason: result.invalidReason,
     };
   } catch {
     console.error('Failed to parse image analysis result:', content);
     return {
       units: [],
       studyPlan: DEFAULT_STUDY_PLAN,
+      isValidTableOfContents: false,
+      invalidReason: '이미지 분석 결과를 파싱할 수 없습니다',
     };
   }
 }

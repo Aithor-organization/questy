@@ -50,8 +50,25 @@ generateRoutes.post('/', async (c) => {
       images.map((img) => analyzeTableOfContents(img.base64, img.type, materialName))
     );
 
+    // 목차가 아닌 이미지가 있는지 확인
+    const invalidImages = analysisResults.filter((r) => !r.isValidTableOfContents);
+    if (invalidImages.length === images.length) {
+      // 모든 이미지가 목차가 아닌 경우
+      const reason = invalidImages[0]?.invalidReason || '업로드한 이미지가 목차가 아닙니다';
+      return c.json({
+        success: false,
+        error: {
+          code: 'NOT_TABLE_OF_CONTENTS',
+          message: `목차 이미지를 선택해주세요! (${reason})`,
+        },
+      }, 400);
+    }
+
+    // 유효한 이미지만 필터링
+    const validResults = analysisResults.filter((r) => r.isValidTableOfContents);
+
     // 모든 분석 결과 병합 및 중복 제거
-    const allUnits = analysisResults.flatMap((r) => r.units);
+    const allUnits = validResults.flatMap((r) => r.units);
     const uniqueUnits = allUnits.reduce((acc, unit) => {
       const exists = acc.find((u) => u.unitNumber === unit.unitNumber);
       if (!exists) {
@@ -64,7 +81,7 @@ generateRoutes.post('/', async (c) => {
     uniqueUnits.sort((a, b) => a.unitNumber - b.unitNumber);
 
     // 학습계획표 병합 (가장 많은 일정을 가진 것 선택)
-    const detectedStudyPlans = analysisResults
+    const detectedStudyPlans = validResults
       .map((r) => r.studyPlan)
       .filter((sp) => sp.hasSchedule);
 

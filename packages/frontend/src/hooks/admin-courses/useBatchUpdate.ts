@@ -4,7 +4,7 @@
  */
 
 import { useCallback } from 'react';
-import { supabase } from '../../lib/supabase';
+import { supabase, retryQuery } from '../../lib/supabase';
 import {
   CRAWL_API_BASE,
   defaultHeaders,
@@ -39,9 +39,12 @@ export function useBatchUpdate() {
         query = query.or(`last_crawled_at.is.null,last_crawled_at.lt.${sevenDaysAgo}`);
       }
 
-      const { data: allCourses, error: fetchError } = await query
-        .order('teacher_name')
-        .limit(options.maxCourses || 50);
+      // AbortError 재시도 로직 적용
+      const { data: allCourses, error: fetchError } = await retryQuery(() =>
+        query
+          .order('teacher_name')
+          .limit(options.maxCourses || 50)
+      );
 
       if (fetchError) throw fetchError;
 
@@ -87,16 +90,18 @@ export function useBatchUpdate() {
 
           const { curriculum, isCompleted } = json.data;
 
-          // Supabase 업데이트
-          await supabase
-            .from('courses')
-            .update({
-              lectures: curriculum || [],
-              lecture_count: curriculum?.length || 0,
-              is_completed: isCompleted || false,
-              last_crawled_at: new Date().toISOString(),
-            })
-            .eq('id', course.id);
+          // Supabase 업데이트 (AbortError 재시도)
+          await retryQuery(() =>
+            supabase!
+              .from('courses')
+              .update({
+                lectures: curriculum || [],
+                lecture_count: curriculum?.length || 0,
+                is_completed: isCompleted || false,
+                last_crawled_at: new Date().toISOString(),
+              })
+              .eq('id', course.id)
+          );
 
           const newLectureCount = curriculum?.length || 0;
           const diff = newLectureCount - prevLectureCount;
