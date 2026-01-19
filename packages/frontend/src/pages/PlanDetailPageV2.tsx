@@ -51,15 +51,13 @@ export function PlanDetailPageV2() {
   const progress = Math.round((completed / total) * 100);
   const todayStr = getTodayDateString();
 
-  // 미완료 퀘스트 수 (과거 날짜)
-  const overdueCount = useMemo(() => {
-    return plan.dailyQuests.filter(q => !q.completed && q.date < todayStr).length;
-  }, [plan.dailyQuests, todayStr]);
-
   // 밀린 퀘스트 목록 (과거 날짜 + 미완료)
   const overdueQuests = useMemo(() => {
     return plan.dailyQuests.filter(q => !q.completed && q.date < todayStr);
   }, [plan.dailyQuests, todayStr]);
+
+  // 밀린 퀘스트 수 (overdueQuests에서 파생)
+  const overdueCount = overdueQuests.length;
 
   // 미완료 퀘스트 수 (전체)
   const incompleteCount = plan.dailyQuests.filter(q => !q.completed).length;

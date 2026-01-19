@@ -40,6 +40,17 @@ export function RescheduleModal({
   // 개발중 메시지 표시 상태
   const [showDevMessage, setShowDevMessage] = useState(false);
 
+  // 모달 닫기 핸들러 (상태 초기화 포함)
+  const handleClose = () => {
+    setSelectedQuestId(null);
+    setSelectedDate(todayStr);
+    setShowConfirmation(false);
+    setConfirmingQuest(null);
+    setConfirmingDate('');
+    setShowDevMessage(false);
+    onClose();
+  };
+
   if (!isOpen) return null;
 
   // 날짜를 한국어로 포맷
@@ -91,7 +102,7 @@ export function RescheduleModal({
       {/* 배경 오버레이 */}
       <div
         className="fixed inset-0 bg-black/50 z-50"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* 메인 모달 */}
@@ -105,7 +116,7 @@ export function RescheduleModal({
             </span>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1 hover:bg-amber-100 rounded-lg transition-colors"
           >
             <X size={20} className="text-gray-500" />
