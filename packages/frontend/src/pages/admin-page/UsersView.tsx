@@ -169,7 +169,11 @@ export function UsersView() {
       const data = await response.json();
 
       if (!data.success) {
-        throw new Error(data.error || '일괄 멤버십 변경 실패');
+        // 상세 에러 정보 포함
+        const errorMsg = data.details
+          ? `${data.error} (코드: ${data.details})`
+          : data.error || '일괄 멤버십 변경 실패';
+        throw new Error(errorMsg);
       }
 
       clearSelection();

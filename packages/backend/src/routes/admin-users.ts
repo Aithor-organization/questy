@@ -549,7 +549,12 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
 
     if (error) {
       console.error('[AdminUsers] Bulk membership update error:', error);
-      return c.json({ success: false, error: '일괄 멤버십 변경 실패' }, 500);
+      // 실제 에러 메시지를 클라이언트에 전달하여 디버깅 용이하게
+      return c.json({
+        success: false,
+        error: `일괄 멤버십 변경 실패: ${error.message}`,
+        details: error.code,
+      }, 500);
     }
 
     console.log(`[AdminUsers] Bulk membership changed: ${userIds.length} users -> ${membershipType}`);
@@ -592,7 +597,11 @@ adminUsersRoutes.post('/users/bulk/membership', async (c) => {
     });
   } catch (error: any) {
     console.error('[AdminUsers] Bulk membership error:', error);
-    return c.json({ success: false, error: error.message || '일괄 멤버십 변경 실패' }, 500);
+    return c.json({
+      success: false,
+      error: error.message || '일괄 멤버십 변경 실패',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+    }, 500);
   }
 });
 
