@@ -2,7 +2,7 @@
 // 인강 강좌 검색 및 퀘스트 생성 (questStore 통합)
 // 강좌 검색: Supabase 직접 호출 (Railway 부하 감소)
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { useQuestStore, type QuestPlan } from '../stores/questStore';
@@ -99,12 +99,20 @@ export function useCurriculumGeneration() {
   const [isSearchingCourses, setIsSearchingCourses] = useState(false);
   const [searchErrorState, setSearchErrorState] = useState<Error | null>(null);
 
+  // Race condition 방지를 위한 요청 카운터
+  const searchRequestIdRef = useRef(0);
+
   const searchCoursesDirectly = useCallback(async (params: { query?: string; subject?: string }) => {
+    // 새 요청 ID 생성 (이전 요청 무효화)
+    const currentRequestId = ++searchRequestIdRef.current;
+
     setIsSearchingCourses(true);
     setSearchErrorState(null);
+    // 즉시 결과 초기화 (이전 결과 제거)
+    setSearchResults([]);
 
     try {
-      console.log('[useCurriculumGeneration] Searching courses via Supabase:', params);
+      console.log('[useCurriculumGeneration] Searching courses via Supabase:', params, 'requestId:', currentRequestId);
 
       // Supabase 사용 가능한 경우 직접 호출 (빠름)
       if (supabase) {
@@ -113,7 +121,7 @@ export function useCurriculumGeneration() {
           .select('*')
           .order('teacher_name')
           .order('name')
-          .limit(20);
+          .limit(50);  // 20 → 50으로 증가
 
         // 강사명 필터
         if (params.query) {
@@ -128,6 +136,12 @@ export function useCurriculumGeneration() {
         }
 
         const { data, error } = await queryBuilder;
+
+        // Race condition 체크: 이 요청이 가장 최신 요청인지 확인
+        if (currentRequestId !== searchRequestIdRef.current) {
+          console.log('[useCurriculumGeneration] Ignoring stale response for requestId:', currentRequestId);
+          return;
+        }
 
         if (error) {
           console.error('[useCurriculumGeneration] Supabase error:', error);
@@ -150,7 +164,7 @@ export function useCurriculumGeneration() {
           isCompleted: course.is_completed || false,
         }));
 
-        console.log('[useCurriculumGeneration] Supabase results:', courses.length);
+        console.log('[useCurriculumGeneration] Supabase results:', courses.length, 'for requestId:', currentRequestId);
         setSearchResults(courses);
         return;
       }
@@ -162,16 +176,30 @@ export function useCurriculumGeneration() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(params),
       });
+
+      // Race condition 체크
+      if (currentRequestId !== searchRequestIdRef.current) {
+        console.log('[useCurriculumGeneration] Ignoring stale API response for requestId:', currentRequestId);
+        return;
+      }
+
       if (!res.ok) throw new Error('강좌 검색 실패');
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
       setSearchResults(data.data.courses as Course[]);
 
     } catch (error) {
+      // Race condition 체크: 오류도 최신 요청만 처리
+      if (currentRequestId !== searchRequestIdRef.current) {
+        return;
+      }
       console.error('[useCurriculumGeneration] Search error:', error);
       setSearchErrorState(error instanceof Error ? error : new Error('Unknown error'));
     } finally {
-      setIsSearchingCourses(false);
+      // Race condition 체크: 로딩 상태도 최신 요청만 처리
+      if (currentRequestId === searchRequestIdRef.current) {
+        setIsSearchingCourses(false);
+      }
     }
   }, []);
 
