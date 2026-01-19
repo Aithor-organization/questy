@@ -162,14 +162,24 @@ export class EtoosParser {
       curriculum.push('ORIENTATION');
     }
 
-    // 강의 제목 패턴: >01강 - xxx<
-    const lecturePattern = />(\d{2}강 - [^<]+)</g;
+    // 패턴 1: >01강 - xxx< (일반 강좌)
+    const lecturePattern1 = />(\d{2}강 - [^<]+)</g;
     let match;
 
-    while ((match = lecturePattern.exec(html)) !== null) {
+    while ((match = lecturePattern1.exec(html)) !== null) {
       const title = match[1].trim();
-      // 중복 제거
       if (!curriculum.includes(title)) {
+        curriculum.push(title);
+      }
+    }
+
+    // 패턴 2: <td class="tit"><a>STEP X - NNN ~ NNN</a></td> (기출끝 등 STEP 형식)
+    const lecturePattern2 = /<td\s+class="tit">\s*<a[^>]*>([^<]+)<\/a>/g;
+    while ((match = lecturePattern2.exec(html)) !== null) {
+      const title = match[1].trim();
+      // 실제 강의 제목인지 확인 (STEP, 문제, 강 등 포함)
+      if (title && !curriculum.includes(title) &&
+          (title.includes('STEP') || title.includes('강') || title.match(/\d{3}/))) {
         curriculum.push(title);
       }
     }
@@ -179,9 +189,26 @@ export class EtoosParser {
       if (a === 'ORIENTATION') return -1;
       if (b === 'ORIENTATION') return 1;
 
+      // "NN강" 형식
       const numA = parseInt(a.match(/^(\d+)강/)?.[1] || '0', 10);
       const numB = parseInt(b.match(/^(\d+)강/)?.[1] || '0', 10);
-      return numA - numB;
+      if (numA !== 0 || numB !== 0) {
+        return numA - numB;
+      }
+
+      // "STEP N" 형식
+      const stepA = a.match(/STEP\s*(\d+)/i)?.[1] || '0';
+      const stepB = b.match(/STEP\s*(\d+)/i)?.[1] || '0';
+      const stepNumA = parseInt(stepA, 10);
+      const stepNumB = parseInt(stepB, 10);
+      if (stepNumA !== stepNumB) {
+        return stepNumA - stepNumB;
+      }
+
+      // STEP 내 번호 추출 (예: "001 ~ 024" → 1)
+      const rangeA = a.match(/(\d{3})\s*~/)?.[1] || '0';
+      const rangeB = b.match(/(\d{3})\s*~/)?.[1] || '0';
+      return parseInt(rangeA, 10) - parseInt(rangeB, 10);
     });
 
     return curriculum;
