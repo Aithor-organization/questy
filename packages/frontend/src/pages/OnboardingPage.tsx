@@ -98,7 +98,7 @@ export function OnboardingPage() {
   const isStepValid = (stepNum: number): boolean => {
     switch (stepNum) {
       case 1:
-        return data.age !== null && data.age >= 15 && data.age <= 30;
+        return data.age !== null && data.age >= 15 && data.age <= 99;
       case 2:
         // 탐구 과목 2개 선택 + 필수 과목 등급 입력 (최소 4과목)
         return data.selectedTamgu1 !== '' &&
@@ -258,9 +258,21 @@ export function OnboardingPage() {
                   <input
                     type="number"
                     min={15}
-                    max={30}
+                    max={99}
+                    step={1}
                     value={data.age || ''}
-                    onChange={(e) => setData(prev => ({ ...prev, age: parseInt(e.target.value) || null }))}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      // 정수만 허용 (소수점 입력 방지)
+                      const intValue = value ? Math.floor(Number(value)) : null;
+                      setData(prev => ({ ...prev, age: intValue }));
+                    }}
+                    onKeyDown={(e) => {
+                      // 소수점 입력 차단
+                      if (e.key === '.' || e.key === ',') {
+                        e.preventDefault();
+                      }
+                    }}
                     placeholder="예: 19"
                     className="w-full px-4 py-3 border-2 border-[var(--paper-lines)] rounded-lg bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none"
                   />
