@@ -44,6 +44,37 @@ function isVideoLectureQuest(quest: QuestWithPlan): boolean {
   return false;
 }
 
+// 문제풀이/자습 퀘스트 여부 판별
+function isPracticeQuest(quest: QuestWithPlan): boolean {
+  const title = quest.unitTitle || '';
+  const range = quest.range || '';
+  const practiceKeywords = ['자습', '문제풀이', '문제', '연습', '실전'];
+
+  if (quest.isPractice) return true;
+
+  for (const keyword of practiceKeywords) {
+    if (title.includes(keyword) || range.includes(keyword)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// 초를 "44분38초" 또는 "1시간20분20초" 형식으로 포맷
+function formatDuration(totalSeconds: number): string {
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+
+  if (hours > 0) {
+    return `${hours}시간${minutes}분${seconds}초`;
+  }
+  if (minutes > 0) {
+    return `${minutes}분${seconds}초`;
+  }
+  return `${seconds}초`;
+}
+
 export function LargeQuestItem({ quest, isToday, onToggle }: LargeQuestItemProps) {
   const navigate = useNavigate();
   const [isAnimating, setIsAnimating] = useState(false);
@@ -158,14 +189,28 @@ export function LargeQuestItem({ quest, isToday, onToggle }: LargeQuestItemProps
             </div>
           </div>
 
+          {/* 문제풀이 퀘스트: 접힌 상태에서 학습 시작 버튼 */}
+          {!isExpanded && showTimer && isPracticeQuest(quest) && (
+            <div className="flex items-center gap-2 mt-2">
+              <button
+                onClick={handleStartTimer}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[var(--sticker-mint)] text-white rounded-lg hover:opacity-90 transition-opacity font-medium text-xs"
+              >
+                <span>▶</span>
+                <span>{hasTimerRecord ? '이어서 학습' : '학습 시작'}</span>
+              </button>
+              {hasTimerRecord && quest.timerRecord && (
+                <span className="text-xs text-[var(--pencil-gray)]">
+                  이어서 {formatDuration(quest.timerRecord.elapsedSeconds)}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* 확장 영역 화살표 */}
           <div className="flex items-center justify-center mt-1.5">
-            <span
-              className={`text-xs text-[var(--pencil-gray)] transition-transform duration-200 ${
-                isExpanded ? 'rotate-180' : ''
-              }`}
-            >
-              {isExpanded ? '접기 ▲' : '상세 ▼'}
+            <span className="text-xs text-[var(--pencil-gray)]">
+              {isExpanded ? '▲ 접기' : '상세 ▼'}
             </span>
           </div>
         </div>
@@ -252,7 +297,7 @@ export function LargeQuestItem({ quest, isToday, onToggle }: LargeQuestItemProps
               </button>
               {hasTimerRecord && quest.timerRecord && (
                 <span className="text-xs text-[var(--pencil-gray)]">
-                  이어서 {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 진행 중
+                  이어서 {formatDuration(quest.timerRecord.elapsedSeconds)}
                 </span>
               )}
             </div>
@@ -263,7 +308,7 @@ export function LargeQuestItem({ quest, isToday, onToggle }: LargeQuestItemProps
             <div className="flex items-center gap-1.5 text-sm text-[var(--sticker-mint)] font-medium">
               <span>✓</span>
               <span>
-                {Math.floor(quest.timerRecord.elapsedSeconds / 60)}분 학습 완료
+                {formatDuration(quest.timerRecord.elapsedSeconds)} 학습 완료
               </span>
             </div>
           )}
