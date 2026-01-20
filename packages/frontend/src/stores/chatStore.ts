@@ -322,9 +322,10 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   rooms: initialCache.rooms,
   notifications: [],
   pendingResponses: [],
-  isLoading: false,
-  // 캐시가 있으면 이미 초기화된 것으로 표시 (즉시 렌더링)
-  isInitialized: initialCache.hasCache,
+  // 캐시가 없으면 로딩 중으로 시작 (깜빡임 방지)
+  isLoading: !initialCache.hasCache,
+  // 항상 true로 시작 (isLoading으로 로딩 상태 관리)
+  isInitialized: true,
   loadedRoomIds: new Set<string>(),
 
   // Supabase에서 채팅 데이터 로드 (캐시 우선 + 백그라운드 동기화 + 마지막 메시지 로드)

@@ -19,7 +19,7 @@ export function ChatListPage() {
 
   const {
     rooms,
-    isInitialized,
+    isLoading,
     createRoom,
     getTotalUnreadCount,
     getUnreadNotificationCount,
@@ -92,8 +92,8 @@ export function ChatListPage() {
 
         {/* 채팅 목록 */}
         <div className="flex-1 min-h-0 overflow-y-auto bg-[var(--paper-cream)]">
-          {/* 초기화 전: 로딩 상태 (캐시 로드 대기) */}
-          {!isInitialized ? (
+          {/* 로딩 중: 캐시 없이 Supabase에서 로드 중 */}
+          {isLoading && rooms.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full">
               <div className="animate-pulse text-4xl">💬</div>
             </div>
