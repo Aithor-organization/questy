@@ -7,6 +7,29 @@
 import { supabase } from './supabase';
 import { refreshSession } from './session-keepalive';
 
+// Supabase 쿼리 로그 헬퍼
+const logQuery = (table: string, action: string, details?: string) => {
+  const timestamp = new Date().toLocaleTimeString('ko-KR');
+  console.log(
+    `%c[Supabase] 📡 ${table}.${action} (${timestamp})${details ? ` - ${details}` : ''}`,
+    'color: #06b6d4; font-weight: bold;'
+  );
+};
+
+const logQueryResult = (table: string, action: string, count: number | null, error?: string) => {
+  if (error) {
+    console.log(
+      `%c[Supabase] ❌ ${table}.${action} 실패: ${error}`,
+      'color: #ef4444;'
+    );
+  } else {
+    console.log(
+      `%c[Supabase] ✅ ${table}.${action} 완료 (${count ?? 0}건)`,
+      'color: #22c55e;'
+    );
+  }
+};
+
 // 타입 정의
 export interface DbChatRoom {
   id: string;
@@ -163,6 +186,8 @@ export async function fetchChatRooms(): Promise<DbChatRoom[]> {
   }
 
   try {
+    logQuery('chat_rooms', 'select', `student_id=${studentId.slice(0, 8)}...`);
+
     const { data, error } = await supabase
       .from('chat_rooms')
       .select('*')
@@ -170,11 +195,11 @@ export async function fetchChatRooms(): Promise<DbChatRoom[]> {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('[ChatAPI] fetchChatRooms 실패:', error.message);
+      logQueryResult('chat_rooms', 'select', null, error.message);
       return [];
     }
 
-    console.log(`[ChatAPI] 채팅방 ${data?.length || 0}개 조회됨`);
+    logQueryResult('chat_rooms', 'select', data?.length ?? 0);
     return data || [];
   } catch (error) {
     console.error('[ChatAPI] fetchChatRooms 에러:', error);
@@ -303,6 +328,8 @@ export async function fetchMessages(roomId: string): Promise<DbChatMessage[]> {
   if (!supabase) return [];
 
   try {
+    logQuery('chat_messages', 'select', `room_id=${roomId.slice(0, 8)}...`);
+
     const { data, error } = await supabase
       .from('chat_messages')
       .select('*')
@@ -310,11 +337,11 @@ export async function fetchMessages(roomId: string): Promise<DbChatMessage[]> {
       .order('created_at', { ascending: true });
 
     if (error) {
-      console.error('[ChatAPI] fetchMessages 실패:', error.message);
+      logQueryResult('chat_messages', 'select', null, error.message);
       return [];
     }
 
-    console.log(`[ChatAPI] 메시지 ${data?.length || 0}개 조회됨 (room: ${roomId})`);
+    logQueryResult('chat_messages', 'select', data?.length ?? 0);
     return data || [];
   } catch (error) {
     console.error('[ChatAPI] fetchMessages 에러:', error);

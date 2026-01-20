@@ -10,6 +10,29 @@ import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import { refreshSession } from '../lib/session-keepalive';
 import { API_BASE_URL } from '../config';
+
+// Supabase 쿼리 로그 헬퍼
+const logQuery = (table: string, action: string, details?: string) => {
+  const timestamp = new Date().toLocaleTimeString('ko-KR');
+  console.log(
+    `%c[Supabase] 📡 ${table}.${action} (${timestamp})${details ? ` - ${details}` : ''}`,
+    'color: #06b6d4; font-weight: bold;'
+  );
+};
+
+const logQueryResult = (table: string, action: string, count: number | null, error?: string) => {
+  if (error) {
+    console.log(
+      `%c[Supabase] ❌ ${table}.${action} 실패: ${error}`,
+      'color: #ef4444;'
+    );
+  } else {
+    console.log(
+      `%c[Supabase] ✅ ${table}.${action} 완료 (${count ?? 0}건)`,
+      'color: #22c55e;'
+    );
+  }
+};
 import type {
   Course,
   SelectedCourse,
@@ -91,6 +114,8 @@ export function useCurriculumGeneration() {
       if (!userId || !supabase) return;
 
       try {
+        logQuery('user_profiles', 'select', 'daily_study_hours');
+
         const { data, error } = await supabase
           .from('user_profiles')
           .select('daily_study_hours')
@@ -98,12 +123,13 @@ export function useCurriculumGeneration() {
           .single();
 
         if (error) {
+          logQueryResult('user_profiles', 'select', null, error.message);
           console.log('[useCurriculumGeneration] No profile found, using default');
           return;
         }
 
         if (data?.daily_study_hours) {
-          console.log('[useCurriculumGeneration] Loaded study hours from profile:', data.daily_study_hours);
+          logQueryResult('user_profiles', 'select', 1);
           setDailyStudyHours(data.daily_study_hours);
           setProfileStudyHours(data.daily_study_hours);  // 초기값 저장
         }
@@ -141,7 +167,10 @@ export function useCurriculumGeneration() {
     setSearchResults([]);
 
     try {
-      console.log('[useCurriculumGeneration] Searching courses via Supabase:', params, 'requestId:', currentRequestId);
+      const searchDetails = params.query
+        ? `query="${params.query}"${params.subject ? `, subject=${params.subject}` : ''}`
+        : params.subject ? `subject=${params.subject}` : '전체';
+      logQuery('courses', 'select', searchDetails);
 
       // Supabase 사용 가능한 경우 직접 호출 (빠름)
       if (supabase) {
@@ -184,7 +213,7 @@ export function useCurriculumGeneration() {
         }
 
         if (error) {
-          console.error('[useCurriculumGeneration] Supabase error:', error);
+          logQueryResult('courses', 'select', null, error.message);
 
           // 세션 관련 에러인 경우 세션 갱신 후 재시도
           const isSessionError = error.message?.includes('JWT') ||
@@ -247,7 +276,7 @@ export function useCurriculumGeneration() {
           isCompleted: course.is_completed || false,
         }));
 
-        console.log('[useCurriculumGeneration] Supabase results:', courses.length, 'for requestId:', currentRequestId);
+        logQueryResult('courses', 'select', courses.length);
         setSearchResults(courses);
         return;
       }
