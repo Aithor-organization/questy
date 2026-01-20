@@ -21,6 +21,8 @@ import {
   ChevronRight,
   ArrowUpDown,
   Filter,
+  Sparkles,
+  RotateCcw,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { UserMembership, MembershipType, MembershipStatus } from './types';
@@ -760,6 +762,50 @@ export function UsersView() {
   );
 }
 
+// 생성횟수 관련 인터페이스
+interface GenerationLimitData {
+  count: number | null;  // null = 기록 없음
+  resetAt: number | null;
+  maxGenerations: number;
+  hasRecord: boolean;  // 생성 기록 존재 여부
+}
+
+// 생성횟수 조회 함수
+async function fetchUserGenerationLimit(userId: string, token: string | null): Promise<GenerationLimitData | null> {
+  try {
+    const response = await fetch(`${API_URL}/api/admin/users/${userId}/generation-limit`, {
+      headers: {
+        'Authorization': `Bearer ${token || ''}`,
+      },
+    });
+    const data = await response.json();
+    if (data.success) {
+      return data.data;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// 생성횟수 수정 함수
+async function updateUserGenerationLimit(userId: string, count: number, token: string | null): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_URL}/api/admin/users/${userId}/generation-limit`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token || ''}`,
+      },
+      body: JSON.stringify({ count }),
+    });
+    const data = await response.json();
+    return data.success;
+  } catch {
+    return false;
+  }
+}
+
 // 사용자 카드 컴포넌트
 function UserCard({
   user,
@@ -782,6 +828,49 @@ function UserCard({
   const [selectedType, setSelectedType] = useState<MembershipType>(currentType);
   // 변경 여부 확인
   const hasChanges = selectedType !== currentType;
+
+  // 생성횟수 관련 상태
+  const [generationLimit, setGenerationLimit] = useState<GenerationLimitData | null>(null);
+  const [showGenerationEdit, setShowGenerationEdit] = useState(false);
+  const [editCount, setEditCount] = useState(0);
+  const [updatingGeneration, setUpdatingGeneration] = useState(false);
+
+  // 생성횟수 로드
+  useEffect(() => {
+    const loadGenerationLimit = async () => {
+      const token = await getAccessToken();
+      const data = await fetchUserGenerationLimit(user.id, token);
+      if (data) {
+        setGenerationLimit(data);
+        setEditCount(data.count ?? 0);  // null이면 0으로 설정
+      }
+    };
+    loadGenerationLimit();
+  }, [user.id]);
+
+  // 생성횟수 수정 핸들러
+  const handleUpdateGenerationLimit = async () => {
+    setUpdatingGeneration(true);
+    const token = await getAccessToken();
+    const success = await updateUserGenerationLimit(user.id, editCount, token);
+    if (success) {
+      setGenerationLimit(prev => prev ? { ...prev, count: editCount } : null);
+      setShowGenerationEdit(false);
+    }
+    setUpdatingGeneration(false);
+  };
+
+  // 생성횟수 리셋 (0으로)
+  const handleResetGenerationLimit = async () => {
+    setUpdatingGeneration(true);
+    const token = await getAccessToken();
+    const success = await updateUserGenerationLimit(user.id, 0, token);
+    if (success) {
+      setGenerationLimit(prev => prev ? { ...prev, count: 0 } : null);
+      setEditCount(0);
+    }
+    setUpdatingGeneration(false);
+  };
 
   // 남은 일수 계산
   const getRemainingDays = () => {
@@ -892,6 +981,93 @@ function UserCard({
                 </span>
               )}
             </div>
+
+            {/* 생성횟수 표시 및 수정 */}
+            {generationLimit && (
+              <div className="mt-2 flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-orange-50 border border-orange-200 rounded-lg">
+                  <Sparkles size={14} className="text-orange-500" />
+                  {generationLimit.hasRecord ? (
+                    <>
+                      <span className="text-xs text-orange-700">
+                        생성횟수: <span className="font-semibold">{generationLimit.count}</span>/3회
+                        <span className="ml-1 text-orange-400">
+                          (남은 횟수: {3 - (generationLimit.count ?? 0)}회)
+                        </span>
+                      </span>
+
+                      {/* 수정 버튼 */}
+                      {!showGenerationEdit ? (
+                        <button
+                          onClick={() => setShowGenerationEdit(true)}
+                          className="ml-1 text-orange-500 hover:text-orange-700 text-xs underline"
+                        >
+                          수정
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-1 ml-1">
+                          <input
+                            type="number"
+                            min="0"
+                            max="10"
+                            value={editCount}
+                            onChange={(e) => setEditCount(Math.max(0, Math.min(10, parseInt(e.target.value) || 0)))}
+                            className="w-12 px-1 py-0.5 text-xs border border-orange-300 rounded text-center"
+                          />
+                          <button
+                            onClick={handleUpdateGenerationLimit}
+                            disabled={updatingGeneration}
+                            className="px-1.5 py-0.5 bg-orange-500 text-white rounded text-xs hover:bg-orange-600 disabled:opacity-50"
+                          >
+                            {updatingGeneration ? <Loader2 size={10} className="animate-spin" /> : '확인'}
+                          </button>
+                          <button
+                            onClick={() => {
+                              setShowGenerationEdit(false);
+                              setEditCount(generationLimit.count ?? 0);
+                            }}
+                            className="px-1.5 py-0.5 bg-gray-300 text-gray-700 rounded text-xs hover:bg-gray-400"
+                          >
+                            취소
+                          </button>
+                        </div>
+                      )}
+
+                      {/* 리셋 버튼 */}
+                      {(generationLimit.count ?? 0) > 0 && !showGenerationEdit && (
+                        <button
+                          onClick={handleResetGenerationLimit}
+                          disabled={updatingGeneration}
+                          className="ml-1 p-0.5 text-orange-500 hover:text-orange-700 hover:bg-orange-100 rounded"
+                          title="생성횟수 리셋 (0으로)"
+                        >
+                          {updatingGeneration ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            <RotateCcw size={12} />
+                          )}
+                        </button>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-xs text-gray-400">
+                      생성 기록 없음 <span className="text-green-600">(3회 사용 가능)</span>
+                    </span>
+                  )}
+                </div>
+
+                {/* 리셋 시간 표시 */}
+                {generationLimit.hasRecord && generationLimit.resetAt && (
+                  <span className="text-xs text-gray-400">
+                    리셋: {new Date(generationLimit.resetAt).toLocaleDateString('ko-KR', {
+                      month: 'short',
+                      day: 'numeric',
+                      weekday: 'short',
+                    })} 02:00
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 

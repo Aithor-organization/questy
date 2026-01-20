@@ -1,6 +1,6 @@
 import { openrouter, DEFAULT_MODEL } from './openrouter';
 import { AnalyzedUnit, DetectedStudyPlan } from './image-analyzer';
-import { formatDate, BookMetadata } from '@questybook/shared';
+import { formatDate, BookMetadata, DAY_TO_JS_DAY, type DayOfWeek } from '@questybook/shared';
 
 // 사용량 로깅 헬퍼
 function logApiUsage(
@@ -322,6 +322,47 @@ const DUAL_PLAN_SYSTEM_PROMPT = `당신은 학습 계획 전문가 AI입니다.
 - 맞춤 플랜의 dailyQuests 배열 길이 = 사용자 목표 일수`;
 
 /**
+ * 선택된 요일에 맞춰 날짜를 계산합니다
+ */
+function getNextDateForSelectedDays(
+  baseDate: Date,
+  questIndex: number,
+  selectedDays?: DayOfWeek[]
+): Date {
+  // 선택된 요일이 없으면 모든 요일 허용
+  if (!selectedDays || selectedDays.length === 0 || selectedDays.length === 7) {
+    const result = new Date(baseDate);
+    result.setDate(baseDate.getDate() + questIndex);
+    return result;
+  }
+
+  // 선택된 요일의 JS Day 값으로 변환 (0=일, 6=토)
+  const allowedJsDays = new Set(selectedDays.map(d => DAY_TO_JS_DAY[d]));
+
+  // questIndex번째 허용된 날짜를 찾음
+  let daysToAdd = 0;
+  let matchedCount = 0;
+
+  while (matchedCount <= questIndex) {
+    const checkDate = new Date(baseDate);
+    checkDate.setDate(baseDate.getDate() + daysToAdd);
+
+    if (allowedJsDays.has(checkDate.getDay())) {
+      if (matchedCount === questIndex) {
+        return checkDate;
+      }
+      matchedCount++;
+    }
+    daysToAdd++;
+  }
+
+  // 폴백 (이론상 도달하지 않음)
+  const result = new Date(baseDate);
+  result.setDate(baseDate.getDate() + questIndex);
+  return result;
+}
+
+/**
  * 학습계획표가 감지된 경우 듀얼 플랜을 생성합니다
  */
 export async function generateDualPlans(
@@ -332,11 +373,21 @@ export async function generateDualPlans(
   endUnit: number,
   targetDays: number,
   bookMetadata?: BookMetadata,
-  excludeWeekends?: boolean,
+  selectedDays?: DayOfWeek[],
+  scheduleMode?: 'manual' | 'ai',
   startDate?: string
 ): Promise<DualPlanResult> {
   // 시작 날짜 결정 (startDate가 주어지면 사용, 아니면 오늘)
   const today = startDate ? new Date(startDate) : new Date();
+
+  // AI 추천 모드인 경우 적절한 일수 계산
+  let effectiveTargetDays = targetDays;
+  if (scheduleMode === 'ai' || targetDays === 0) {
+    // 단원 수 기반으로 추천 일수 계산 (단원당 평균 2일)
+    const totalUnits = analyzedUnits.length;
+    effectiveTargetDays = Math.max(14, Math.min(60, totalUnits * 2));
+    console.log(`[Generate] AI recommended ${effectiveTargetDays} days for ${totalUnits} units`);
+  }
 
   // 학습계획표가 없으면 단일 플랜만 생성
   if (!studyPlan.hasSchedule || studyPlan.scheduleItems.length === 0) {
@@ -345,18 +396,27 @@ export async function generateDualPlans(
       materialName,
       startUnit,
       endUnit,
-      targetDays,
+      effectiveTargetDays,
       bookMetadata
     );
+
+    // 선택된 요일에 맞춰 날짜 재배치
+    const questsWithDates = singleResult.dailyQuests.map((quest, index) => {
+      const questDate = getNextDateForSelectedDays(today, index, selectedDays);
+      return {
+        ...quest,
+        date: formatDate(questDate),
+      };
+    });
 
     return {
       hasOriginalPlan: false,
       plans: [{
         planType: 'custom',
-        planName: `${targetDays}일 맞춤 플랜`,
-        description: `${materialName}을 ${targetDays}일 동안 학습하는 AI 추천 계획입니다`,
-        dailyQuests: singleResult.dailyQuests,
-        totalDays: singleResult.dailyQuests.length,
+        planName: `${effectiveTargetDays}일 맞춤 플랜`,
+        description: `${materialName}을 ${effectiveTargetDays}일 동안 학습하는 AI 추천 계획입니다`,
+        dailyQuests: questsWithDates,
+        totalDays: questsWithDates.length,
         totalEstimatedHours: singleResult.totalEstimatedHours,
       }],
       recommendations: singleResult.recommendations,
@@ -419,17 +479,17 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
 
 ## 요청사항
 
-**사용자가 지정한 ${targetDays}일** 기간에 맞춘 플랜을 **하나만** 생성해주세요.
+**사용자가 지정한 ${effectiveTargetDays}일** 기간에 맞춘 플랜을 **하나만** 생성해주세요.
 
-위 학습계획표의 내용(주제, 페이지, 학습목표 등)을 참고하여 ${targetDays}일에 맞게 재분배하세요.
+위 학습계획표의 내용(주제, 페이지, 학습목표 등)을 참고하여 ${effectiveTargetDays}일에 맞게 재분배하세요.
 
 플랜 생성 규칙:
 1. planType: "custom" (사용자 맞춤)
-2. ⚠️ **반드시 ${targetDays}개의 퀘스트** 생성 (day 1부터 day ${targetDays}까지 모두)
+2. ⚠️ **반드시 ${effectiveTargetDays}개의 퀘스트** 생성 (day 1부터 day ${effectiveTargetDays}까지 모두)
 3. 학습계획표의 상세 정보(topics, pages, objectives)를 최대한 활용
 4. 모든 단원이 빠짐없이 포함되어야 함
 
-⚠️ 중요: 
+⚠️ 중요:
 - "original" 플랜은 생성하지 마세요. "custom" 플랜 **하나만** 생성합니다.
 - 5개만 생성하고 중단하지 마세요. 모든 일차를 빠짐없이 생성해야 합니다.`;
 
@@ -454,44 +514,19 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
 
     // 생성된 플랜 일수 검증 및 경고
     result.plans.forEach((plan) => {
-      const expectedDays = targetDays;  // 모든 플랜은 targetDays 기준
+      const expectedDays = effectiveTargetDays;  // 모든 플랜은 effectiveTargetDays 기준
       const actualDays = plan.dailyQuests.length;
       if (actualDays < expectedDays) {
         console.warn(`[Generate] ⚠️ Plan "${plan.planName}" has only ${actualDays} days, expected ${expectedDays} days`);
       }
     });
 
-    // 날짜 추가 (주말 미포함 옵션 적용)
+    // 선택된 요일에 맞춰 날짜 배치
     result.plans = result.plans.map((plan) => ({
       ...plan,
       totalDays: plan.dailyQuests.length,
       dailyQuests: plan.dailyQuests.map((quest, index) => {
-        let questDate: Date;
-
-        if (excludeWeekends) {
-          // 주말을 건너뛰며 날짜 계산
-          let daysToAdd = 0;
-          let weekdaysCount = 0;
-          while (weekdaysCount < index + 1) {
-            const checkDate = new Date(today);
-            checkDate.setDate(today.getDate() + daysToAdd);
-            const dayOfWeek = checkDate.getDay();
-            // 0 = 일요일, 6 = 토요일
-            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-              weekdaysCount++;
-            }
-            if (weekdaysCount < index + 1) {
-              daysToAdd++;
-            }
-          }
-          questDate = new Date(today);
-          questDate.setDate(today.getDate() + daysToAdd);
-        } else {
-          // 기존 로직: 연속 날짜
-          questDate = new Date(today);
-          questDate.setDate(today.getDate() + quest.day - 1);
-        }
-
+        const questDate = getNextDateForSelectedDays(today, index, selectedDays);
         return {
           ...quest,
           date: formatDate(questDate),
@@ -503,7 +538,7 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
       hasOriginalPlan: false,  // 항상 custom 플랜만 생성
       plans: result.plans,
       recommendations: result.recommendations || [],
-      message: result.message || `${targetDays}일 맞춤 플랜을 생성했습니다.`,
+      message: result.message || `${effectiveTargetDays}일 맞춤 플랜을 생성했습니다.`,
     };
   } catch (error) {
     console.error('Failed to parse dual plan result:', content);
@@ -514,18 +549,27 @@ ${analyzedUnits.map((u) => `${u.unitNumber}. ${u.unitTitle}
       materialName,
       startUnit,
       endUnit,
-      targetDays,
+      effectiveTargetDays,
       bookMetadata
     );
+
+    // 선택된 요일에 맞춰 날짜 재배치
+    const questsWithDates = fallbackResult.dailyQuests.map((quest, index) => {
+      const questDate = getNextDateForSelectedDays(today, index, selectedDays);
+      return {
+        ...quest,
+        date: formatDate(questDate),
+      };
+    });
 
     return {
       hasOriginalPlan: false,
       plans: [{
         planType: 'custom',
-        planName: `${targetDays}일 맞춤 플랜`,
-        description: `${materialName}을 ${targetDays}일 동안 학습하는 AI 추천 계획입니다`,
-        dailyQuests: fallbackResult.dailyQuests,
-        totalDays: fallbackResult.dailyQuests.length,
+        planName: `${effectiveTargetDays}일 맞춤 플랜`,
+        description: `${materialName}을 ${effectiveTargetDays}일 동안 학습하는 AI 추천 계획입니다`,
+        dailyQuests: questsWithDates,
+        totalDays: questsWithDates.length,
         totalEstimatedHours: fallbackResult.totalEstimatedHours,
       }],
       recommendations: fallbackResult.recommendations,

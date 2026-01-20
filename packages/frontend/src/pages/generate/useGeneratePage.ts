@@ -9,7 +9,7 @@ import { useQuestGeneration } from '../../hooks/useQuestGeneration';
 import type { GeneratedPlan, GenerateResult } from '../../hooks/useQuestGeneration';
 import { useQuestStore } from '../../stores/questStore';
 import { API_BASE_URL } from '../../config';
-import type { Yes24Book, PreviewImage } from '@questybook/shared';
+import { DAY_TO_JS_DAY, type Yes24Book, type PreviewImage, type DayOfWeek } from '@questybook/shared';
 import type { ImageData, InputMode, GenerateStep } from './types';
 import type { ManualUnit } from './components';
 import {
@@ -32,7 +32,7 @@ export function useGeneratePage() {
   const [pendingPlanData, setPendingPlanData] = useState<{
     result: GenerateResult;
     totalDays: number;
-    excludeWeekends: boolean;
+    selectedDays: DayOfWeek[];
     timeRemaining: string;
   } | null>(null);
 
@@ -40,7 +40,8 @@ export function useGeneratePage() {
   const [images, setImages] = useState<ImageData[]>([]);
   const [materialName, setMaterialName] = useState('');
   const [totalDays, setTotalDays] = useState(30);
-  const [excludeWeekends, setExcludeWeekends] = useState(false);
+  const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>([]); // 기본값: 선택 없음 (사용자가 직접 선택)
+  const [scheduleMode, setScheduleMode] = useState<'manual' | 'ai'>('ai');
   const [step, setStep] = useState<GenerateStep>('upload');
 
   // YES24 검색 관련 상태
@@ -66,7 +67,7 @@ export function useGeneratePage() {
         setPendingPlanData({
           result: pending.result,
           totalDays: pending.totalDays,
-          excludeWeekends: pending.excludeWeekends,
+          selectedDays: pending.selectedDays || [],
           timeRemaining,
         });
       }
@@ -91,21 +92,25 @@ export function useGeneratePage() {
   // 플랜 생성 완료 시 localStorage에 저장
   useEffect(() => {
     if (result && result.plans.length > 0) {
-      savePendingPlan(result, totalDays, excludeWeekends);
+      savePendingPlan(result, totalDays, selectedDays);
       // 새 결과가 생기면 pending 상태 업데이트
       setPendingPlanData({
         result,
         totalDays,
-        excludeWeekends,
+        selectedDays,
         timeRemaining: formatTimeRemaining(getPendingPlanTimeRemaining()),
       });
     }
-  }, [result, totalDays, excludeWeekends]);
+  }, [result, totalDays, selectedDays]);
 
   // 미적용 플랜 적용하기 (결과 화면으로 이동)
   const handleApplyPendingPlan = useCallback(() => {
     if (pendingPlanData) {
-      // result 상태를 직접 설정할 수 없으므로, 플랜 상세 모달을 직접 열기
+      // 저장된 selectedDays 복원 (중요: 날짜 계산에 사용됨)
+      if (pendingPlanData.selectedDays && pendingPlanData.selectedDays.length > 0) {
+        setSelectedDays(pendingPlanData.selectedDays);
+      }
+      // 플랜 상세 모달 열기
       if (pendingPlanData.result.plans.length > 0) {
         setViewingPlan(pendingPlanData.result.plans[0]);
       }
@@ -194,11 +199,12 @@ export function useGeneratePage() {
         await generate({
           materialName: selectedBook.title,
           images: loadedImages.map(img => ({ base64: img.base64, type: img.type })),
-          totalDays,
+          totalDays: scheduleMode === 'ai' ? 0 : totalDays, // AI 모드면 0 전송 (백엔드에서 추천)
           bookProductId: selectedBook.productId,
           bookMetadata: selectedBook.metadata,
-          excludeWeekends,
-          startDate: excludeWeekends ? new Date().toISOString().split('T')[0] : undefined,
+          selectedDays,
+          scheduleMode,
+          startDate: new Date().toISOString().split('T')[0],
         });
         setStep('result');
       }
@@ -216,9 +222,10 @@ export function useGeneratePage() {
     await generate({
       materialName: materialName || '학습 교재',
       images: images.map(img => ({ base64: img.base64, type: img.type })),
-      totalDays,
-      excludeWeekends,
-      startDate: excludeWeekends ? new Date().toISOString().split('T')[0] : undefined,
+      totalDays: scheduleMode === 'ai' ? 0 : totalDays, // AI 모드면 0 전송 (백엔드에서 추천)
+      selectedDays,
+      scheduleMode,
+      startDate: new Date().toISOString().split('T')[0],
     });
 
     setStep('result');
@@ -228,14 +235,18 @@ export function useGeneratePage() {
   const handleManualGenerate = () => {
     if (manualUnits.length === 0 || !materialName.trim()) return;
 
-    // 시작 날짜 계산
+    // 선택된 요일을 JS Day 값으로 변환
+    const allowedJsDays = new Set(selectedDays.map(d => DAY_TO_JS_DAY[d]));
+
+    // 시작 날짜 계산 (선택된 요일만 포함)
     const startDate = new Date();
     const getNextDate = (baseDate: Date, daysToAdd: number): Date => {
       const result = new Date(baseDate);
       let added = 0;
       while (added < daysToAdd) {
         result.setDate(result.getDate() + 1);
-        if (!excludeWeekends || (result.getDay() !== 0 && result.getDay() !== 6)) {
+        // 선택된 요일인 경우에만 카운트
+        if (allowedJsDays.has(result.getDay())) {
           added++;
         }
       }
@@ -327,7 +338,8 @@ export function useGeneratePage() {
     setImages([]);
     setMaterialName('');
     setTotalDays(30);
-    setExcludeWeekends(false);
+    setSelectedDays([]);
+    setScheduleMode('ai');
     setStep('upload');
     setSelectedBook(null);
     setPreviewImages([]);
@@ -342,7 +354,8 @@ export function useGeneratePage() {
     images,
     materialName,
     totalDays,
-    excludeWeekends,
+    selectedDays,
+    scheduleMode,
     step,
     selectedBook,
     previewImages,
@@ -364,7 +377,8 @@ export function useGeneratePage() {
     setImages,
     setMaterialName,
     setTotalDays,
-    setExcludeWeekends,
+    setSelectedDays,
+    setScheduleMode,
     setZoomedImage,
     setViewingPlan,
     setManualUnits,

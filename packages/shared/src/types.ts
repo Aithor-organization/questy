@@ -1,5 +1,50 @@
 import { z } from 'zod';
 
+// ============================================================================
+// 요일 선택 타입
+// ============================================================================
+
+/**
+ * 요일 타입 (영문 약어)
+ */
+export type DayOfWeek = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+/**
+ * 모든 요일 배열 (월~일 순서)
+ */
+export const ALL_DAYS: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+
+/**
+ * 평일만 배열
+ */
+export const WEEKDAYS: DayOfWeek[] = ['mon', 'tue', 'wed', 'thu', 'fri'];
+
+/**
+ * 요일 한글 라벨
+ */
+export const DAY_LABELS: Record<DayOfWeek, string> = {
+  mon: '월',
+  tue: '화',
+  wed: '수',
+  thu: '목',
+  fri: '금',
+  sat: '토',
+  sun: '일',
+};
+
+/**
+ * 요일을 JavaScript Date.getDay() 값으로 변환 (0=일요일, 6=토요일)
+ */
+export const DAY_TO_JS_DAY: Record<DayOfWeek, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
+
 // 교재 메타데이터 (수능 학습용)
 export const BookMetadataSchema = z.object({
   subject: z.string().optional(), // 과목: 수학, 국어, 영어, 과학탐구 등

@@ -11,6 +11,7 @@ import { NotebookLayout, NotebookPage } from '../../components/notebook';
 import { useGeneratePage } from './useGeneratePage';
 import { useMembershipCheck } from '../../hooks/useMembershipCheck';
 import { TrialEndedModal } from '../../components/TrialEndedModal';
+import { ErrorBoundary, QuestGenerationErrorFallback } from '../../components/ErrorBoundary';
 import {
   InputModeSelector,
   UploadForm,
@@ -78,12 +79,25 @@ export function GeneratePageV2() {
         </button>
       </div>
 
-      {/* 탭 콘텐츠 */}
-      {activeTab === 'plan' ? (
-        <NewPlanContent />
-      ) : (
-        <CurriculumContent />
-      )}
+      {/* 탭 콘텐츠 - ErrorBoundary로 감싸서 렌더링 에러 처리 */}
+      <ErrorBoundary
+        fallback={
+          <QuestGenerationErrorFallback
+            error="화면을 표시하는 중 오류가 발생했습니다."
+            onReset={() => window.location.reload()}
+          />
+        }
+        onError={(error, errorInfo) => {
+          console.error('[GeneratePageV2] 렌더링 에러:', error);
+          console.error('[GeneratePageV2] 컴포넌트 스택:', errorInfo.componentStack);
+        }}
+      >
+        {activeTab === 'plan' ? (
+          <NewPlanContent />
+        ) : (
+          <CurriculumContent />
+        )}
+      </ErrorBoundary>
     </NotebookLayout>
   );
 }
@@ -95,7 +109,8 @@ function NewPlanContent() {
     images,
     materialName,
     totalDays,
-    excludeWeekends,
+    selectedDays,
+    scheduleMode,
     step,
     selectedBook,
     previewImages,
@@ -114,7 +129,8 @@ function NewPlanContent() {
     setImages,
     setMaterialName,
     setTotalDays,
-    setExcludeWeekends,
+    setSelectedDays,
+    setScheduleMode,
     setZoomedImage,
     setViewingPlan,
     setManualUnits,
@@ -195,18 +211,37 @@ function NewPlanContent() {
               />
             )}
 
-            {/* 목표 일수 */}
+            {/* 요일 선택 및 일정 설정 */}
             <DaysSelector
               totalDays={totalDays}
-              excludeWeekends={excludeWeekends}
+              selectedDays={selectedDays}
+              scheduleMode={scheduleMode}
               onTotalDaysChange={setTotalDays}
-              onExcludeWeekendsChange={setExcludeWeekends}
+              onSelectedDaysChange={setSelectedDays}
+              onScheduleModeChange={setScheduleMode}
             />
 
-            {/* 에러 */}
+            {/* 에러 표시 - 재시도 버튼 포함 */}
             {error && (
-              <div className="postit text-sm text-[var(--ink-red)] mb-4">
-                ⚠️ {error}
+              <div className="mb-4 p-4 bg-[var(--highlight-pink)] border border-pink-200 rounded-lg">
+                <div className="flex items-start gap-3">
+                  <span className="text-2xl">⚠️</span>
+                  <div className="flex-1">
+                    <p className="text-sm text-[var(--ink-black)] font-medium mb-1">
+                      오류가 발생했습니다
+                    </p>
+                    <p className="text-xs text-[var(--pencil-gray)] mb-3">
+                      {error}
+                    </p>
+                    <button
+                      onClick={onGenerate}
+                      disabled={!canGenerate || isLoading || analyzingBook}
+                      className="px-4 py-2 bg-[var(--ink-blue)] text-white rounded-lg text-xs font-medium hover:bg-opacity-90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      🔄 다시 시도
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -320,6 +355,7 @@ function NewPlanContent() {
           plan={viewingPlan}
           onClose={() => setViewingPlan(null)}
           onSave={handleSavePlan}
+          selectedDays={selectedDays}
         />
       )}
 

@@ -25,17 +25,6 @@ export function GenerateResult({ result, onViewPlan, onReset }: GenerateResultPr
       {/* 생성된 플랜들 */}
       <div className="space-y-4">
         {result.plans.map((plan, index) => {
-          const endDate = plan.dailyQuests.length > 0
-            ? plan.dailyQuests[plan.dailyQuests.length - 1].date
-            : null;
-          const endDateFormatted = endDate
-            ? new Date(endDate).toLocaleDateString('ko-KR', {
-                month: 'long',
-                day: 'numeric',
-                weekday: 'short',
-              })
-            : null;
-
           return (
             <div
               key={index}
@@ -46,33 +35,34 @@ export function GenerateResult({ result, onViewPlan, onReset }: GenerateResultPr
                 <h3 className="handwrite text-xl text-[var(--ink-black)]">
                   {plan.planName}
                 </h3>
-                <span className="sticker sticker-mint">{plan.totalDays}일</span>
+                <span className="sticker sticker-mint">{plan.dailyQuests.length}개 퀘스트</span>
               </div>
               <p className="text-sm text-[var(--pencil-gray)] mb-3">
                 {plan.description}
               </p>
 
-              {endDateFormatted && (
-                <div className="mb-3 p-2 bg-[var(--highlight-blue)] rounded-lg">
-                  <p className="text-sm text-[var(--ink-blue)] font-medium">
-                    🏁 완료 예정: {endDateFormatted}
-                  </p>
-                </div>
-              )}
+              {/* 날짜는 상세 보기에서 확인 - 여기서는 퀘스트 수와 예상 시간만 표시 */}
+              <div className="mb-3 p-2 bg-[var(--highlight-green)] rounded-lg">
+                <p className="text-sm text-[var(--ink-black)]">
+                  📅 플랜을 선택하면 오늘부터 일정이 자동 배정됩니다
+                </p>
+              </div>
 
               <div className="flex items-center justify-between text-xs text-[var(--pencil-gray)]">
-                <span>📚 {plan.dailyQuests.length}개 퀘스트</span>
+                <span>📚 총 {plan.dailyQuests.length}개 퀘스트</span>
                 <span>⏱ 약 {plan.totalEstimatedHours}시간</span>
               </div>
 
-              {/* 미리보기 */}
+              {/* 미리보기 - 퀘스트 목록만 표시 (날짜는 상세 보기에서) */}
               <div className="mt-4 p-3 bg-[var(--paper-cream)] rounded-lg">
-                <p className="text-xs text-[var(--pencil-gray)] mb-2">미리보기</p>
+                <p className="text-xs text-[var(--pencil-gray)] mb-2">퀘스트 미리보기</p>
                 {plan.dailyQuests.slice(0, 3).map((quest, qIndex) => (
                   <div key={qIndex} className="flex items-center gap-2 text-sm">
-                    <span className="w-5 h-5 rounded border border-[var(--paper-lines)] flex-shrink-0" />
+                    <span className="w-5 h-5 rounded-full bg-[var(--ink-blue)] text-white text-xs flex items-center justify-center flex-shrink-0">
+                      {qIndex + 1}
+                    </span>
                     <span className="truncate">
-                      Day {quest.day}: {quest.unitTitle}
+                      {quest.unitTitle}
                     </span>
                   </div>
                 ))}

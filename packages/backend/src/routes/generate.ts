@@ -15,12 +15,16 @@ const ImageSchema = z.object({
 
 // BookMetadataSchema는 @questybook/shared에서 import
 
+// 요일 타입 스키마
+const DayOfWeekSchema = z.enum(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
+
 const GenerateRequestSchema = z.object({
   materialName: z.string().min(1, '교재 이름을 입력해주세요').max(100),
   images: z.array(ImageSchema).min(1, '이미지를 1장 이상 업로드해주세요').max(4, '최대 4장까지 업로드 가능합니다'),
-  totalDays: z.number().int().positive('목표 기간은 1일 이상이어야 합니다'),
+  totalDays: z.number().int().nonnegative(), // 0이면 AI 추천, 양수면 직접 입력
   bookMetadata: BookMetadataSchema.optional(), // 교재 메타데이터 (선택적)
-  excludeWeekends: z.boolean().optional(), // 주말 미포함 옵션
+  selectedDays: z.array(DayOfWeekSchema).optional(), // 선택된 요일
+  scheduleMode: z.enum(['manual', 'ai']).optional(), // 일정 설정 모드
   startDate: z.string().optional(), // 시작 날짜 (YYYY-MM-DD)
 });
 
@@ -41,7 +45,7 @@ generateRoutes.post('/', async (c) => {
       }, 400);
     }
 
-    const { materialName, images, totalDays, bookMetadata, excludeWeekends, startDate } = parsed.data;
+    const { materialName, images, totalDays, bookMetadata, selectedDays, scheduleMode, startDate } = parsed.data;
 
     // 1. 모든 이미지 분석 (병렬 처리)
     console.log(`[Generate] Analyzing ${images.length} images for: ${materialName}`);
@@ -116,6 +120,11 @@ generateRoutes.post('/', async (c) => {
     if (bookMetadata) {
       console.log(`[Generate] Book metadata: ${bookMetadata.subject || '-'} / ${bookMetadata.targetGrade || '-'} / ${bookMetadata.bookType || '-'}`);
     }
+    if (selectedDays) {
+      console.log(`[Generate] Selected days: ${selectedDays.join(', ')}`);
+    }
+    console.log(`[Generate] Schedule mode: ${scheduleMode || 'manual'}`);
+
     const dualResult = await generateDualPlans(
       uniqueUnits,
       mergedStudyPlan,
@@ -124,7 +133,8 @@ generateRoutes.post('/', async (c) => {
       endUnit,
       totalDays,
       bookMetadata,
-      excludeWeekends,
+      selectedDays,
+      scheduleMode,
       startDate
     );
 

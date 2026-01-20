@@ -7,6 +7,7 @@
 
 import type { GenerateResult } from '../hooks/useQuestGeneration';
 import { supabase } from './supabase';
+import type { DayOfWeek } from '@questybook/shared';
 
 // localStorage 키
 const GENERATION_DATA_KEY = 'questy_plan_generation_data';
@@ -17,7 +18,7 @@ const STORE_NAME = 'plan_limits';
 const STORAGE_KEY = 'generation_data';
 
 // 제한 설정
-const MAX_GENERATIONS_PER_DAY = 3;
+const MAX_GENERATIONS_PER_WEEK = 3;
 const PENDING_PLAN_EXPIRY_HOURS = 12;
 
 interface GenerationData {
@@ -28,18 +29,34 @@ interface GenerationData {
 interface PendingPlanData {
   result: GenerateResult;
   totalDays: number;
-  excludeWeekends: boolean;
+  selectedDays?: DayOfWeek[];  // 선택된 요일 (선택적, 이전 버전 호환)
   createdAt: number; // timestamp
 }
 
 /**
- * 오늘 자정 시간 반환 (다음 날 00:00)
+ * 다음 월요일 새벽 2시 시간 반환
+ * 매주 월요일 02:00에 리셋
  */
-function getTomorrowMidnight(): number {
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  tomorrow.setHours(0, 0, 0, 0);
-  return tomorrow.getTime();
+function getNextMondayAt2AM(): number {
+  const now = new Date();
+  const dayOfWeek = now.getDay(); // 0 = 일요일, 1 = 월요일, ...
+
+  // 오늘이 월요일이고 아직 02:00 전이면 오늘 02:00
+  if (dayOfWeek === 1 && now.getHours() < 2) {
+    const today = new Date(now);
+    today.setHours(2, 0, 0, 0);
+    return today.getTime();
+  }
+
+  // 다음 월요일까지 남은 일수 계산
+  // 일요일(0) -> 1일, 월요일(1) -> 7일, 화요일(2) -> 6일, ...
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+
+  const nextMonday = new Date(now);
+  nextMonday.setDate(now.getDate() + daysUntilMonday);
+  nextMonday.setHours(2, 0, 0, 0);
+
+  return nextMonday.getTime();
 }
 
 /**
@@ -149,7 +166,7 @@ async function setSupabaseGenerationData(userId: string, data: GenerationData): 
  * 생성 데이터 가져오기 (Supabase 우선, localStorage 폴백)
  */
 async function getGenerationData(): Promise<GenerationData> {
-  const defaultData: GenerationData = { count: 0, resetAt: getTomorrowMidnight() };
+  const defaultData: GenerationData = { count: 0, resetAt: getNextMondayAt2AM() };
 
   // 1. 로그인 상태 확인
   const userId = await getUserId();
@@ -161,7 +178,7 @@ async function getGenerationData(): Promise<GenerationData> {
       // 리셋 시간 체크
       if (Date.now() >= supabaseData.resetAt) {
         // 리셋 시간 지남 - 초기화
-        const newData = { count: 0, resetAt: getTomorrowMidnight() };
+        const newData = { count: 0, resetAt: getNextMondayAt2AM() };
         setLocalGenerationData(newData);
         // 비동기로 Supabase 업데이트 (await 안 함)
         setSupabaseGenerationData(userId, newData);
@@ -179,7 +196,7 @@ async function getGenerationData(): Promise<GenerationData> {
     // 리셋 시간 체크
     if (Date.now() >= localData.resetAt) {
       // 리셋 시간 지남 - 초기화
-      const newData = { count: 0, resetAt: getTomorrowMidnight() };
+      const newData = { count: 0, resetAt: getNextMondayAt2AM() };
       setLocalGenerationData(newData);
       return newData;
     }
@@ -202,7 +219,7 @@ export async function getGenerationCountAsync(): Promise<number> {
  */
 export async function canGeneratePlanAsync(): Promise<boolean> {
   const count = await getGenerationCountAsync();
-  return count < MAX_GENERATIONS_PER_DAY;
+  return count < MAX_GENERATIONS_PER_WEEK;
 }
 
 /**
@@ -210,7 +227,7 @@ export async function canGeneratePlanAsync(): Promise<boolean> {
  */
 export async function getRemainingGenerationsAsync(): Promise<number> {
   const count = await getGenerationCountAsync();
-  return Math.max(0, MAX_GENERATIONS_PER_DAY - count);
+  return Math.max(0, MAX_GENERATIONS_PER_WEEK - count);
 }
 
 /**
@@ -221,7 +238,7 @@ export async function incrementGenerationCountAsync(): Promise<void> {
     const currentData = await getGenerationData();
     const newData: GenerationData = {
       count: currentData.count + 1,
-      resetAt: currentData.resetAt || getTomorrowMidnight(),
+      resetAt: currentData.resetAt || getNextMondayAt2AM(),
     };
 
     // 1. localStorage에 즉시 저장
@@ -269,14 +286,14 @@ export function getGenerationCount(): number {
  * 플랜 생성 가능 여부 확인 (동기 - 캐시 기반)
  */
 export function canGeneratePlan(): boolean {
-  return getGenerationCount() < MAX_GENERATIONS_PER_DAY;
+  return getGenerationCount() < MAX_GENERATIONS_PER_WEEK;
 }
 
 /**
  * 남은 생성 횟수 조회 (동기 - 캐시 기반)
  */
 export function getRemainingGenerations(): number {
-  return Math.max(0, MAX_GENERATIONS_PER_DAY - getGenerationCount());
+  return Math.max(0, MAX_GENERATIONS_PER_WEEK - getGenerationCount());
 }
 
 /**
@@ -305,13 +322,13 @@ export function getTimeUntilReset(): number {
 export function savePendingPlan(
   result: GenerateResult,
   totalDays: number,
-  excludeWeekends: boolean
+  selectedDays: DayOfWeek[]
 ): void {
   try {
     const data: PendingPlanData = {
       result,
       totalDays,
-      excludeWeekends,
+      selectedDays,
       createdAt: Date.now(),
     };
     localStorage.setItem(PENDING_PLAN_KEY, JSON.stringify(data));

@@ -957,6 +957,188 @@ adminUsersRoutes.get('/users/learning-profiles', adminOnly, async (c) => {
 });
 
 /**
+ * 사용자 플랜 생성 횟수 조회 (관리자용)
+ * GET /api/admin/users/:userId/generation-limit
+ */
+adminUsersRoutes.get('/users/:userId/generation-limit', adminOnly, async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    const userId = c.req.param('userId');
+
+    // user_storage에서 생성 횟수 조회
+    const { data, error } = await supabase
+      .from('user_storage')
+      .select('value')
+      .eq('user_id', userId)
+      .eq('store_name', 'plan_limits')
+      .eq('key', 'generation_data')
+      .maybeSingle();
+
+    if (error) {
+      console.error('[AdminUsers] Get generation limit error:', error);
+      return c.json({ success: false, error: '생성 횟수 조회 실패' }, 500);
+    }
+
+    // 데이터가 없으면 null 반환 (생성 기록 없음)
+    if (!data?.value) {
+      return c.json({
+        success: true,
+        data: {
+          count: null, // null = 기록 없음
+          resetAt: null,
+          maxGenerations: 3,
+          hasRecord: false,
+        },
+      });
+    }
+
+    const generationData = JSON.parse(data.value);
+
+    // 리셋 시간 체크 - 지났으면 0으로 표시
+    let effectiveCount = generationData.count || 0;
+    if (generationData.resetAt && Date.now() >= generationData.resetAt) {
+      effectiveCount = 0; // 리셋 시간 지남
+    }
+
+    return c.json({
+      success: true,
+      data: {
+        count: effectiveCount,
+        resetAt: generationData.resetAt || null,
+        maxGenerations: 3,
+        hasRecord: true,
+      },
+    });
+  } catch (error: any) {
+    console.error('[AdminUsers] Get generation limit error:', error);
+    return c.json({ success: false, error: error.message || '생성 횟수 조회 실패' }, 500);
+  }
+});
+
+/**
+ * 사용자 플랜 생성 횟수 수정 (관리자용)
+ * POST /api/admin/users/:userId/generation-limit
+ */
+adminUsersRoutes.post('/users/:userId/generation-limit', adminOnly, async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    const userId = c.req.param('userId');
+    const body = await c.req.json();
+    const { count } = body as { count: number };
+
+    // 유효성 검사
+    if (typeof count !== 'number' || count < 0 || count > 100) {
+      return c.json({ success: false, error: '유효하지 않은 생성 횟수입니다 (0-100)' }, 400);
+    }
+
+    // 다음 월요일 02:00 계산
+    const now = new Date();
+    const dayOfWeek = now.getDay(); // 0 = 일요일
+    const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+    const nextMonday = new Date(now);
+    nextMonday.setDate(now.getDate() + daysUntilMonday);
+    nextMonday.setHours(2, 0, 0, 0);
+    const resetAt = nextMonday.getTime();
+
+    const generationData = { count, resetAt };
+
+    // user_storage에 저장 (upsert)
+    const { error } = await supabase
+      .from('user_storage')
+      .upsert(
+        {
+          user_id: userId,
+          store_name: 'plan_limits',
+          key: 'generation_data',
+          value: JSON.stringify(generationData),
+          updated_at: new Date().toISOString(),
+        },
+        {
+          onConflict: 'user_id,store_name,key',
+        }
+      );
+
+    if (error) {
+      console.error('[AdminUsers] Update generation limit error:', error);
+      return c.json({ success: false, error: '생성 횟수 수정 실패' }, 500);
+    }
+
+    console.log(`[AdminUsers] Generation limit updated: ${userId} -> ${count}`);
+
+    return c.json({
+      success: true,
+      data: {
+        userId,
+        count,
+        resetAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('[AdminUsers] Update generation limit error:', error);
+    return c.json({ success: false, error: error.message || '생성 횟수 수정 실패' }, 500);
+  }
+});
+
+/**
+ * 모든 사용자 플랜 생성 횟수 리셋 (관리자용 - 수동 리셋)
+ * POST /api/admin/users/generation-limit/reset-all
+ */
+adminUsersRoutes.post('/users/generation-limit/reset-all', adminOnly, async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    // 다음 월요일 02:00 계산
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const daysUntilMonday = dayOfWeek === 0 ? 1 : (8 - dayOfWeek);
+    const nextMonday = new Date(now);
+    nextMonday.setDate(now.getDate() + daysUntilMonday);
+    nextMonday.setHours(2, 0, 0, 0);
+    const resetAt = nextMonday.getTime();
+
+    const generationData = { count: 0, resetAt };
+
+    // 모든 plan_limits 데이터 업데이트
+    const { data, error } = await supabase
+      .from('user_storage')
+      .update({
+        value: JSON.stringify(generationData),
+        updated_at: new Date().toISOString(),
+      })
+      .eq('store_name', 'plan_limits')
+      .eq('key', 'generation_data')
+      .select();
+
+    if (error) {
+      console.error('[AdminUsers] Reset all generation limits error:', error);
+      return c.json({ success: false, error: '일괄 리셋 실패' }, 500);
+    }
+
+    const updatedCount = data?.length || 0;
+    console.log(`[AdminUsers] Generation limits reset for ${updatedCount} users`);
+
+    return c.json({
+      success: true,
+      data: {
+        updatedCount,
+        resetAt,
+      },
+    });
+  } catch (error: any) {
+    console.error('[AdminUsers] Reset all generation limits error:', error);
+    return c.json({ success: false, error: error.message || '일괄 리셋 실패' }, 500);
+  }
+});
+
+/**
  * 대기 중인 사용자 수 조회 (관리자용)
  * GET /api/admin/users/pending/count
  */

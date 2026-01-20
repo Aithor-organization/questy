@@ -1,11 +1,12 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { BookMetadata, DailyQuestAPI } from '@questybook/shared';
+import type { BookMetadata, DailyQuestAPI, DayOfWeek } from '@questybook/shared';
 import {
   canGeneratePlanAsync,
   incrementGenerationCountAsync,
   getRemainingGenerationsAsync,
   getRemainingGenerations,
 } from '../lib/plan-generation-storage';
+import { validateGenerateResult } from '../lib/validate-plan';
 
 interface ImageData {
   base64: string;
@@ -18,7 +19,8 @@ interface FormData {
   totalDays: number;
   bookMetadata?: BookMetadata;
   bookProductId?: string;
-  excludeWeekends?: boolean;
+  selectedDays?: DayOfWeek[]; // 선택된 요일
+  scheduleMode?: 'manual' | 'ai'; // 일정 설정 모드
   startDate?: string; // ISO date string (YYYY-MM-DD)
 }
 
@@ -179,7 +181,8 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
           })),
           totalDays: data.totalDays,
           bookMetadata: data.bookMetadata,
-          excludeWeekends: data.excludeWeekends,
+          selectedDays: data.selectedDays,
+          scheduleMode: data.scheduleMode,
           startDate: data.startDate,
         }),
       });
@@ -190,7 +193,23 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
         throw new Error(json.error?.message || '퀘스트 생성에 실패했습니다');
       }
 
-      const resultData = json.data as GenerateResult;
+      // AI 응답 데이터 검증 및 정제
+      const validation = validateGenerateResult(json.data);
+
+      if (!validation.sanitizedData || validation.sanitizedData.plans.length === 0) {
+        // 검증 실패 - 복구 불가능한 경우
+        const errorMsg = validation.errors.length > 0
+          ? `AI 응답 형식 오류: ${validation.errors[0]}`
+          : 'AI가 잘못된 형식으로 응답했습니다. 다시 시도해 주세요.';
+        throw new Error(errorMsg);
+      }
+
+      // 검증 경고가 있으면 콘솔에 기록 (디버깅용)
+      if (validation.errors.length > 0) {
+        console.warn('[useQuestGeneration] AI 응답 검증 경고:', validation.errors);
+      }
+
+      const resultData = validation.sanitizedData;
       setResult(resultData);
       setIsLoading(false);
 
@@ -257,7 +276,22 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
         throw new Error(json.error?.message || '플랜 재생성에 실패했습니다');
       }
 
-      const newPlan = json.data.plan as GeneratedPlan;
+      const rawPlan = json.data.plan;
+
+      // 재생성된 플랜 기본 검증
+      if (!rawPlan || !Array.isArray(rawPlan.dailyQuests) || rawPlan.dailyQuests.length === 0) {
+        throw new Error('AI가 잘못된 형식의 플랜을 생성했습니다. 다시 시도해 주세요.');
+      }
+
+      const newPlan: GeneratedPlan = {
+        planType: rawPlan.planType || 'custom',
+        planName: rawPlan.planName || '재생성된 플랜',
+        description: rawPlan.description || '학습 계획입니다.',
+        dailyQuests: rawPlan.dailyQuests,
+        totalDays: rawPlan.totalDays || rawPlan.dailyQuests.length,
+        totalEstimatedHours: rawPlan.totalEstimatedHours ||
+          Math.round(rawPlan.dailyQuests.reduce((sum: number, q: DailyQuest) => sum + (q.estimatedMinutes || 60), 0) / 60),
+      };
 
       // 새 플랜을 plans 배열에 추가/교체
       setResult(prev => prev ? {
