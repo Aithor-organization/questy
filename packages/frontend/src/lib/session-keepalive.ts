@@ -145,21 +145,8 @@ export function useSessionKeepAlive(
       }
     }, intervalMs);
 
-    // 탭 활성화 시 세션 갱신 (백그라운드에서 돌아올 때) - 디바운스 적용
-    let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        // 이미 예약된 갱신이 있으면 스킵
-        if (visibilityTimeout) return;
-
-        visibilityTimeout = setTimeout(() => {
-          console.log('%c[SessionKeepAlive] 👁️ 탭 활성화 감지 - 세션 갱신', 'color: #8b5cf6;');
-          refreshSession();
-          visibilityTimeout = null;
-        }, 1000); // 1초 디바운스
-      }
-    };
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // 참고: 탭 활성화 시 세션 갱신은 Supabase SDK (autoRefreshToken: true)가
+    // 내부적으로 처리하므로 여기서는 수동 처리하지 않음 (Web Locks API 충돌 방지)
 
     // 클린업
     return () => {
@@ -168,10 +155,6 @@ export function useSessionKeepAlive(
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      if (visibilityTimeout) {
-        clearTimeout(visibilityTimeout);
-      }
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [enabled, intervalMs]);
 }
