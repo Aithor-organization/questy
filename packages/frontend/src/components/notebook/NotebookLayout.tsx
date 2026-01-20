@@ -22,13 +22,21 @@ export function NotebookLayout({ children }: NotebookLayoutProps) {
   const unreadCount = useChatStore((state) => state.getTotalUnreadCount());
   const unreadNotifications = useChatStore((state) => state.notifications.filter(n => !n.isRead).length);
   const getIncompleteQuests = useQuestStore((state) => state.getIncompleteQuests);
+  const plans = useQuestStore((state) => state.plans);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isNotificationOpen, setIsNotificationOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
-  // 총 알림 개수 (미완료 퀘스트 + 읽지 않은 메시지 + 알림)
-  const incompleteQuestsCount = getIncompleteQuests(getTodayDateString()).length;
-  const totalNotificationCount = incompleteQuestsCount + unreadCount + unreadNotifications;
+  // 총 알림 개수 (미완료 퀘스트 + 밀린 퀘스트 + 읽지 않은 메시지 + 알림)
+  const todayStr = getTodayDateString();
+  const incompleteQuestsCount = getIncompleteQuests(todayStr).length;
+
+  // 밀린 퀘스트 (과거 날짜의 미완료) - NotificationModal과 동일한 계산
+  const overdueQuestsCount = plans.reduce((count, plan) =>
+    count + plan.dailyQuests.filter(q => q.date < todayStr && !q.completed).length, 0
+  );
+
+  const totalNotificationCount = incompleteQuestsCount + overdueQuestsCount + unreadCount + unreadNotifications;
 
   // 외부 클릭 시 메뉴 닫기
   useEffect(() => {
