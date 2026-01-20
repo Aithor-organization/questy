@@ -53,6 +53,7 @@ export interface UserMembership {
   email?: string;
   createdAt: string;
   lastLoginAt?: string | null;  // 마지막 로그인 시간
+  referralSource?: string | null;  // 유입 경로
   membership: {
     type: MembershipType;
     status: MembershipStatus;
@@ -61,6 +62,17 @@ export interface UserMembership {
     adminNote: string | null;
   } | null;
 }
+
+// 유입 경로 옵션
+export const REFERRAL_SOURCE_OPTIONS = [
+  { value: 'orbi', label: '오르비' },
+  { value: 'everytime', label: '에브리타임' },
+  { value: 'instagram', label: '인스타그램' },
+  { value: 'youtube', label: '유튜브' },
+  { value: 'friend', label: '지인 추천' },
+  { value: 'search', label: '검색 (구글/네이버)' },
+  { value: 'other', label: '기타' },
+] as const;
 
 // 문의 타입
 export interface Inquiry {

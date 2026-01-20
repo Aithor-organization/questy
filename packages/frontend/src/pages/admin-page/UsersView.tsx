@@ -19,9 +19,23 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  ArrowUpDown,
+  Filter,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { UserMembership, MembershipType, MembershipStatus } from './types';
+import { REFERRAL_SOURCE_OPTIONS } from './types';
+
+// 멤버십 타입 라벨
+const membershipTypeLabels: Record<MembershipType, string> = {
+  pending: '대기자',
+  regular: '일반인',
+  beta_tester: '베타테스터',
+  lab_member: '실험단',
+};
+
+// 정렬 옵션
+type SortOption = 'createdAt' | 'lastLoginAt';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -52,7 +66,11 @@ export function UsersView() {
   const [users, setUsers] = useState<UserMembership[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'active'>('all');
+  const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active'>('all');
+  const [typeFilter, setTypeFilter] = useState<MembershipType | 'all'>('all');
+  const [referralFilter, setReferralFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<SortOption>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [approving, setApproving] = useState<string | null>(null);
@@ -66,6 +84,8 @@ export function UsersView() {
   const [totalPages, setTotalPages] = useState(1);
   const [total, setTotal] = useState(0);
   const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 필터 펼침 상태
+  const [showFilters, setShowFilters] = useState(false);
 
   // 검색어 디바운싱 (300ms)
   useEffect(() => {
@@ -83,7 +103,7 @@ export function UsersView() {
     };
   }, [searchQuery]);
 
-  // 사용자 목록 조회 (서버사이드 페이지네이션 + 검색)
+  // 사용자 목록 조회 (서버사이드 페이지네이션 + 검색 + 필터 + 정렬)
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -94,12 +114,22 @@ export function UsersView() {
       const params = new URLSearchParams({
         page: page.toString(),
         limit: limit.toString(),
+        sortBy,
+        sortOrder,
       });
       // 상태 필터
-      if (filter === 'pending') {
+      if (statusFilter === 'pending') {
         params.append('status', 'pending');
-      } else if (filter === 'active') {
+      } else if (statusFilter === 'active') {
         params.append('status', 'active');
+      }
+      // 멤버십 타입 필터
+      if (typeFilter !== 'all') {
+        params.append('type', typeFilter);
+      }
+      // 유입경로 필터
+      if (referralFilter !== 'all') {
+        params.append('referralSource', referralFilter);
       }
       // 서버사이드 검색
       if (debouncedSearch) {
@@ -135,7 +165,7 @@ export function UsersView() {
     } finally {
       setLoading(false);
     }
-  }, [page, limit, filter, debouncedSearch]);
+  }, [page, limit, statusFilter, typeFilter, referralFilter, sortBy, sortOrder, debouncedSearch]);
 
   useEffect(() => {
     fetchUsers();
@@ -271,11 +301,52 @@ export function UsersView() {
   };
 
   // 필터 또는 검색 변경 시 첫 페이지로 리셋
-  const handleFilterChange = (newFilter: 'all' | 'pending' | 'active') => {
-    setFilter(newFilter);
+  const handleStatusFilterChange = (newFilter: 'all' | 'pending' | 'active') => {
+    setStatusFilter(newFilter);
     setPage(1);
     setSelectedUsers(new Set());
   };
+
+  const handleTypeFilterChange = (newType: MembershipType | 'all') => {
+    setTypeFilter(newType);
+    setPage(1);
+    setSelectedUsers(new Set());
+  };
+
+  const handleReferralFilterChange = (newReferral: string) => {
+    setReferralFilter(newReferral);
+    setPage(1);
+    setSelectedUsers(new Set());
+  };
+
+  const handleSortChange = (newSortBy: SortOption) => {
+    if (sortBy === newSortBy) {
+      setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc');
+    } else {
+      setSortBy(newSortBy);
+      setSortOrder('desc');
+    }
+    setPage(1);
+  };
+
+  // 필터 초기화
+  const resetFilters = () => {
+    setStatusFilter('all');
+    setTypeFilter('all');
+    setReferralFilter('all');
+    setSortBy('createdAt');
+    setSortOrder('desc');
+    setSearchQuery('');
+    setPage(1);
+    setSelectedUsers(new Set());
+  };
+
+  // 활성 필터 개수
+  const activeFilterCount = [
+    statusFilter !== 'all',
+    typeFilter !== 'all',
+    referralFilter !== 'all',
+  ].filter(Boolean).length;
 
   // 서버사이드 필터링이므로 클라이언트 필터 제거
   // users 배열을 그대로 사용
@@ -413,65 +484,167 @@ export function UsersView() {
       )}
 
       {/* 필터 및 검색 */}
-      <div className="flex gap-3 flex-wrap items-center">
-        {/* 전체 선택 체크박스 */}
-        <button
-          onClick={toggleSelectAll}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
-        >
-          {selectedUsers.size === filteredUsers.length && filteredUsers.length > 0 ? (
-            <CheckSquare size={16} className="text-blue-600" />
-          ) : (
-            <Square size={16} />
-          )}
-          전체
-        </button>
+      <div className="space-y-3">
+        {/* 첫 번째 줄: 선택, 상태 필터, 정렬, 검색 */}
+        <div className="flex gap-3 flex-wrap items-center">
+          {/* 전체 선택 체크박스 */}
+          <button
+            onClick={toggleSelectAll}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-200 transition-colors"
+          >
+            {selectedUsers.size === filteredUsers.length && filteredUsers.length > 0 ? (
+              <CheckSquare size={16} className="text-blue-600" />
+            ) : (
+              <Square size={16} />
+            )}
+            전체
+          </button>
 
-        <div className="w-px h-6 bg-gray-200" />
+          <div className="w-px h-6 bg-gray-200" />
 
-        <div className="flex gap-2">
+          {/* 상태 필터 */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => handleStatusFilterChange('all')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'all'
+                  ? 'bg-blue-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              전체 ({total})
+            </button>
+            <button
+              onClick={() => handleStatusFilterChange('pending')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'pending'
+                  ? 'bg-yellow-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              대기
+            </button>
+            <button
+              onClick={() => handleStatusFilterChange('active')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                statusFilter === 'active'
+                  ? 'bg-green-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              활성
+            </button>
+          </div>
+
+          <div className="w-px h-6 bg-gray-200" />
+
+          {/* 정렬 버튼 */}
+          <div className="flex gap-1">
+            <button
+              onClick={() => handleSortChange('createdAt')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                sortBy === 'createdAt'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <ArrowUpDown size={12} />
+              가입순
+              {sortBy === 'createdAt' && (sortOrder === 'desc' ? ' ↓' : ' ↑')}
+            </button>
+            <button
+              onClick={() => handleSortChange('lastLoginAt')}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
+                sortBy === 'lastLoginAt'
+                  ? 'bg-indigo-500 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              <Clock size={12} />
+              로그인순
+              {sortBy === 'lastLoginAt' && (sortOrder === 'desc' ? ' ↓' : ' ↑')}
+            </button>
+          </div>
+
+          <div className="w-px h-6 bg-gray-200" />
+
+          {/* 추가 필터 토글 */}
           <button
-            onClick={() => handleFilterChange('all')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === 'all'
-                ? 'bg-blue-500 text-white'
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+              showFilters || activeFilterCount > 0
+                ? 'bg-purple-500 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
             }`}
           >
-            전체 ({total})
+            <Filter size={14} />
+            필터
+            {activeFilterCount > 0 && (
+              <span className="px-1.5 py-0.5 bg-white/20 rounded text-xs">{activeFilterCount}</span>
+            )}
           </button>
-          <button
-            onClick={() => handleFilterChange('pending')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === 'pending'
-                ? 'bg-yellow-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            대기
-          </button>
-          <button
-            onClick={() => handleFilterChange('active')}
-            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              filter === 'active'
-                ? 'bg-green-500 text-white'
-                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-            }`}
-          >
-            활성
-          </button>
+
+          {/* 검색 */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              type="text"
+              placeholder="이름 또는 이메일 검색..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
         </div>
 
-        <div className="relative flex-1 min-w-[200px]">
-          <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="이름 또는 이메일 검색..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-          />
-        </div>
+        {/* 추가 필터 패널 */}
+        {showFilters && (
+          <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium text-gray-700">상세 필터</span>
+              {activeFilterCount > 0 && (
+                <button
+                  onClick={resetFilters}
+                  className="text-xs text-purple-600 hover:text-purple-700"
+                >
+                  필터 초기화
+                </button>
+              )}
+            </div>
+
+            <div className="flex gap-4 flex-wrap">
+              {/* 멤버십 타입 필터 */}
+              <div className="space-y-1">
+                <label className="text-xs text-gray-500">멤버십 타입</label>
+                <select
+                  value={typeFilter}
+                  onChange={(e) => handleTypeFilterChange(e.target.value as MembershipType | 'all')}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="all">전체</option>
+                  {(Object.keys(membershipTypeLabels) as MembershipType[]).map((type) => (
+                    <option key={type} value={type}>{membershipTypeLabels[type]}</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* 유입경로 필터 */}
+              <div className="space-y-1">
+                <label className="text-xs text-gray-500">유입 경로</label>
+                <select
+                  value={referralFilter}
+                  onChange={(e) => handleReferralFilterChange(e.target.value)}
+                  className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-purple-500 focus:border-transparent"
+                >
+                  <option value="all">전체</option>
+                  {REFERRAL_SOURCE_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 사용자 목록 */}
@@ -652,6 +825,11 @@ function UserCard({
               )}
               {!user.lastLoginAt && (
                 <span className="text-gray-300">로그인 기록 없음</span>
+              )}
+              {user.referralSource && (
+                <span className="text-purple-500">
+                  유입: {REFERRAL_SOURCE_OPTIONS.find(o => o.value === user.referralSource)?.label || user.referralSource}
+                </span>
               )}
               {remainingDays !== null && currentType === 'beta_tester' && (
                 <span className={remainingDays <= 2 ? 'text-red-500' : ''}>

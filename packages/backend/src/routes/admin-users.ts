@@ -55,6 +55,9 @@ function calculateBetaTesterExpiry(): string {
  * - limit: 페이지당 항목 수 (기본 50, 최대 100)
  * - status: 멤버십 상태 필터 (optional: pending, active, expired, revoked)
  * - type: 멤버십 유형 필터 (optional: pending, regular, beta_tester, lab_member)
+ * - referralSource: 유입경로 필터 (optional)
+ * - sortBy: 정렬 기준 (optional: createdAt, lastLoginAt) - 기본값 createdAt
+ * - sortOrder: 정렬 순서 (optional: asc, desc) - 기본값 desc
  */
 adminUsersRoutes.get('/users', adminOnly, async (c) => {
   try {
@@ -67,8 +70,12 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
     const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '50')));
     const statusFilter = c.req.query('status') as MembershipStatus | undefined;
     const typeFilter = c.req.query('type') as MembershipType | undefined;
+    const referralSourceFilter = c.req.query('referralSource');
+    const sortBy = c.req.query('sortBy') || 'createdAt';
+    const sortOrder = c.req.query('sortOrder') || 'desc';
 
-    const offset = (page - 1) * limit;
+    // lastLoginAt 정렬 시 전체 데이터 조회 필요 (Auth API 기반이므로)
+    const needsFullFetch = sortBy === 'lastLoginAt';
 
     // 필터가 적용된 쿼리 빌더
     let queryBuilder = supabase
@@ -93,18 +100,61 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
       queryBuilder = queryBuilder.eq('membership_type', typeFilter);
     }
 
-    // 페이지네이션 및 정렬
-    const { data: memberships, error, count } = await queryBuilder
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    // 유입경로 필터를 위해 user_profiles 조회 (필터가 있을 때만)
+    let filteredUserIds: string[] | null = null;
+    if (referralSourceFilter) {
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('referral_source', referralSourceFilter);
 
-    if (error) {
-      console.error('[AdminUsers] Get users error:', error);
-      return c.json({ success: false, error: '사용자 목록 조회 실패' }, 500);
+      if (profiles && profiles.length > 0) {
+        filteredUserIds = profiles.map(p => p.id);
+        queryBuilder = queryBuilder.in('user_id', filteredUserIds);
+      } else {
+        // 해당 유입경로의 사용자가 없음
+        return c.json({
+          success: true,
+          data: {
+            users: [],
+            pagination: { page, limit, total: 0, totalPages: 0 },
+          },
+        });
+      }
     }
 
-    // 현재 페이지의 사용자 ID만 추출
-    const userIds = memberships?.map(m => m.user_id) || [];
+    // lastLoginAt 정렬 시 전체 데이터 조회, 아니면 페이지네이션 적용
+    let memberships: any[] = [];
+    let totalCount = 0;
+
+    if (needsFullFetch) {
+      // 전체 데이터 조회 (lastLoginAt 정렬용)
+      const { data, error, count } = await queryBuilder
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error('[AdminUsers] Get users error:', error);
+        return c.json({ success: false, error: '사용자 목록 조회 실패' }, 500);
+      }
+      memberships = data || [];
+      totalCount = count || memberships.length;
+    } else {
+      // 기존 페이지네이션 방식
+      const offset = (page - 1) * limit;
+      const { data, error, count } = await queryBuilder
+        .order('created_at', { ascending: sortOrder === 'asc' })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        console.error('[AdminUsers] Get users error:', error);
+        return c.json({ success: false, error: '사용자 목록 조회 실패' }, 500);
+      }
+      memberships = data || [];
+      totalCount = count || 0;
+    }
+
+    // 사용자 ID 추출
+    const userIds = memberships.map(m => m.user_id);
 
     if (userIds.length === 0) {
       return c.json({
@@ -114,17 +164,15 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
           pagination: {
             page,
             limit,
-            total: count || 0,
-            totalPages: Math.ceil((count || 0) / limit),
+            total: 0,
+            totalPages: 0,
           },
         },
       });
     }
 
-    // 현재 페이지 사용자들의 auth 정보만 조회 (최적화)
+    // 사용자들의 auth 정보 조회
     const userInfo: Record<string, { email: string; name: string; lastSignInAt: string | null }> = {};
-
-    // 현재 페이지 사용자들만 개별 조회 (N개만 조회하므로 효율적)
     const userPromises = userIds.map(async (userId) => {
       try {
         const { data: userData } = await supabase.auth.admin.getUserById(userId);
@@ -138,18 +186,32 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
         // 개별 사용자 조회 실패는 무시
       }
     });
-
     await Promise.all(userPromises);
 
+    // user_profiles에서 referral_source 조회
+    const profileInfo: Record<string, { referralSource: string | null }> = {};
+    const { data: profiles } = await supabase
+      .from('user_profiles')
+      .select('id, referral_source')
+      .in('id', userIds);
+
+    if (profiles) {
+      for (const p of profiles) {
+        profileInfo[p.id] = { referralSource: p.referral_source };
+      }
+    }
+
     // 데이터 병합
-    const users = memberships?.map(m => {
+    let users = memberships.map(m => {
       const info = userInfo[m.user_id];
+      const profile = profileInfo[m.user_id];
       return {
         id: m.user_id,
         name: info?.name || '이름 없음',
         email: info?.email || '',
         createdAt: m.created_at,
-        lastLoginAt: info?.lastSignInAt || null,  // 마지막 로그인 시간 추가
+        lastLoginAt: info?.lastSignInAt || null,
+        referralSource: profile?.referralSource || null,
         membership: {
           type: m.membership_type,
           status: m.status,
@@ -158,7 +220,20 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
           adminNote: m.admin_note,
         },
       };
-    }) || [];
+    });
+
+    // lastLoginAt 정렬 시 서버에서 정렬 후 페이지네이션
+    if (needsFullFetch) {
+      users.sort((a, b) => {
+        const aTime = a.lastLoginAt ? new Date(a.lastLoginAt).getTime() : 0;
+        const bTime = b.lastLoginAt ? new Date(b.lastLoginAt).getTime() : 0;
+        return sortOrder === 'desc' ? bTime - aTime : aTime - bTime;
+      });
+
+      // 수동 페이지네이션
+      const offset = (page - 1) * limit;
+      users = users.slice(offset, offset + limit);
+    }
 
     return c.json({
       success: true,
@@ -167,8 +242,8 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
         pagination: {
           page,
           limit,
-          total: count || 0,
-          totalPages: Math.ceil((count || 0) / limit),
+          total: totalCount,
+          totalPages: Math.ceil(totalCount / limit),
         },
       },
     });
