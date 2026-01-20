@@ -21,15 +21,22 @@ import type { LLMStreamChunk } from '../../../llm/index.js';
 
 // 모듈 import
 import { PLANNER_SYSTEM_PROMPT } from './prompts.js';
-import type { PlanGenerationRequest, DualPlanResult } from './types.js';
+import type {
+  PlanGenerationRequest,
+  DualPlanResult,
+  CurriculumGenerationRequest,
+  CurriculumGenerationResult,
+} from './types.js';
 import { generateFollowUps } from './utils/extract-utils.js';
-import { recordPlanPerformance } from './learning/performance-tracker.js';
+import { recordPlanPerformance, loadPastPerformance } from './learning/performance-tracker.js';
 import { generatePlanFromAnalysis } from './generators/plan-generator.js';
 import { generateScheduleSummary, generateRecommendations } from './generators/schedule-generator.js';
+import { generateCurriculumWithAI } from './generators/curriculum-generator.js';
+import { reviewCurriculum } from './generators/curriculum-reviewer.js';
 import { adjustPlanWithActions } from './handlers/adjust-handler.js';
 import { classifyRequest, createStudyPlan, handleGeneralRequest } from './handlers/request-handler.js';
 
-import type { PlanPerformanceMemory } from '../../../types/memory.js';
+import type { PlanPerformanceMemory, MemoryContext } from '../../../types/memory.js';
 
 export class PlannerAgent extends BaseAgent {
   constructor() {
@@ -168,7 +175,57 @@ export class PlannerAgent extends BaseAgent {
   ): Promise<void> {
     await recordPlanPerformance(performance);
   }
+
+  /**
+   * LLM 기반 인강 커리큘럼 생성
+   * Memory Lane 통합으로 개인화된 학습 스케줄 생성
+   * + 별도 에이전트로 검증 수행
+   */
+  async generateCurriculum(
+    request: CurriculumGenerationRequest,
+    memoryContext?: MemoryContext | null
+  ): Promise<CurriculumGenerationResult> {
+    console.log(`[PlannerAgent] Generating curriculum for student: ${request.studentId}`);
+    console.log(`[PlannerAgent] Courses: ${request.courses.length}, Target: ${request.targetDate}`);
+
+    // 과거 성과 데이터 조회
+    const pastPerformance = await loadPastPerformance(request.studentId);
+
+    // 1단계: 커리큘럼 생성 (gpt-5-nano)
+    const result = await generateCurriculumWithAI(
+      request,
+      memoryContext ?? null,
+      pastPerformance,
+      this.generateResponse.bind(this)
+    );
+
+    // 2단계: 생성된 커리큘럼 검증 (claude-4.5-haiku)
+    if (result.success && result.quests.length > 0) {
+      console.log(`[PlannerAgent] Reviewing curriculum with ${result.quests.length} quests...`);
+
+      const review = await reviewCurriculum(
+        result,
+        this.generateResponse.bind(this)
+      );
+
+      console.log(`[PlannerAgent] Review complete: score=${review.overallScore}, approved=${review.isApproved}`);
+
+      // 검증 결과 추가
+      result.review = review;
+    }
+
+    return result;
+  }
 }
 
 // Re-export types for external use
-export type { PlanGenerationRequest, DualPlanResult, AIRecommendation } from './types.js';
+export type {
+  PlanGenerationRequest,
+  DualPlanResult,
+  AIRecommendation,
+  CurriculumGenerationRequest,
+  CurriculumGenerationResult,
+  CurriculumQuest,
+  CurriculumReviewResult,
+  ReviewCategory,
+} from './types.js';

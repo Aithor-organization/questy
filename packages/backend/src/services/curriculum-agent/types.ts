@@ -125,6 +125,11 @@ export interface SubjectRatio {
   [subject: string]: number;
 }
 
+// 과목별 요일 설정 (0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토)
+export interface SubjectDays {
+  [subject: string]: number[];
+}
+
 export interface ReviewSettings {
   enabled: boolean;
   sameDayReview: boolean;
@@ -148,6 +153,7 @@ export interface GenerateQuestsParams {
   dailyStudyHours?: number;
   subjectRatio?: SubjectRatio;
   subjectHours?: SubjectHours;
+  subjectDays?: SubjectDays;
   includeOt?: boolean;
   reviewSettings?: ReviewSettings;
   customSchedule?: CustomScheduleRule[];
@@ -171,4 +177,51 @@ export interface ExistingPlan {
     scheduledDate: string;
     estimatedMinutes: number;
   }>;
+}
+
+// ===== 커리큘럼 검증 관련 타입 =====
+
+export enum ValidationSeverity {
+  VALID = 'valid',
+  WARNING = 'warning',
+  INVALID = 'invalid',
+}
+
+export interface ValidationIssue {
+  severity: ValidationSeverity;
+  code: string;
+  message: string;
+  details?: {
+    date?: string;
+    count?: number;
+    expected?: number;
+    actual?: number;
+  };
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  severity: ValidationSeverity;
+  issues: ValidationIssue[];
+  summary: {
+    totalIssues: number;
+    warnings: number;
+    errors: number;
+  };
+  suggestions: string[];
+}
+
+export interface ValidationConfig {
+  // 일별 강의 수 제한
+  maxLecturesPerDayWarning: number;   // 기본 8
+  maxLecturesPerDayError: number;     // 기본 15
+  // 일별 학습 시간 제한 (분)
+  maxMinutesPerDayWarningRatio: number;  // 순공시간의 1.2배
+  maxMinutesPerDayErrorRatio: number;    // 순공시간의 2배
+  // 특정 날 과부하 (평균 대비)
+  overloadRatioWarning: number;       // 평균의 2배
+  overloadRatioError: number;         // 평균의 4배
+  // 전체 대비 집중도
+  concentrationWarning: number;       // 전체의 30%
+  concentrationError: number;         // 전체의 50%
 }

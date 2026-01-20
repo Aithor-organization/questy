@@ -21,4 +21,13 @@ export type {
   AIRecommendation,
   AIQuestResult,
   PlanRequestType,
+  // 커리큘럼 생성 타입 (LLM 기반)
+  CurriculumGenerationRequest,
+  CurriculumGenerationResult,
+  CurriculumQuest,
+  CurriculumCourse,
+  CurriculumChapter,
+  // 커리큘럼 검증 타입
+  CurriculumReviewResult,
+  ReviewCategory,
 } from './planner/types.js';

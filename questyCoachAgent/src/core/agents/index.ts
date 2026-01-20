@@ -13,6 +13,9 @@ export type {
   DualPlanResult,
   AIRecommendation,
   PlanGenerationRequest,
+  CurriculumGenerationRequest,
+  CurriculumGenerationResult,
+  CurriculumQuest,
 } from './planner-agent.js';
 
 export type {

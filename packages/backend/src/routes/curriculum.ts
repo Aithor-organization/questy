@@ -16,6 +16,8 @@ import {
   type CourseContent,
   type ExistingPlan,
 } from '../services/curriculum-agent/index.js';
+// LLM 기반 커리큘럼 생성을 위한 PlannerAgent import
+import { PlannerAgent } from '@questy/coach-agent';
 
 export const curriculumRoutes = new Hono();
 
@@ -94,6 +96,7 @@ curriculumRoutes.post('/generate-quests', async (c) => {
       subjectRatio,
       // 새로운 옵션들
       subjectHours,
+      subjectDays, // 과목별 요일 설정
       options,
       // 학습 전략 옵션 (PlannerAgent 전략 통합)
       learningStrategies, // 학습 전략 설정
@@ -105,6 +108,7 @@ curriculumRoutes.post('/generate-quests', async (c) => {
     console.log(`[curriculum] Existing plans: ${existingPlans?.length || 0} plans`);
     console.log(`[curriculum] Options: includeOT=${options?.includeOT}, review=${options?.reviewSettings?.enabled}, customRules=${options?.customSchedule?.length || 0}`);
     console.log(`[curriculum] Learning strategies: buffer=${learningStrategies?.applyBuffer ?? true}`);
+    console.log(`[curriculum] Subject days configured: ${subjectDays ? Object.keys(subjectDays).length : 0} subjects`);
 
     // 입력 검증
     if (!selectedCourseIds?.length && !courseContents?.length) {
@@ -144,9 +148,11 @@ curriculumRoutes.post('/generate-quests', async (c) => {
         '영어': 25,
         '수학': 35,
         '한국사': 5,
-        '탐구': 15,
+        '탐구1': 7.5,
+        '탐구2': 7.5,
       },
       subjectHours: subjectHours || undefined,
+      subjectDays: subjectDays || undefined,
       options: {
         includeOt: options?.includeOT ?? options?.include_ot ?? false,
         reviewSettings: {
@@ -164,21 +170,154 @@ curriculumRoutes.post('/generate-quests', async (c) => {
     });
 
     if (!result.success) {
+      // 검증 실패 시 상세 정보 포함
       return c.json({
         success: false,
-        error: result.error || '퀘스트 생성에 실패했습니다'
+        error: result.error || '퀘스트 생성에 실패했습니다',
+        validation: result.validation || null,
       }, 400);
     }
 
+    // 검증 경고가 있는 경우에도 포함
     return c.json({
       success: true,
       data: {
         quests: result.quests || [],
-        summary: result.summary || {}
+        summary: result.summary || {},
+        validation: result.validation || null,
       }
     });
   } catch (error: any) {
     console.error('[curriculum] generate-quests error:', error);
+    return c.json({
+      success: false,
+      error: error.message || '퀘스트 생성 중 오류가 발생했습니다'
+    }, 500);
+  }
+});
+
+// 2.5. LLM 기반 퀘스트 생성 API (PlannerAgent 사용)
+// Memory Lane 통합으로 개인화된 학습 스케줄 생성
+curriculumRoutes.post('/generate-quests-ai', async (c) => {
+  try {
+    const body = await c.req.json();
+    const {
+      studentId,
+      courseContents,
+      targetDate,
+      dailyStudyHours,
+      subjectHours,
+      subjectDays,
+      options,
+    } = body;
+
+    console.log(`[curriculum-ai] Generate AI-powered quests for student: ${studentId}`);
+    console.log(`[curriculum-ai] Courses: ${courseContents?.length || 0}, Target: ${targetDate}`);
+
+    // 입력 검증
+    if (!courseContents?.length) {
+      return c.json({
+        success: false,
+        error: '강좌를 선택해주세요'
+      }, 400);
+    }
+
+    if (!targetDate) {
+      return c.json({
+        success: false,
+        error: '목표일을 설정해주세요'
+      }, 400);
+    }
+
+    // 목표일 검증 (오늘 이후)
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const target = new Date(targetDate);
+    if (target <= today) {
+      return c.json({
+        success: false,
+        error: '목표일은 오늘 이후여야 합니다'
+      }, 400);
+    }
+
+    // PlannerAgent를 사용한 LLM 기반 커리큘럼 생성
+    const plannerAgent = new PlannerAgent();
+
+    // CourseContent를 CurriculumCourse 형식으로 변환
+    const courses = courseContents.map((course: any) => ({
+      id: course.id,
+      courseName: course.courseName || course.title || '',
+      lecturer: course.lecturer || course.lecturerName || '',
+      subject: course.subject || '',
+      chapters: (course.chapters || course.tableOfContents || []).map((ch: any, idx: number) => ({
+        num: ch.num || idx + 1,
+        title: ch.title || ch.name || `강의 ${idx + 1}`,
+        duration: ch.duration,
+        sections: ch.sections || ch.lectures,
+      })),
+      startFromChapter: course.startFromChapter,
+    }));
+
+    const result = await plannerAgent.generateCurriculum({
+      studentId: studentId || 'anonymous',
+      courses,
+      targetDate,
+      dailyStudyHours: dailyStudyHours || 10,
+      subjectHours: subjectHours || undefined,
+      subjectDays: subjectDays || undefined,
+      options: {
+        includeOt: options?.includeOT ?? options?.include_ot ?? false,
+        reviewSettings: {
+          enabled: options?.reviewSettings?.enabled ?? true,
+          sameDayReview: options?.reviewSettings?.same_day_review ?? options?.reviewSettings?.sameDayReview ?? true,
+          reviewDuration: options?.reviewSettings?.review_duration ?? options?.reviewSettings?.reviewDuration ?? 15,
+        },
+      },
+    });
+
+    if (!result.success) {
+      return c.json({
+        success: false,
+        error: result.message || '퀘스트 생성에 실패했습니다',
+        validation: result.validation || null,
+      }, 400);
+    }
+
+    // 프론트엔드 CurriculumQuest 형식으로 변환
+    const formattedQuests = result.quests.map((quest) => ({
+      id: quest.id,
+      title: quest.title,
+      description: quest.description,
+      questType: quest.questType,
+      subject: quest.subject,
+      courseId: quest.courseId,
+      courseName: quest.courseName,
+      lecturer: quest.lecturer || '',
+      chapter: quest.chapter,
+      section: quest.section,
+      scheduledDate: quest.scheduledDate,
+      estimatedMinutes: quest.estimatedMinutes,
+      originalDuration: quest.originalDuration,
+      status: quest.status,
+      priority: quest.priority,
+      studyTips: quest.studyTips,
+      editable: quest.editable,
+      practiceNote: quest.practiceNote,
+      relatedLectures: quest.relatedLectures,
+    }));
+
+    console.log(`[curriculum-ai] Generated ${formattedQuests.length} quests with AI`);
+
+    return c.json({
+      success: true,
+      data: {
+        quests: formattedQuests,
+        summary: result.summary,
+        validation: result.validation || null,
+      }
+    });
+  } catch (error: any) {
+    console.error('[curriculum-ai] generate-quests-ai error:', error);
     return c.json({
       success: false,
       error: error.message || '퀘스트 생성 중 오류가 발생했습니다'

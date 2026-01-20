@@ -13,9 +13,9 @@ export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
   'gpt-5-nano': {
     id: 'gpt-5-nano',
     provider: 'openai',
-    maxTokens: 256,
+    maxTokens: 16384,
     temperature: 0.3,
-    purpose: 'Intent classification, simple responses',
+    purpose: 'Intent classification, curriculum generation',
   },
   'claude-4.5-haiku': {
     id: 'claude-4.5-haiku',
@@ -35,9 +35,9 @@ export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
 
 // OpenRouter 모델 매핑
 const OPENROUTER_MODEL_MAP: Record<ModelId, string> = {
-  'gpt-5-nano': 'openai/gpt-4o-mini',
+  'gpt-5-nano': 'openai/gpt-5-nano',
   'claude-4.5-haiku': 'anthropic/claude-haiku-4.5',  // Claude Haiku 4.5 (신규 모델)
-  'gemini-3-flash': 'google/gemini-2.0-flash-001',
+  'gemini-3-flash': 'google/gemini-3-flash-preview',
 };
 
 export interface LLMMessage {

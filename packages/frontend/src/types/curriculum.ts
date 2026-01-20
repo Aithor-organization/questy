@@ -25,7 +25,8 @@ export interface SubjectRatio {
   영어: number;
   수학: number;
   한국사: number;
-  탐구: number;
+  탐구1: number;
+  탐구2: number;
 }
 
 // 과목별 시간 설정 (시간 단위)
@@ -34,7 +35,18 @@ export interface SubjectHours {
   영어: number | null;
   수학: number | null;
   한국사: number | null;
-  탐구: number | null;
+  탐구1: number | null;
+  탐구2: number | null;
+}
+
+// 과목별 요일 설정 (0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토)
+export interface SubjectDays {
+  국어: number[];
+  영어: number[];
+  수학: number[];
+  한국사: number[];
+  탐구1: number[];
+  탐구2: number[];
 }
 
 // 커리큘럼 생성 옵션
@@ -51,6 +63,13 @@ export interface CurriculumOptions {
 
   // 커스텀 스케줄 (사용자 추가 입력)
   customSchedule: CustomScheduleRule[];
+
+  // 남는 날 활용 옵션 (A2 시나리오: 강의 < 가용일)
+  extraDaysOption?: {
+    enabled: boolean;           // 남는 날 활용 여부
+    fillWithReview: boolean;    // 복습으로 채우기
+    fillWithPractice: boolean;  // 문제풀이로 채우기
+  };
 }
 
 // 커스텀 스케줄 규칙
@@ -113,6 +132,56 @@ export interface SkippedSubject {
   reason: string;
 }
 
+// ===== 커리큘럼 검증 관련 타입 =====
+
+export type ValidationSeverity = 'valid' | 'warning' | 'invalid';
+
+export interface ValidationIssue {
+  severity: ValidationSeverity;
+  code: string;
+  message: string;
+  details?: {
+    date?: string;
+    count?: number;
+    expected?: number;
+    actual?: number;
+  };
+}
+
+export interface ValidationResult {
+  isValid: boolean;
+  severity: ValidationSeverity;
+  issues: ValidationIssue[];
+  summary: {
+    totalIssues: number;
+    warnings: number;
+    errors: number;
+  };
+  suggestions: string[];
+}
+
+// AI 에이전트 검증 결과 (LLM 리뷰)
+export interface ReviewCategory {
+  score: number;  // 0-100
+  status: 'excellent' | 'good' | 'warning' | 'critical';
+  message: string;
+}
+
+export interface CurriculumReviewResult {
+  isApproved: boolean;
+  overallScore: number;  // 0-100
+  summary: string;
+  categories: {
+    feasibility: ReviewCategory;
+    balance: ReviewCategory;
+    distribution: ReviewCategory;
+    completeness: ReviewCategory;
+  };
+  highlights: string[];
+  concerns: string[];
+  suggestions: string[];
+}
+
 // 퀘스트 생성 응답
 export interface GenerateQuestsResponse {
   quests: CurriculumQuest[];
@@ -124,4 +193,8 @@ export interface GenerateQuestsResponse {
     // 자동 필터링으로 제외된 과목 (경고)
     skippedSubjects?: SkippedSubject[] | null;
   };
+  // 커리큘럼 검증 결과 (규칙 기반)
+  validation?: ValidationResult | null;
+  // AI 에이전트 리뷰 결과
+  review?: CurriculumReviewResult | null;
 }

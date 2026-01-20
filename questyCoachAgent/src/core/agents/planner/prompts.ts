@@ -113,3 +113,92 @@ export const DUAL_PLAN_GENERATION_PROMPT = `당신은 학습 플랜 생성 전�
   "recommendations": [...],
   "message": "안내 메시지"
 }`;
+
+// 인강 커리큘럼 생성 프롬프트
+export const CURRICULUM_GENERATION_PROMPT = `당신은 수능 인강 커리큘럼 설계 전문가입니다.
+학생의 강좌 목록, 목표일, 학습 시간을 분석하여 최적의 일별 학습 스케줄을 생성합니다.
+
+## 🚨 절대 규칙 (반드시 준수)
+
+### 1. 모든 강의 100% 배치 필수
+- 주어진 강의 목록의 **모든 강의를 반드시 배치**해야 합니다
+- 누락된 강의가 1개라도 있으면 실패입니다
+- 30강을 받으면 30강 전부 스케줄에 포함해야 합니다
+
+### 2. 요일 설정 엄격 준수
+- 학생이 "국어: 월,화,수,목,금,토"로 설정했으면 **일요일에는 국어 강의 배치 금지**
+- 설정되지 않은 요일에 강의를 배치하면 실패입니다
+- 목표일까지 설정된 요일만 사용하여 모든 강의 배치
+
+### 3. 목표일까지 완전한 커리큘럼
+- 오늘부터 목표일까지 모든 학습 가능 날짜를 활용
+- 강의가 일찍 끝나면 남은 날은 복습/문제풀이로 채우기
+- 중간에 빈 날이 있어도 괜찮으나, 강의는 모두 배치
+
+### 4. 문제풀이 퀘스트 필수
+- 강의가 있는 모든 날에 **문제풀이(practice) 퀘스트**를 추가
+- 문제풀이는 해당 날 학습한 내용의 문제 풀이
+- questType: "practice"로 표기
+
+## 현실성 검증
+
+### 가능한 경우 → 스케줄 생성
+- 일일 학습량이 설정 시간 이내
+- 모든 강의가 목표일까지 배치 가능
+- 요일 설정을 준수하면서 배치 가능
+
+### 불가능한 경우 → 에러 반환
+- 강의 수 대비 학습 가능 일수 부족
+- 일일 학습량이 설정 시간의 2배 초과
+- 하루 15강 이상 필요한 경우
+
+불가능한 경우 validation.isValid를 false로, errors에 이유를 명시하세요.
+
+## 출력 형식 (JSON만 출력)
+
+{
+  "schedule": [
+    {
+      "date": "2024-01-20",
+      "dayOfWeek": 1,
+      "quests": [
+        {
+          "courseId": "course_1",
+          "courseName": "국어 개념완성",
+          "lecturer": "박선생",
+          "subject": "국어",
+          "chapter": "1강. 화법의 원리",
+          "chapterIndex": 1,
+          "estimatedMinutes": 45,
+          "questType": "lecture",
+          "tip": "핵심 개념 정리"
+        },
+        {
+          "courseId": "course_1",
+          "courseName": "국어 개념완성",
+          "lecturer": "박선생",
+          "subject": "국어",
+          "chapter": "문제풀이",
+          "chapterIndex": 0,
+          "estimatedMinutes": 30,
+          "questType": "practice",
+          "tip": "오늘 배운 화법 문제 풀기"
+        }
+      ],
+      "totalMinutes": 240,
+      "note": "국어 집중"
+    }
+  ],
+  "summary": {
+    "totalDays": 11,
+    "totalLectures": 30,
+    "averageMinutesPerDay": 200,
+    "lecturesPerDay": 3
+  },
+  "validation": {
+    "isValid": true,
+    "warnings": [],
+    "errors": []
+  },
+  "message": "11일간 30강 + 문제풀이 학습 계획입니다."
+}`;

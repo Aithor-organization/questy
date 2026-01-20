@@ -582,6 +582,46 @@ export class QuestManager {
   }
 
   /**
+   * 특정 요일(0-6)이 과목의 허용 요일인지 확인
+   */
+  private isDayAllowedForSubject(
+    dayOfWeek: number,
+    subject: string,
+    subjectDays?: Record<string, number[]>
+  ): boolean {
+    // subjectDays가 없거나 해당 과목의 설정이 없으면 모든 요일 허용
+    if (!subjectDays || !subjectDays[subject]) {
+      return true;
+    }
+    // 해당 과목의 허용 요일 배열에 포함되어 있는지 확인
+    return subjectDays[subject].includes(dayOfWeek);
+  }
+
+  /**
+   * 과목별 가용 날짜 수 계산 (subjectDays 고려)
+   */
+  private countAvailableDaysForSubject(
+    totalDays: number,
+    startDate: Date,
+    subject: string,
+    subjectDays?: Record<string, number[]>
+  ): number {
+    if (!subjectDays || !subjectDays[subject]) {
+      return totalDays; // 제한 없으면 전체 일수
+    }
+
+    let count = 0;
+    for (let day = 0; day < totalDays; day++) {
+      const date = new Date(startDate.getTime() + day * 24 * 60 * 60 * 1000);
+      const dayOfWeek = date.getDay(); // 0=일, 1=월, ..., 6=토
+      if (subjectDays[subject].includes(dayOfWeek)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  /**
    * 퀘스트 생성
    */
   generateQuestsFromCurriculum(params: GenerateQuestsParams): Quest[] {
@@ -589,8 +629,9 @@ export class QuestManager {
       courseContents,
       targetDate,
       dailyStudyHours = 10,
-      subjectRatio = { '수학': 30, '영어': 25, '국어': 25, '탐구': 15, '한국사': 5 },
+      subjectRatio = { '수학': 30, '영어': 25, '국어': 25, '탐구1': 7.5, '탐구2': 7.5, '한국사': 5 },
       subjectHours,
+      subjectDays,
       includeOt = false,
       reviewSettings = { enabled: true, sameDayReview: true, reviewDuration: 15 },
       customSchedule = [],
@@ -711,23 +752,71 @@ export class QuestManager {
     // 커스텀 스케줄 패턴 파싱
     const customPatterns = this.parseCustomSchedule(customSchedule, totalDays);
 
+    // 과목별 가용 날짜 수 및 강의 분산 계수 계산
+    const subjectAvailableDays: Record<string, number> = {};
+    const subjectSpreadFactor: Record<string, number> = {}; // 강의 < 가용일 시 분산 계수
+
+    for (const subject of Object.keys(subjectLectureQueues)) {
+      const availableDays = this.countAvailableDaysForSubject(totalDays, startDate, subject, subjectDays);
+      subjectAvailableDays[subject] = availableDays;
+
+      const lectureCount = subjectLectureQueues[subject].length;
+      if (lectureCount > 0 && availableDays > lectureCount) {
+        // 강의 수보다 가용일이 많으면 분산 계수 계산 (예: 30강의 / 34일 = 0.88)
+        subjectSpreadFactor[subject] = lectureCount / availableDays;
+      } else {
+        subjectSpreadFactor[subject] = 1; // 분산 불필요
+      }
+    }
+
+    // 과목별 배치 카운터 (분산용)
+    const subjectPlacementCounter: Record<string, number> = {};
+    for (const subject of Object.keys(subjectLectureQueues)) {
+      subjectPlacementCounter[subject] = 0;
+    }
+
     // 순차적 배분
     for (let day = 0; day < totalDays; day++) {
       const scheduledDate = new Date(startDate.getTime() + day * 24 * 60 * 60 * 1000);
+      const dayOfWeek = scheduledDate.getDay(); // 0=일, 1=월, ..., 6=토
       const availableToday = dailyAvailableMinutes[day] || totalDailyMinutesSum;
 
       if (availableToday <= 0) continue;
 
       for (const subject of Object.keys(subjectDailyMinutes)) {
-        const lecturesToday = subjectLecturesPerDay[subject] || 0;
-        const queue = subjectLectureQueues[subject] || [];
-        let nextIdx = subjectNextLecture[subject] || 0;
+        // subjectDays 요일 체크
+        if (!this.isDayAllowedForSubject(dayOfWeek, subject, subjectDays)) {
+          continue;
+        }
 
         // 커스텀 패턴 확인
         if (customPatterns[subject] && !customPatterns[subject].days.has(day)) {
           continue;
         }
 
+        const queue = subjectLectureQueues[subject] || [];
+        let nextIdx = subjectNextLecture[subject] || 0;
+
+        // 강의가 남아있지 않으면 스킵
+        if (nextIdx >= queue.length) {
+          continue;
+        }
+
+        // 분산 배치 로직: 강의 수 < 가용일 시 균등 분산
+        const spreadFactor = subjectSpreadFactor[subject];
+        if (spreadFactor < 1) {
+          // 현재까지 이 과목에 할당된 가용일 수
+          subjectPlacementCounter[subject]++;
+          const expectedLectures = Math.floor(subjectPlacementCounter[subject] * spreadFactor);
+          const actualPlaced = nextIdx;
+
+          // 예상 배치 수보다 이미 더 많이 배치했으면 이번 날은 스킵
+          if (actualPlaced >= expectedLectures) {
+            continue;
+          }
+        }
+
+        const lecturesToday = subjectLecturesPerDay[subject] || 0;
         let placedCount = 0;
         const dailyLimit = dailyLectureLimits[day] || totalDailyMinutesSum;
 
@@ -755,13 +844,18 @@ export class QuestManager {
 
           nextIdx++;
           placedCount++;
+
+          // 분산 모드일 때는 하루에 1개만 배치 (균등 분산)
+          if (spreadFactor < 1) {
+            break;
+          }
         }
 
         subjectNextLecture[subject] = nextIdx;
       }
     }
 
-    // 남은 강의 순차 배치
+    // 남은 강의 순차 배치 (subjectDays 적용)
     for (const subject of Object.keys(subjectDailyMinutes)) {
       const queue = subjectLectureQueues[subject] || [];
       let nextIdx = subjectNextLecture[subject] || 0;
@@ -772,9 +866,17 @@ export class QuestManager {
         for (const item of remainingLectures) {
           const lectureDuration = item.estimatedMinutes || 45;
 
-          // 배치 가능한 날 찾기
+          // 배치 가능한 날 찾기 (subjectDays 요일 체크 포함)
           let dayToPlace: number | null = null;
           for (let searchDay = currentDay; searchDay < totalDays; searchDay++) {
+            const searchDate = new Date(startDate.getTime() + searchDay * 24 * 60 * 60 * 1000);
+            const dayOfWeek = searchDate.getDay();
+
+            // subjectDays 요일 체크
+            if (!this.isDayAllowedForSubject(dayOfWeek, subject, subjectDays)) {
+              continue;
+            }
+
             const availableToday = dailyAvailableMinutes[searchDay] || totalDailyMinutesSum;
             const dailyLimit = dailyLectureLimits[searchDay] || totalDailyMinutesSum;
 
@@ -788,9 +890,21 @@ export class QuestManager {
             }
           }
 
-          // 배치 가능한 날이 없으면 마지막 날에 강제 배치
+          // 배치 가능한 날이 없으면 허용된 요일 중 마지막 날에 강제 배치
           if (dayToPlace === null) {
-            dayToPlace = totalDays - 1;
+            // 역순으로 허용된 요일 찾기
+            for (let searchDay = totalDays - 1; searchDay >= 0; searchDay--) {
+              const searchDate = new Date(startDate.getTime() + searchDay * 24 * 60 * 60 * 1000);
+              const dayOfWeek = searchDate.getDay();
+              if (this.isDayAllowedForSubject(dayOfWeek, subject, subjectDays)) {
+                dayToPlace = searchDay;
+                break;
+              }
+            }
+            // 그래도 없으면 마지막 날
+            if (dayToPlace === null) {
+              dayToPlace = totalDays - 1;
+            }
           }
 
           const scheduledDate = new Date(startDate.getTime() + dayToPlace * 24 * 60 * 60 * 1000);

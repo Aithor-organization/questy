@@ -4,6 +4,7 @@
 export * from './types.js';
 export { QuestManager } from './quest-manager.js';
 export { ScheduleOptimizer } from './schedule-optimizer.js';
+export { CurriculumValidator } from './curriculum-validator.js';
 
 import {
   Quest,
@@ -12,9 +13,12 @@ import {
   RescheduleResult,
   ExistingPlan,
   CourseContent,
+  ValidationResult,
+  ValidationSeverity,
 } from './types.js';
 import { QuestManager } from './quest-manager.js';
 import { ScheduleOptimizer } from './schedule-optimizer.js';
+import { CurriculumValidator } from './curriculum-validator.js';
 
 /**
  * 커리큘럼 에이전트 서비스
@@ -23,10 +27,12 @@ import { ScheduleOptimizer } from './schedule-optimizer.js';
 export class CurriculumAgentService {
   private questManager: QuestManager;
   private scheduleOptimizer: ScheduleOptimizer;
+  private validator: CurriculumValidator;
 
   constructor() {
     this.questManager = new QuestManager();
     this.scheduleOptimizer = new ScheduleOptimizer(this.questManager);
+    this.validator = new CurriculumValidator();
   }
 
   /**
@@ -40,6 +46,7 @@ export class CurriculumAgentService {
     dailyStudyHours?: number;
     subjectRatio?: Record<string, number>;
     subjectHours?: Record<string, number | null>;
+    subjectDays?: Record<string, number[]>;
     options?: {
       includeOt?: boolean;
       reviewSettings?: {
@@ -58,14 +65,21 @@ export class CurriculumAgentService {
       fiveDayCycle?: boolean;
     };
     existingPlans?: ExistingPlan[];
-  }): { success: boolean; quests: Quest[]; summary: Record<string, any>; error?: string } {
+  }): {
+    success: boolean;
+    quests: Quest[];
+    summary: Record<string, any>;
+    validation?: ValidationResult;
+    error?: string;
+  } {
     try {
       const {
         courseContents = [],
         targetDate,
         dailyStudyHours = 10,
-        subjectRatio = { '국어': 20, '영어': 25, '수학': 35, '한국사': 5, '탐구': 15 },
+        subjectRatio = { '국어': 20, '영어': 25, '수학': 35, '한국사': 5, '탐구1': 7.5, '탐구2': 7.5 },
         subjectHours,
+        subjectDays,
         options = {},
         learningStrategies = { applyBuffer: true, fiveDayCycle: false },
         existingPlans = [],
@@ -89,6 +103,7 @@ export class CurriculumAgentService {
         dailyStudyHours,
         subjectRatio,
         subjectHours,
+        subjectDays,
         includeOt: options.includeOt ?? false,
         reviewSettings: {
           enabled: options.reviewSettings?.enabled ?? true,
@@ -106,6 +121,33 @@ export class CurriculumAgentService {
       const stats = this.questManager.getCompletionStats();
       const scheduleExport = this.questManager.exportSchedule();
 
+      // 생성된 커리큘럼 검증
+      const dailyStudyMinutes = dailyStudyHours * 60;
+      const validation = this.validator.validate(quests, dailyStudyMinutes);
+
+      console.log('[CurriculumAgent] Validation result:', {
+        isValid: validation.isValid,
+        severity: validation.severity,
+        errors: validation.summary.errors,
+        warnings: validation.summary.warnings,
+      });
+
+      // 검증 실패 시 (INVALID) 에러 반환
+      if (validation.severity === ValidationSeverity.INVALID) {
+        const errorMessages = validation.issues
+          .filter(i => i.severity === ValidationSeverity.INVALID)
+          .map(i => i.message)
+          .join(' ');
+
+        return {
+          success: false,
+          quests: [],
+          summary: {},
+          validation,
+          error: `커리큘럼 생성 불가: ${errorMessages}`,
+        };
+      }
+
       return {
         success: true,
         quests,
@@ -114,6 +156,7 @@ export class CurriculumAgentService {
           stats,
           schedules: scheduleExport.schedules,
         },
+        validation,
       };
     } catch (error: any) {
       console.error('[CurriculumAgent] generateQuests error:', error);

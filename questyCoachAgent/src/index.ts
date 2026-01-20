@@ -115,6 +115,13 @@ export type {
 export type { SupervisorConfig } from './core/orchestrator/index.js';
 export type { StudentRegistryConfig } from './registry/index.js';
 export type { QuestGeneratorConfig } from './quest/index.js';
+
+// Curriculum generation types (LLM-based)
+export type {
+  CurriculumGenerationRequest,
+  CurriculumGenerationResult,
+  CurriculumQuest,
+} from './core/agents/index.js';
 export type {
   DelayAnalysis,
   ExpiredQuest,

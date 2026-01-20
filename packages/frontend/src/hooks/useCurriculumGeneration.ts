@@ -15,9 +15,12 @@ import type {
   SelectedCourse,
   SubjectRatio,
   SubjectHours,
+  SubjectDays,
   CurriculumOptions,
   CurriculumQuest,
-  GenerateQuestsResponse
+  GenerateQuestsResponse,
+  ValidationResult,
+  CurriculumReviewResult,
 } from '../types/curriculum';
 
 const DEFAULT_SUBJECT_RATIO: SubjectRatio = {
@@ -25,7 +28,8 @@ const DEFAULT_SUBJECT_RATIO: SubjectRatio = {
   영어: 25,
   수학: 35,
   한국사: 5,
-  탐구: 15,
+  탐구1: 7.5,
+  탐구2: 7.5,
 };
 
 const DEFAULT_SUBJECT_HOURS: SubjectHours = {
@@ -33,7 +37,19 @@ const DEFAULT_SUBJECT_HOURS: SubjectHours = {
   영어: null,
   수학: null,
   한국사: null,
-  탐구: null,
+  탐구1: null,
+  탐구2: null,
+};
+
+// 기본 요일 설정 (모든 요일 선택: 0=일, 1=월, 2=화, 3=수, 4=목, 5=금, 6=토)
+const ALL_DAYS = [0, 1, 2, 3, 4, 5, 6];
+const DEFAULT_SUBJECT_DAYS: SubjectDays = {
+  국어: [...ALL_DAYS],
+  영어: [...ALL_DAYS],
+  수학: [...ALL_DAYS],
+  한국사: [...ALL_DAYS],
+  탐구1: [...ALL_DAYS],
+  탐구2: [...ALL_DAYS],
 };
 
 const DEFAULT_CURRICULUM_OPTIONS: CurriculumOptions = {
@@ -44,6 +60,12 @@ const DEFAULT_CURRICULUM_OPTIONS: CurriculumOptions = {
     reviewDuration: 15,
   },
   customSchedule: [],
+  // 남는 날 활용 옵션 (A2 시나리오: 강의 < 가용일)
+  extraDaysOption: {
+    enabled: true,           // 기본 활성화
+    fillWithReview: true,    // 복습으로 채우기
+    fillWithPractice: true,  // 문제풀이로 채우기
+  },
 };
 
 export function useCurriculumGeneration() {
@@ -57,6 +79,7 @@ export function useCurriculumGeneration() {
   const [selectedCourses, setSelectedCourses] = useState<SelectedCourse[]>([]);
   const [subjectRatio, setSubjectRatio] = useState<SubjectRatio>(DEFAULT_SUBJECT_RATIO);
   const [subjectHours, setSubjectHours] = useState<SubjectHours>(DEFAULT_SUBJECT_HOURS);
+  const [subjectDays, setSubjectDays] = useState<SubjectDays>(DEFAULT_SUBJECT_DAYS);
   const [curriculumOptions, setCurriculumOptions] = useState<CurriculumOptions>(DEFAULT_CURRICULUM_OPTIONS);
   const [targetDate, setTargetDate] = useState<string>('');
   const [dailyStudyHours, setDailyStudyHours] = useState<number>(8);  // 기본값 (프로필에서 로드 전)
@@ -95,6 +118,11 @@ export function useCurriculumGeneration() {
   const [requiredHoursPerDay, setRequiredHoursPerDay] = useState<number>(0);
   const [generatedQuests, setGeneratedQuests] = useState<CurriculumQuest[]>([]);
   const [questSummary, setQuestSummary] = useState<GenerateQuestsResponse['summary'] | null>(null);
+  // 검증 결과 상태
+  const [validationResult, setValidationResult] = useState<ValidationResult | null>(null);
+  const [showValidationError, setShowValidationError] = useState(false);
+  // AI 에이전트 리뷰 결과
+  const [reviewResult, setReviewResult] = useState<CurriculumReviewResult | null>(null);
 
   // 강좌 검색 (Supabase 직접 호출 - Railway 부하 감소)
   const [isSearchingCourses, setIsSearchingCourses] = useState(false);
@@ -256,7 +284,7 @@ export function useCurriculumGeneration() {
   const generateMutation = useMutation({
     mutationFn: async () => {
       console.log('[useCurriculumGeneration] Starting quest generation...');
-      console.log('[useCurriculumGeneration] API URL:', `${API_BASE_URL}/api/curriculum/generate-quests`);
+      console.log('[useCurriculumGeneration] API URL:', `${API_BASE_URL}/api/curriculum/generate-quests-ai`);
       console.log('[useCurriculumGeneration] Selected courses:', selectedCourses.length);
       console.log('[useCurriculumGeneration] Target date:', targetDate);
       console.log('[useCurriculumGeneration] Daily study hours:', dailyStudyHours);
@@ -275,7 +303,7 @@ export function useCurriculumGeneration() {
 
       let res: Response;
       try {
-        res = await fetch(`${API_BASE_URL}/api/curriculum/generate-quests`, {
+        res = await fetch(`${API_BASE_URL}/api/curriculum/generate-quests-ai`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -286,6 +314,7 @@ export function useCurriculumGeneration() {
             subjectRatio,
             // 새로운 옵션들
             subjectHours,
+            subjectDays,
             options: curriculumOptions,
             // 기존 플랜 정보 (가용 시간 계산용)
             existingPlans: existingPlanData,
@@ -296,19 +325,59 @@ export function useCurriculumGeneration() {
         throw new Error(`네트워크 오류: 백엔드 서버에 연결할 수 없습니다 (${API_BASE_URL})`);
       }
 
-      if (!res.ok) {
-        const errorText = await res.text().catch(() => 'Unknown error');
-        console.error('[useCurriculumGeneration] API error:', res.status, errorText);
-        throw new Error(`퀘스트 생성 실패 (${res.status}): ${errorText}`);
+      // 에러 응답도 JSON으로 파싱 시도 (검증 결과 포함 가능)
+      const responseText = await res.text();
+      let data: any;
+      try {
+        data = JSON.parse(responseText);
+      } catch {
+        // JSON 파싱 실패 시 일반 에러
+        if (!res.ok) {
+          console.error('[useCurriculumGeneration] API error:', res.status, responseText);
+          throw new Error(`퀘스트 생성 실패 (${res.status}): ${responseText}`);
+        }
+        throw new Error('응답 파싱 실패');
       }
-      const data = await res.json();
+
       console.log('[useCurriculumGeneration] API response:', data);
-      if (!data.success) throw new Error(data.error || '알 수 없는 오류');
+
+      // 검증 실패로 인한 에러 응답 (400) - validation 정보 포함
+      if (!res.ok || !data.success) {
+        // 검증 결과가 있는 경우 ValidationError로 처리
+        if (data.validation) {
+          const validationError = new Error(data.error || '커리큘럼 검증 실패') as Error & { validation: ValidationResult };
+          validationError.validation = data.validation;
+          throw validationError;
+        }
+        throw new Error(data.error || '퀘스트 생성에 실패했습니다');
+      }
+
       return data.data as GenerateQuestsResponse;
     },
     onSuccess: (data) => {
+      // 검증 결과 저장
+      setValidationResult(data.validation || null);
+      // AI 에이전트 리뷰 결과 저장
+      setReviewResult(data.review || null);
+
+      // 검증 실패 시 (INVALID) 에러 표시
+      if (data.validation?.severity === 'invalid') {
+        console.log('[useCurriculumGeneration] Validation failed:', data.validation);
+        setShowValidationError(true);
+        setGeneratedQuests([]);
+        setQuestSummary(null);
+        return;
+      }
+
+      // 검증 통과 또는 경고만 있는 경우 정상 처리
+      setShowValidationError(false);
       setGeneratedQuests(data.quests);
       setQuestSummary(data.summary);
+
+      // 리뷰 결과 로깅
+      if (data.review) {
+        console.log('[useCurriculumGeneration] AI Review:', data.review.summary, 'Score:', data.review.overallScore);
+      }
 
       // 일별 최대 시간 초과 여부 체크
       const avgMinutesPerDay = data.summary.averageMinutesPerDay || 0;
@@ -324,9 +393,18 @@ export function useCurriculumGeneration() {
         setRequiredHoursPerDay(0);
       }
     },
-    onError: (error) => {
+    onError: (error: Error & { validation?: ValidationResult }) => {
       console.error('[useCurriculumGeneration] Mutation error:', error);
-      console.error('[useCurriculumGeneration] Error message:', error instanceof Error ? error.message : String(error));
+      console.error('[useCurriculumGeneration] Error message:', error.message);
+
+      // 검증 에러인 경우 모달로 표시
+      if (error.validation) {
+        console.log('[useCurriculumGeneration] Validation error detected:', error.validation);
+        setValidationResult(error.validation);
+        setShowValidationError(true);
+        setGeneratedQuests([]);
+        setQuestSummary(null);
+      }
     },
   });
 
@@ -573,12 +651,18 @@ export function useCurriculumGeneration() {
     setShowTimeExceededWarning(false);
   }, []);
 
+  // 검증 오류 닫기
+  const dismissValidationError = useCallback(() => {
+    setShowValidationError(false);
+  }, []);
+
   // 초기화
   const reset = useCallback(() => {
     setSearchResults([]);
     setSelectedCourses([]);
     setSubjectRatio(DEFAULT_SUBJECT_RATIO);
     setSubjectHours(DEFAULT_SUBJECT_HOURS);
+    setSubjectDays(DEFAULT_SUBJECT_DAYS);
     setCurriculumOptions(DEFAULT_CURRICULUM_OPTIONS);
     setTargetDate('');
     setDailyStudyHours(profileStudyHours);  // 프로필에서 로드된 값으로 리셋
@@ -586,6 +670,9 @@ export function useCurriculumGeneration() {
     setRequiredHoursPerDay(0);
     setGeneratedQuests([]);
     setQuestSummary(null);
+    // 검증 상태 초기화
+    setValidationResult(null);
+    setShowValidationError(false);
   }, [profileStudyHours]);
 
   return {
@@ -594,6 +681,7 @@ export function useCurriculumGeneration() {
     selectedCourses,
     subjectRatio,
     subjectHours,
+    subjectDays,
     curriculumOptions,
     targetDate,
     dailyStudyHours,
@@ -604,9 +692,16 @@ export function useCurriculumGeneration() {
     showTimeExceededWarning,
     requiredHoursPerDay,
 
+    // 검증 결과 상태
+    validationResult,
+    showValidationError,
+    // AI 에이전트 리뷰 결과
+    reviewResult,
+
     // 상태 변경
     setSubjectRatio,
     setSubjectHours,
+    setSubjectDays,
     setCurriculumOptions,
     setTargetDate,
     setDailyStudyHours,
@@ -621,6 +716,7 @@ export function useCurriculumGeneration() {
     updatePracticeNote,
     adjustDailyStudyHours,
     dismissTimeWarning,
+    dismissValidationError,
     reset,
 
     // 로딩 상태
