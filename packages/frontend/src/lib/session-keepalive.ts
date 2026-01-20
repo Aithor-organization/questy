@@ -44,6 +44,9 @@ export async function refreshSession(maxRetries: number = 3): Promise<boolean> {
   lastRefreshAttempt = now;
   isRefreshing = true;
 
+  const timestamp = new Date().toLocaleTimeString('ko-KR');
+  console.log(`%c[SessionKeepAlive] 🔄 세션 갱신 시도 (${timestamp})`, 'color: #3b82f6; font-weight: bold;');
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const { data, error } = await supabase.auth.refreshSession();
@@ -51,19 +54,25 @@ export async function refreshSession(maxRetries: number = 3): Promise<boolean> {
       if (error) {
         // AbortError인 경우 재시도
         if (error.message?.includes('AbortError') || error.message?.includes('aborted')) {
-          console.warn(`[SessionKeepAlive] AbortError 발생 (${attempt}/${maxRetries}), 재시도...`);
+          console.warn(`[SessionKeepAlive] ⚠️ AbortError 발생 (${attempt}/${maxRetries}), 재시도...`);
           if (attempt < maxRetries) {
             await new Promise(resolve => setTimeout(resolve, 500 * attempt));
             continue;
           }
         }
-        console.warn('[SessionKeepAlive] 세션 갱신 실패:', error.message);
+        console.warn(`%c[SessionKeepAlive] ❌ 세션 갱신 실패: ${error.message}`, 'color: #ef4444;');
         isRefreshing = false;
         return false;
       }
 
       if (data.session) {
-        console.log('[SessionKeepAlive] 세션 갱신 성공');
+        const expiresAt = data.session.expires_at
+          ? new Date(data.session.expires_at * 1000).toLocaleTimeString('ko-KR')
+          : '알 수 없음';
+        console.log(
+          `%c[SessionKeepAlive] ✅ 세션 갱신 성공 (만료: ${expiresAt})`,
+          'color: #22c55e; font-weight: bold;'
+        );
         isRefreshing = false;
         return true;
       }
@@ -114,6 +123,7 @@ export function useSessionKeepAlive(
 
     // 마운트 시 약간의 딜레이 후 세션 갱신 (다른 초기화와 충돌 방지)
     const mountTimeout = setTimeout(() => {
+      console.log('%c[SessionKeepAlive] 🚀 초기 세션 갱신 실행', 'color: #8b5cf6;');
       refreshSession();
     }, 2000);
 
@@ -121,7 +131,7 @@ export function useSessionKeepAlive(
     intervalRef.current = setInterval(() => {
       // 탭이 활성 상태일 때만 갱신 (백그라운드에서는 스킵)
       if (document.visibilityState === 'visible') {
-        console.log('[SessionKeepAlive] 주기적 세션 갱신');
+        console.log('%c[SessionKeepAlive] ⏰ 주기적 세션 갱신 실행', 'color: #8b5cf6;');
         refreshSession();
       }
     }, intervalMs);
