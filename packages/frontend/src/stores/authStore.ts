@@ -122,7 +122,6 @@ let isVerifyingSession = false;
 
 // 리스너 등록 상태 (중복 등록 방지)
 let isListenerRegistered = false;
-let isVisibilityListenerRegistered = false;
 
 // 타입 정의
 type SetState = (partial: Partial<AuthStore> | ((state: AuthStore) => Partial<AuthStore>)) => void;
@@ -217,84 +216,99 @@ function setupAuthStateListener(set: SetState): void {
 
   const client = supabase; // TypeScript null 체크용
 
-  client.auth.onAuthStateChange(async (event, newSession) => {
+  // ⚠️ 중요: onAuthStateChange 내에서 async/await를 직접 사용하면 데드락 발생!
+  // Supabase SDK 버그 (GitHub Issue #762) - setTimeout으로 async 작업을 지연시켜야 함
+  // 참고: https://supabase.com/docs/guides/troubleshooting/why-is-my-supabase-api-call-not-returning-PGzXw0
+  client.auth.onAuthStateChange((event, newSession) => {
     log.log(' State changed:', event);
 
     if (event === 'SIGNED_IN' && newSession?.user) {
-      let studentId: string | null = null;
-      let isNewUser = false; // 신규 사용자 여부 추적
-      try {
-        const { data: student } = await client
-          .from('students')
-          .select('id')
-          .eq('user_id', newSession.user.id)
-          .single();
+      // 캐시된 정보로 먼저 동기적으로 상태 업데이트 (데드락 방지)
+      const cachedStudentId = localStorage.getItem('questybook_student_id');
 
-        if (!student) {
-          // 새 사용자: students 레코드 생성
-          isNewUser = true;
-          const userName = newSession.user.user_metadata?.name ||
-            newSession.user.email?.split('@')[0] || '학생';
-          const { data: newStudent } = await client
-            .from('students')
-            .insert({ user_id: newSession.user.id, name: userName })
-            .select('id')
-            .single();
-          studentId = newStudent?.id || null;
-
-          // 신규 사용자: student_progress와 user_memberships 병렬 생성 (성능 최적화)
-          if (studentId) {
-            await Promise.all([
-              client.from('student_progress').insert({
-                student_id: studentId,
-              }),
-              client.from('user_memberships').insert({
-                user_id: newSession.user.id,
-                membership_type: 'pending',
-                status: 'pending',
-              }),
-            ]);
-            log.log(' New OAuth user: student_progress & user_memberships created (parallel)');
-          }
-        } else {
-          studentId = student.id;
-        }
-      } catch (e) {
-        console.warn('[Auth] Student handling error:', e);
-      }
-
-      // 관리자 권한 확인 (신규 사용자는 관리자가 아님)
-      const isAdmin = isNewUser ? false : await checkAdminStatus(newSession.user.id);
-      const user = mapSupabaseUser(newSession.user, studentId || undefined, isAdmin);
-
-      // 신규 사용자는 온보딩 미완료 상태로 설정
-      if (isNewUser) {
-        user.onboardingCompleted = false;
-      }
+      // 즉시 기본 사용자 정보로 상태 설정 (동기 - 데드락 방지)
+      const basicUser = mapSupabaseUser(newSession.user, cachedStudentId || undefined, false);
       set({
-        user,
+        user: basicUser,
         session: newSession,
         isAuthenticated: true,
         isLoading: false,
-        ...(isNewUser && { needsOnboarding: true }),  // 신규 가입 시에만 온보딩 표시
       });
 
-      if (studentId) {
-        localStorage.setItem('questybook_student_id', studentId);
-      }
-      localStorage.setItem('questybook_student_name', user.name);
+      // ✅ 비동기 작업은 setTimeout으로 지연 (데드락 방지 핵심!)
+      setTimeout(async () => {
+        let studentId: string | null = cachedStudentId;
+        let isNewUser = false;
 
-      // OAuth 로그인 시 자동로그인 설정 처리
+        try {
+          const { data: student } = await client
+            .from('students')
+            .select('id')
+            .eq('user_id', newSession.user.id)
+            .single();
+
+          if (!student) {
+            // 새 사용자: students 레코드 생성
+            isNewUser = true;
+            const userName = newSession.user.user_metadata?.name ||
+              newSession.user.email?.split('@')[0] || '학생';
+            const { data: newStudent } = await client
+              .from('students')
+              .insert({ user_id: newSession.user.id, name: userName })
+              .select('id')
+              .single();
+            studentId = newStudent?.id || null;
+
+            // 신규 사용자: student_progress와 user_memberships 병렬 생성
+            if (studentId) {
+              await Promise.all([
+                client.from('student_progress').insert({
+                  student_id: studentId,
+                }),
+                client.from('user_memberships').insert({
+                  user_id: newSession.user.id,
+                  membership_type: 'pending',
+                  status: 'pending',
+                }),
+              ]);
+              log.log(' New OAuth user: student_progress & user_memberships created');
+            }
+          } else {
+            studentId = student.id;
+          }
+        } catch (e) {
+          console.warn('[Auth] Student handling error:', e);
+        }
+
+        // 관리자 권한 확인
+        const isAdmin = isNewUser ? false : await checkAdminStatus(newSession.user.id);
+
+        // 상태 업데이트 (비동기 작업 완료 후)
+        const updatedUser = mapSupabaseUser(newSession.user, studentId || undefined, isAdmin);
+        if (isNewUser) {
+          updatedUser.onboardingCompleted = false;
+        }
+
+        set({
+          user: updatedUser,
+          ...(isNewUser && { needsOnboarding: true }),
+        });
+
+        if (studentId) {
+          localStorage.setItem('questybook_student_id', studentId);
+        }
+        localStorage.setItem('questybook_student_name', updatedUser.name);
+      }, 0);
+
+      // OAuth 로그인 시 자동로그인 설정 처리 (동기 - localStorage만 접근)
       const pendingRememberMe = localStorage.getItem('questybook_pending_remember_me');
       if (pendingRememberMe === 'true') {
-        // 30일 자동로그인 설정
         const expiresAt = Date.now() + 30 * 24 * 60 * 60 * 1000;
         localStorage.setItem('questybook_remember_me', 'true');
         localStorage.setItem('questybook_remember_expires', expiresAt.toString());
         localStorage.removeItem('questybook_pending_remember_me');
         log.log(' OAuth 자동로그인 설정됨 (30일)');
       } else {
-        // 자동로그인 미설정 - 세션 마커만
         localStorage.removeItem('questybook_remember_me');
         localStorage.removeItem('questybook_remember_expires');
         localStorage.removeItem('questybook_pending_remember_me');
@@ -315,26 +329,12 @@ function setupAuthStateListener(set: SetState): void {
   });
 }
 
-// 탭 visibility 변경 리스너 설정 (중복 등록 방지)
-function setupVisibilityListener(get: GetState, set: SetState): void {
-  if (isVisibilityListenerRegistered) {
-    log.log(' Visibility listener already registered, skipping');
-    return;
-  }
-  isVisibilityListenerRegistered = true;
-  log.log(' Setting up visibility change listener');
-
-  document.addEventListener('visibilitychange', async () => {
-    // 탭이 다시 보이게 되었을 때만 세션 재검증
-    if (document.visibilityState === 'visible') {
-      const state = get();
-      // 로그인 상태일 때만 재검증
-      if (state.isAuthenticated && state.user) {
-        log.log(' 🔄 Tab visible: revalidating session...');
-        await revalidateSessionInternal(get, set);
-      }
-    }
-  });
+// 탭 visibility 변경 리스너 (DISABLED)
+// Supabase SDK (autoRefreshToken: true)가 탭 전환 시 세션을 자동 관리합니다.
+// 수동 visibility 리스너는 Web Locks API 충돌을 일으킬 수 있어 비활성화되었습니다.
+function setupVisibilityListener(_get: GetState, _set: SetState): void {
+  // 비활성화됨 - Supabase SDK가 내부적으로 처리
+  log.log(' Visibility listener disabled - Supabase SDK handles this internally');
 }
 
 // 세션 재검증 내부 함수
