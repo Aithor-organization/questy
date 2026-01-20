@@ -41,7 +41,10 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
 
   // 강사별 강좌 목록 조회 (P3: 캐시 적용)
   const fetchCoursesByTeacher = useCallback(async (teacher: string, forceRefresh = false) => {
+    console.log(`%c[Admin] 📡 강좌 조회 시작: ${teacher}`, 'color: #06b6d4; font-weight: bold;');
+
     if (!supabase) {
+      console.warn('[Admin] ⚠️ Supabase 클라이언트 없음');
       setError('Supabase가 설정되지 않았습니다');
       return;
     }
@@ -52,7 +55,7 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     if (!forceRefresh && !isCacheStale(cacheKey, STALE_TIME)) {
       const cached = getFromCache<Course[]>(cacheKey);
       if (cached) {
-        console.log(`[useCourses] 캐시 히트: ${teacher}`);
+        console.log(`%c[Admin] 📦 캐시 히트: ${teacher} (${cached.length}건)`, 'color: #22c55e;');
         setCourses(cached);
         return;
       }
@@ -62,6 +65,8 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     setError(null);
 
     try {
+      console.log(`[Admin] 🔄 Supabase 쿼리 실행: courses.select(teacher_name=${teacher})`);
+
       // AbortError 발생 시 자동 재시도
       const { data, error: fetchError } = await retryQuery<CourseRow[]>(() =>
         supabase!
@@ -71,15 +76,19 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
           .order('created_at', { ascending: false })
       );
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error(`%c[Admin] ❌ 쿼리 실패: ${fetchError.message}`, 'color: #ef4444;');
+        throw fetchError;
+      }
 
       const mappedCourses = (data || []).map(mapCourseFromSupabase);
+      console.log(`%c[Admin] ✅ 강좌 조회 완료: ${teacher} (${mappedCourses.length}건)`, 'color: #22c55e;');
       setCourses(mappedCourses);
 
       // P3: 캐시에 저장
       setToCache(cacheKey, mappedCourses);
     } catch (err: any) {
-      console.error('[useCourses] fetchCoursesByTeacher error:', err);
+      console.error('[Admin] fetchCoursesByTeacher error:', err);
       setError(err.message || '강좌 목록 조회 실패');
     } finally {
       setLoading(false);

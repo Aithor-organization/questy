@@ -145,11 +145,18 @@ export function useSessionKeepAlive(
       }
     }, intervalMs);
 
-    // 탭 활성화 시 세션 갱신 (백그라운드에서 돌아올 때)
+    // 탭 활성화 시 세션 갱신 (백그라운드에서 돌아올 때) - 디바운스 적용
+    let visibilityTimeout: ReturnType<typeof setTimeout> | null = null;
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        console.log('%c[SessionKeepAlive] 👁️ 탭 활성화 감지 - 세션 갱신', 'color: #8b5cf6;');
-        refreshSession();
+        // 이미 예약된 갱신이 있으면 스킵
+        if (visibilityTimeout) return;
+
+        visibilityTimeout = setTimeout(() => {
+          console.log('%c[SessionKeepAlive] 👁️ 탭 활성화 감지 - 세션 갱신', 'color: #8b5cf6;');
+          refreshSession();
+          visibilityTimeout = null;
+        }, 1000); // 1초 디바운스
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
@@ -160,6 +167,9 @@ export function useSessionKeepAlive(
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
+      }
+      if (visibilityTimeout) {
+        clearTimeout(visibilityTimeout);
       }
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
