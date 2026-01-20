@@ -54,6 +54,14 @@ const membershipColors: Record<MembershipType, string> = {
   lab_member: 'bg-purple-100 text-purple-700',
 };
 
+// 유입 경로 라벨
+const referralSourceLabels: Record<string, string> = {
+  orbi: '오르비',
+  open_chat: '오픈채팅방',
+  friend: '지인',
+  other_community: '기타 커뮤니티',
+};
+
 export function LearningProfilesView() {
   const [profiles, setProfiles] = useState<UserLearningProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -476,6 +484,23 @@ function ProfileCard({
                       {platform}
                     </span>
                   ))}
+                </div>
+              </div>
+            )}
+
+            {/* 유입 경로 (관리자 전용) */}
+            {profile.referralSource && (
+              <div className="col-span-2 space-y-2">
+                <h4 className="font-medium text-gray-700">유입 경로</h4>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-1 bg-orange-50 text-orange-700 rounded text-xs font-medium">
+                    {referralSourceLabels[profile.referralSource] || profile.referralSource}
+                  </span>
+                  {profile.referralSource === 'other_community' && profile.referralSourceDetail && (
+                    <span className="text-xs text-gray-500">
+                      ({profile.referralSourceDetail})
+                    </span>
+                  )}
                 </div>
               </div>
             )}

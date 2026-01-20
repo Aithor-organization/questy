@@ -51,6 +51,14 @@ const PLATFORM_OPTIONS = [
   { id: 'other', name: '기타', color: 'bg-gray-100 border-gray-300' },
 ];
 
+// 유입 경로 옵션
+const REFERRAL_OPTIONS = [
+  { id: 'orbi', name: '오르비' },
+  { id: 'open_chat', name: '오픈채팅방' },
+  { id: 'friend', name: '지인' },
+  { id: 'other_community', name: '기타 커뮤니티홍보' },
+] as const;
+
 // 온보딩 데이터 타입
 interface OnboardingData {
   age: number | null;
@@ -62,6 +70,8 @@ interface OnboardingData {
   selectedTamgu2: string; // 탐구2 선택 과목
   subscribedPlatforms: string[];
   dailyStudyHours: number;
+  referralSource: string; // 유입 경로
+  referralSourceDetail: string; // 기타 커뮤니티 세부 내용
 }
 
 const INITIAL_DATA: OnboardingData = {
@@ -74,6 +84,8 @@ const INITIAL_DATA: OnboardingData = {
   selectedTamgu2: '',
   subscribedPlatforms: [],
   dailyStudyHours: 8,
+  referralSource: '',
+  referralSourceDetail: '',
 };
 
 export function OnboardingPage() {
@@ -84,7 +96,7 @@ export function OnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const totalSteps = 4;
+  const totalSteps = 5;
 
   // 선택된 과목 목록 (고정 과목 + 선택한 탐구)
   const getSelectedSubjects = (): string[] => {
@@ -109,6 +121,11 @@ export function OnboardingPage() {
         return data.targetUniversity.trim().length > 0;
       case 4:
         return data.subscribedPlatforms.length > 0;
+      case 5:
+        // 유입 경로 선택 필수, 기타일 경우 상세 내용 입력 필수
+        if (!data.referralSource) return false;
+        if (data.referralSource === 'other_community' && !data.referralSourceDetail.trim()) return false;
+        return true;
       default:
         return true;
     }
@@ -181,6 +198,8 @@ export function OnboardingPage() {
           selected_tamgu2: data.selectedTamgu2,
           subscribed_platforms: data.subscribedPlatforms,
           daily_study_hours: data.dailyStudyHours,
+          referral_source: data.referralSource,
+          referral_source_detail: data.referralSource === 'other_community' ? data.referralSourceDetail : null,
           onboarding_completed: true,
           onboarding_completed_at: new Date().toISOString(),
         });
@@ -510,6 +529,64 @@ export function OnboardingPage() {
                     </span>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Step 5: 유입 경로 */}
+            {step === 5 && (
+              <div className="space-y-5">
+                <div className="flex items-center gap-2 text-[var(--ink-blue)] font-medium mb-4">
+                  <Sparkles className="w-5 h-5" />
+                  <span>마지막 질문!</span>
+                </div>
+
+                {/* 유입 경로 선택 */}
+                <div>
+                  <label className="block text-sm font-medium text-[var(--ink-black)] mb-2">
+                    퀘스티를 어떻게 알게 되셨나요?
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {REFERRAL_OPTIONS.map(option => (
+                      <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setData(prev => ({
+                          ...prev,
+                          referralSource: option.id,
+                          // 기타가 아닌 경우 상세 내용 초기화
+                          referralSourceDetail: option.id !== 'other_community' ? '' : prev.referralSourceDetail,
+                        }))}
+                        className={`px-4 py-3 border-2 rounded-lg text-sm font-medium transition-all ${
+                          data.referralSource === option.id
+                            ? 'border-[var(--ink-blue)] bg-[var(--highlight-blue)] text-[var(--ink-blue)]'
+                            : 'border-[var(--paper-lines)] bg-white hover:border-[var(--pencil-gray)]'
+                        }`}
+                      >
+                        {option.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 기타 커뮤니티 선택 시 상세 입력 */}
+                {data.referralSource === 'other_community' && (
+                  <div>
+                    <label className="block text-sm font-medium text-[var(--ink-black)] mb-2">
+                      어떤 커뮤니티인가요?
+                    </label>
+                    <input
+                      type="text"
+                      value={data.referralSourceDetail}
+                      onChange={(e) => setData(prev => ({ ...prev, referralSourceDetail: e.target.value }))}
+                      placeholder="예: 수만휘, 에브리타임 등"
+                      className="w-full px-4 py-3 border-2 border-[var(--paper-lines)] rounded-lg bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none"
+                    />
+                  </div>
+                )}
+
+                <p className="text-xs text-[var(--pencil-gray)] mt-2">
+                  💡 더 나은 서비스를 제공하기 위해 활용됩니다
+                </p>
               </div>
             )}
 

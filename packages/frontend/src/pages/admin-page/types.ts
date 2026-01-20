@@ -29,6 +29,8 @@ export interface UserLearningProfile {
     dailyStudyHours: number | null;
     onboardingCompleted: boolean;
     onboardingCompletedAt: string | null;
+    referralSource: string | null; // 유입 경로
+    referralSourceDetail: string | null; // 기타 커뮤니티 상세
   } | null;
   membership: {
     type: MembershipType;

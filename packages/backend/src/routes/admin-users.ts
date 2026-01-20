@@ -754,6 +754,8 @@ adminUsersRoutes.get('/users/learning-profiles', adminOnly, async (c) => {
         daily_study_hours,
         onboarding_completed,
         onboarding_completed_at,
+        referral_source,
+        referral_source_detail,
         created_at
       `, { count: 'exact' });
 
@@ -849,6 +851,8 @@ adminUsersRoutes.get('/users/learning-profiles', adminOnly, async (c) => {
           dailyStudyHours: p.daily_study_hours,
           onboardingCompleted: p.onboarding_completed || false,
           onboardingCompletedAt: p.onboarding_completed_at,
+          referralSource: p.referral_source,
+          referralSourceDetail: p.referral_source_detail,
         },
         membership: membership || null,
       };
