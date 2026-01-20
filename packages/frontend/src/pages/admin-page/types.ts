@@ -52,6 +52,7 @@ export interface UserMembership {
   name: string;
   email?: string;
   createdAt: string;
+  lastLoginAt?: string | null;  // 마지막 로그인 시간
   membership: {
     type: MembershipType;
     status: MembershipStatus;

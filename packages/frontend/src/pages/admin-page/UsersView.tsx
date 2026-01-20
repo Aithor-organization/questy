@@ -634,10 +634,24 @@ function UserCard({
               <p className="text-sm text-gray-500 truncate">{user.email}</p>
             )}
 
-            <div className="flex items-center gap-4 mt-2 text-xs text-gray-400">
+            <div className="flex items-center gap-4 mt-2 text-xs text-gray-400 flex-wrap">
               <span>가입: {new Date(user.createdAt).toLocaleDateString('ko-KR')}</span>
               {membership?.approvedAt && (
                 <span>승인: {new Date(membership.approvedAt).toLocaleDateString('ko-KR')}</span>
+              )}
+              {user.lastLoginAt && (
+                <span className="text-blue-500">
+                  <Clock size={12} className="inline mr-1" />
+                  최근 로그인: {new Date(user.lastLoginAt).toLocaleString('ko-KR', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
+              )}
+              {!user.lastLoginAt && (
+                <span className="text-gray-300">로그인 기록 없음</span>
               )}
               {remainingDays !== null && currentType === 'beta_tester' && (
                 <span className={remainingDays <= 2 ? 'text-red-500' : ''}>

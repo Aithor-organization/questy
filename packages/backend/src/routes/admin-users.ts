@@ -149,6 +149,7 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
         name: info?.name || '이름 없음',
         email: info?.email || '',
         createdAt: m.created_at,
+        lastLoginAt: info?.lastSignInAt || null,  // 마지막 로그인 시간 추가
         membership: {
           type: m.membership_type,
           status: m.status,
