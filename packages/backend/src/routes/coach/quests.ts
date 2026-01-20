@@ -17,11 +17,28 @@ questRoutes.get('/today/:studentId', async (c) => {
 
   const student = registry.getStudent(studentId);
 
+  // 학생이 registry에 없으면 기본 응답 반환 (메모리 기반 registry 한계)
+  // 서버 재시작 시 registry가 초기화되므로, 404 대신 기본 데이터 반환
   if (!student) {
+    const today = new Date();
     return c.json({
-      success: false,
-      error: { message: '학생을 찾을 수 없습니다' },
-    }, 404);
+      success: true,
+      data: {
+        studentName: '',
+        date: today.toISOString().slice(0, 10),
+        dayOfWeek: ['일', '월', '화', '수', '목', '금', '토'][today.getDay()],
+        dailyMessage: '안녕하세요! 오늘도 함께 성장해요! 🌱',
+        coachTip: getRandomCoachTip(),
+        mainQuests: [],
+        reviewQuests: [],
+        bonusQuests: [],
+        summary: {
+          totalQuests: 0,
+          estimatedTotalMinutes: 0,
+          totalXpAvailable: 0,
+        },
+      },
+    });
   }
 
   try {
