@@ -8,8 +8,8 @@
 import { useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 
-// 기본 갱신 주기: 10분
-const DEFAULT_REFRESH_INTERVAL = 10 * 60 * 1000;
+// 기본 갱신 주기: 5분 (토큰 만료 전 충분한 여유)
+const DEFAULT_REFRESH_INTERVAL = 5 * 60 * 1000;
 
 // 디바운스 시간: 2초 (연속 호출 방지)
 const DEBOUNCE_MS = 2000;

@@ -20,7 +20,7 @@ export const supabase = supabaseUrl && supabaseAnonKey
       persistSession: true,
       detectSessionInUrl: true,  // OAuth 콜백 URL에서 세션 감지
       storageKey: 'questy-auth-token',  // 명시적 storage key
-      flowType: 'implicit',  // Web Locks API AbortError 방지 (PKCE 대신 implicit flow 사용)
+      flowType: 'pkce',  // PKCE flow 사용 (Supabase 권장 - 토큰 갱신 안정성)
     },
     global: {
       headers: {

@@ -5,6 +5,7 @@
  */
 
 import { supabase } from './supabase';
+import { refreshSession } from './session-keepalive';
 
 // 타입 정의
 export interface DbChatRoom {
@@ -62,6 +63,9 @@ async function getStudentId(): Promise<string | null> {
     console.log('[ChatAPI] 세션 재확인 중...');
     needsSessionRevalidation = false;
     lastSessionCheck = now;
+
+    // 먼저 세션 갱신 시도 (만료된 토큰 갱신)
+    await refreshSession(2);
 
     // 세션 유효성 확인
     const { data: { user } } = await supabase.auth.getUser();

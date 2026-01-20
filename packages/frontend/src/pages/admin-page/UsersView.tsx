@@ -103,64 +103,112 @@ export function UsersView() {
     };
   }, [searchQuery]);
 
-  // 사용자 목록 조회 (서버사이드 페이지네이션 + 검색 + 필터 + 정렬)
+  // 사용자 목록 조회 (Supabase 직접 호출 - RLS 적용)
   const fetchUsers = useCallback(async () => {
+    if (!supabase) {
+      setError('Supabase 연결이 없습니다');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const token = await getAccessToken();
-      // 서버사이드 페이지네이션 및 검색 파라미터
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-        sortBy,
-        sortOrder,
-      });
-      // 상태 필터
-      if (statusFilter === 'pending') {
-        params.append('status', 'pending');
-      } else if (statusFilter === 'active') {
-        params.append('status', 'active');
-      }
-      // 멤버십 타입 필터
-      if (typeFilter !== 'all') {
-        params.append('type', typeFilter);
-      }
-      // 유입경로 필터
-      if (referralFilter !== 'all') {
-        params.append('referralSource', referralFilter);
-      }
-      // 서버사이드 검색
+      // 1. user_profiles 조회 (referral_source도 여기에 있음)
+      let profileQuery = supabase
+        .from('user_profiles')
+        .select('id, email, display_name, last_sign_in_at, created_at, referral_source', { count: 'exact' });
+
+      // 검색 필터
       if (debouncedSearch) {
-        params.append('search', debouncedSearch);
+        profileQuery = profileQuery.or(`email.ilike.%${debouncedSearch}%,display_name.ilike.%${debouncedSearch}%`);
       }
 
-      const response = await fetch(`${API_URL}/api/admin/users?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token || ''}`,
-        },
+      // 정렬
+      const sortColumn = sortBy === 'createdAt' ? 'created_at' : 'last_sign_in_at';
+      profileQuery = profileQuery.order(sortColumn, { ascending: sortOrder === 'asc', nullsFirst: false });
+
+      // 페이지네이션
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      profileQuery = profileQuery.range(from, to);
+
+      const { data: profiles, error: profileError, count } = await profileQuery;
+
+      if (profileError) {
+        throw new Error(profileError.message);
+      }
+
+      if (!profiles || profiles.length === 0) {
+        setUsers([]);
+        setTotal(0);
+        setTotalPages(1);
+        setLoading(false);
+        return;
+      }
+
+      // 2. user_memberships 별도 조회
+      const userIds = profiles.map((p: any) => p.id);
+      const { data: memberships, error: membershipError } = await supabase
+        .from('user_memberships')
+        .select('user_id, membership_type, status, expires_at, approved_at, admin_note')
+        .in('user_id', userIds);
+
+      if (membershipError) {
+        console.warn('[UsersView] Membership fetch error:', membershipError);
+      }
+
+      // 3. 멤버십 매핑 (user_id → membership)
+      const membershipMap = new Map<string, any>();
+      (memberships || []).forEach((m: any) => {
+        membershipMap.set(m.user_id, m);
       });
 
-      const data = await response.json();
+      // 4. 데이터 변환: user_profiles + user_memberships → UserMembership 형식
+      let usersArray: UserMembership[] = profiles.map((profile: any) => {
+        const membership = membershipMap.get(profile.id);
 
-      if (!data.success) {
-        throw new Error(data.error || '사용자 목록 조회 실패');
+        return {
+          id: profile.id,
+          email: profile.email || '',
+          name: profile.display_name || profile.email?.split('@')[0] || 'Unknown',
+          createdAt: profile.created_at,
+          lastLoginAt: profile.last_sign_in_at || null,
+          lastActiveAt: profile.last_sign_in_at || null,
+          referralSource: profile.referral_source || null,
+          membership: membership ? {
+            type: membership.membership_type as MembershipType,
+            status: membership.status as MembershipStatus,
+            expiresAt: membership.expires_at || null,
+            approvedAt: membership.approved_at || null,
+            adminNote: membership.admin_note || null,
+          } : null,
+        };
+      });
+
+      // 클라이언트 사이드 필터
+      if (statusFilter !== 'all') {
+        usersArray = usersArray.filter(u =>
+          statusFilter === 'pending'
+            ? u.membership?.status === 'pending'
+            : u.membership?.status === 'active'
+        );
       }
 
-      // P2 페이지네이션 응답 구조: data.data = { users: [], pagination: {} }
-      const usersArray = Array.isArray(data.data) ? data.data : (data.data?.users || []);
+      if (typeFilter !== 'all') {
+        usersArray = usersArray.filter(u => u.membership?.type === typeFilter);
+      }
+
+      if (referralFilter !== 'all') {
+        usersArray = usersArray.filter(u => u.referralSource === referralFilter);
+      }
+
       setUsers(usersArray);
-
-      // 페이지네이션 정보 업데이트
-      if (data.data?.pagination) {
-        setTotalPages(data.data.pagination.totalPages || 1);
-        setTotal(data.data.pagination.total || usersArray.length);
-      } else {
-        setTotalPages(1);
-        setTotal(usersArray.length);
-      }
+      setTotal(count || usersArray.length);
+      setTotalPages(Math.ceil((count || usersArray.length) / limit));
     } catch (err: any) {
+      console.error('[UsersView] Fetch error:', err);
       setError(err.message || '사용자 목록을 불러오는데 실패했습니다');
     } finally {
       setLoading(false);

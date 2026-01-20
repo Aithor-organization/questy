@@ -145,10 +145,16 @@ export function useCurriculumGeneration() {
 
       // Supabase 사용 가능한 경우 직접 호출 (빠름)
       if (supabase) {
-        // 세션 갱신 시도 (세션 만료 시 자동 복구)
-        await refreshSession(1).catch(() => {
-          console.log('[useCurriculumGeneration] Session refresh skipped or failed, proceeding anyway');
-        });
+        // 세션 상태 확인 및 갱신 (만료 시 갱신 시도)
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          console.warn('[useCurriculumGeneration] No active session, attempting refresh...');
+          const refreshed = await refreshSession(2);
+          if (!refreshed) {
+            // 세션 갱신 실패 - 사용자에게 재로그인 필요 알림
+            throw new Error('세션이 만료되었습니다. 다시 로그인해주세요.');
+          }
+        }
 
         let queryBuilder = supabase
           .from('courses')

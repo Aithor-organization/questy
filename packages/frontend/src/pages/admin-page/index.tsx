@@ -75,22 +75,32 @@ export function AdminPage() {
   const [authLoading, setAuthLoading] = useState(!savedSession); // 세션 있으면 로딩 안 함
   const [authError, setAuthError] = useState<string | null>(null);
 
-  // 컴포넌트 마운트 시 Supabase 세션 확인
+  // 컴포넌트 마운트 시 세션 확인
+  // /admin 페이지는 독립적인 인증이 필요 - admin 전용 세션이 없으면 기존 로그인 무시
   useEffect(() => {
-    if (savedSession) {
-      // 세션이 있으면 Supabase 세션도 확인
-      supabase?.auth.getSession().then(({ data }) => {
-        if (!data.session) {
+    const initAdminPage = async () => {
+      if (savedSession) {
+        // admin 전용 세션이 있으면 Supabase 세션 유효성 확인
+        const { data } = await supabase?.auth.getSession() || { data: null };
+        if (!data?.session) {
           // Supabase 세션이 없으면 로컬 세션도 삭제
           clearAdminSession();
           setUser(null);
           setAdminInfo(null);
         }
-        setAuthLoading(false);
-      });
-    } else {
+      } else {
+        // admin 전용 세션이 없으면 기존 Supabase 세션 로그아웃
+        // (일반 /login에서 로그인한 세션이 있어도 admin 로그인 필요)
+        const { data } = await supabase?.auth.getSession() || { data: null };
+        if (data?.session) {
+          console.log('[Admin] Clearing existing session - admin login required');
+          await supabase?.auth.signOut();
+        }
+      }
       setAuthLoading(false);
-    }
+    };
+
+    initAdminPage();
   }, []);
 
   // 활동 시 세션 갱신 (클릭, 키 입력)

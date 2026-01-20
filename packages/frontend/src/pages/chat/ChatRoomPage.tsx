@@ -13,6 +13,7 @@ import { useQuestStore, getTodayDateString } from '../../stores/questStore';
 import { useAuthStore } from '../../stores/authStore';
 import { useStreamingChat } from '../../hooks/useStreamingChat';
 import { useMembershipCheck } from '../../hooks/useMembershipCheck';
+import { refreshSession } from '../../lib/session-keepalive';
 import { TrialEndedModal } from '../../components/TrialEndedModal';
 import { MessageList } from './components/MessageList';
 import { ChatInput } from './components/ChatInput';
@@ -82,13 +83,20 @@ export function ChatRoomPage() {
   }, [targetRoomId]);
 
   // 채팅방 메시지 지연 로드 (채팅방 진입 시)
+  // 세션 검증 후 메시지 로드 (세션 만료 시 자동 갱신)
   useEffect(() => {
     if (!isChatStoreInitialized) return;
 
     const currentRoom = getRoomById(targetRoomId) || getDefaultRoom();
     if (currentRoom) {
-      // 메시지가 없으면 로드 (지연 로딩)
-      loadRoomMessages(currentRoom.id);
+      // 세션 갱신 시도 후 메시지 로드
+      (async () => {
+        const refreshed = await refreshSession(2);
+        if (!refreshed) {
+          console.warn('[ChatRoomPage] Session refresh failed, but proceeding with message load');
+        }
+        loadRoomMessages(currentRoom.id);
+      })();
     }
   }, [targetRoomId, isChatStoreInitialized, getRoomById, getDefaultRoom, loadRoomMessages]);
 

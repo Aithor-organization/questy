@@ -19,16 +19,9 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import type { UserLearningProfile, MembershipType } from './types';
+import type { UserLearningProfile, MembershipType, MembershipStatus } from './types';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
-
-// 액세스 토큰 가져오기
-async function getAccessToken(): Promise<string | null> {
-  if (!supabase) return null;
-  const { data: { session } } = await supabase.auth.getSession();
-  return session?.access_token || null;
-}
+// API_URL과 getAccessToken 제거 - Supabase 직접 호출 사용
 
 // 수험 년도 라벨
 const examYearLabels: Record<number, string> = {
@@ -93,54 +86,128 @@ export function LearningProfilesView() {
     };
   }, [searchQuery]);
 
-  // 학습 프로필 목록 조회 (서버사이드 페이지네이션 + 검색)
+  // 학습 프로필 목록 조회 (Supabase 직접 호출 - RLS 적용)
   const fetchProfiles = useCallback(async () => {
+    if (!supabase) {
+      setError('Supabase 연결이 없습니다');
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
-      const token = await getAccessToken();
-      // 서버사이드 페이지네이션 및 검색 파라미터
-      const params = new URLSearchParams({
-        page: page.toString(),
-        limit: limit.toString(),
-      });
-      // 상태 필터
-      if (filter === 'completed') {
-        params.append('onboarding', 'completed');
-      } else if (filter === 'incomplete') {
-        params.append('onboarding', 'incomplete');
-      }
-      // 서버사이드 검색
+      // 1. user_profiles 조회 (referral_source도 여기에 있음)
+      let profileQuery = supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          email,
+          display_name,
+          age,
+          exam_year,
+          selected_tamgu1,
+          selected_tamgu2,
+          target_university,
+          target_grades,
+          current_grades,
+          subscribed_platforms,
+          daily_study_hours,
+          onboarding_completed,
+          onboarding_completed_at,
+          created_at,
+          referral_source,
+          referral_source_detail
+        `, { count: 'exact' });
+
+      // 검색 필터 (이름, 이메일, 목표 대학)
       if (debouncedSearch) {
-        params.append('search', debouncedSearch);
+        profileQuery = profileQuery.or(`email.ilike.%${debouncedSearch}%,display_name.ilike.%${debouncedSearch}%,target_university.ilike.%${debouncedSearch}%`);
       }
 
-      const response = await fetch(`${API_URL}/api/admin/users/learning-profiles?${params.toString()}`, {
-        headers: {
-          'Authorization': `Bearer ${token || ''}`,
-        },
+      // 온보딩 상태 필터
+      if (filter === 'completed') {
+        profileQuery = profileQuery.eq('onboarding_completed', true);
+      } else if (filter === 'incomplete') {
+        profileQuery = profileQuery.or('onboarding_completed.is.null,onboarding_completed.eq.false');
+      }
+
+      // 정렬 (최신순)
+      profileQuery = profileQuery.order('created_at', { ascending: false });
+
+      // 페이지네이션
+      const from = (page - 1) * limit;
+      const to = from + limit - 1;
+      profileQuery = profileQuery.range(from, to);
+
+      const { data: profilesData, error: profileError, count } = await profileQuery;
+
+      if (profileError) {
+        throw new Error(profileError.message);
+      }
+
+      if (!profilesData || profilesData.length === 0) {
+        setProfiles([]);
+        setTotal(0);
+        setTotalPages(1);
+        setLoading(false);
+        return;
+      }
+
+      // 2. user_memberships 별도 조회
+      const userIds = profilesData.map((p: any) => p.id);
+      const { data: memberships, error: membershipError } = await supabase
+        .from('user_memberships')
+        .select('user_id, membership_type, status')
+        .in('user_id', userIds);
+
+      if (membershipError) {
+        console.warn('[LearningProfilesView] Membership fetch error:', membershipError);
+      }
+
+      // 3. 멤버십 매핑 (user_id → membership)
+      const membershipMap = new Map<string, any>();
+      (memberships || []).forEach((m: any) => {
+        membershipMap.set(m.user_id, m);
       });
 
-      const data = await response.json();
+      // 4. 데이터 변환: user_profiles + user_memberships → UserLearningProfile 형식
+      const profilesArray: UserLearningProfile[] = profilesData.map((p: any) => {
+        const membership = membershipMap.get(p.id);
 
-      if (!data.success) {
-        throw new Error(data.error || '학습 프로필 조회 실패');
-      }
+        return {
+          id: p.id,
+          email: p.email || '',
+          name: p.display_name || p.email?.split('@')[0] || 'Unknown',
+          createdAt: p.created_at,
+          membership: membership ? {
+            type: membership.membership_type as MembershipType,
+            status: membership.status as MembershipStatus,
+          } : null,
+          profile: {
+            age: p.age ?? null,
+            examYear: p.exam_year ?? 0,
+            selectedTamgu1: p.selected_tamgu1 ?? null,
+            selectedTamgu2: p.selected_tamgu2 ?? null,
+            targetUniversity: p.target_university ?? null,
+            targetGrades: p.target_grades ?? null,
+            currentGrades: p.current_grades ?? null,
+            subscribedPlatforms: p.subscribed_platforms ?? null,
+            dailyStudyHours: p.daily_study_hours ?? null,
+            onboardingCompleted: p.onboarding_completed ?? false,
+            onboardingCompletedAt: p.onboarding_completed_at ?? null,
+            referralSource: p.referral_source ?? null,
+            referralSourceDetail: p.referral_source_detail ?? null,
+          },
+        };
+      });
 
-      // P2 페이지네이션 응답 구조: data.data = { profiles: [], pagination: {} }
-      const profilesArray = Array.isArray(data.data) ? data.data : (data.data?.profiles || []);
       setProfiles(profilesArray);
-
-      // 페이지네이션 정보 업데이트
-      if (data.data?.pagination) {
-        setTotalPages(data.data.pagination.totalPages || 1);
-        setTotal(data.data.pagination.total || profilesArray.length);
-      } else {
-        setTotalPages(1);
-        setTotal(profilesArray.length);
-      }
+      setTotal(count || profilesArray.length);
+      setTotalPages(Math.ceil((count || profilesArray.length) / limit));
     } catch (err: any) {
+      console.error('[LearningProfilesView] Fetch error:', err);
       setError(err.message || '학습 프로필을 불러오는데 실패했습니다');
     } finally {
       setLoading(false);
