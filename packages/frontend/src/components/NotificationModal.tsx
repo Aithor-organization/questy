@@ -23,10 +23,18 @@ export function NotificationModal({ isOpen, onClose }: NotificationModalProps) {
   const markNotificationAsRead = useChatStore((state) => state.markNotificationAsRead);
   const unreadChatCount = useChatStore((state) => state.getTotalUnreadCount());
 
-  // 미완료 퀘스트
+  // 오늘 미완료 퀘스트
   const getIncompleteQuests = useQuestStore((state) => state.getIncompleteQuests);
+  const plans = useQuestStore((state) => state.plans);
   const todayStr = getTodayDateString();
-  const incompleteQuests = getIncompleteQuests(todayStr);
+  const todayIncompleteQuests = getIncompleteQuests(todayStr);
+
+  // 밀린 퀘스트 (과거 날짜의 미완료)
+  const overdueQuests = plans.flatMap((plan) =>
+    plan.dailyQuests
+      .filter((q) => q.date < todayStr && !q.completed)
+      .map((q) => ({ ...q, planId: plan.id, planName: plan.materialName }))
+  ).sort((a, b) => a.date.localeCompare(b.date));
 
   // 채팅 알림 클릭 핸들러
   const handleChatNotificationClick = (notification: ChatNotification) => {
@@ -42,7 +50,7 @@ export function NotificationModal({ isOpen, onClose }: NotificationModalProps) {
   };
 
   // 총 알림 개수
-  const totalNotifications = notifications.filter(n => !n.isRead).length + incompleteQuests.length + unreadChatCount;
+  const totalNotifications = notifications.filter(n => !n.isRead).length + todayIncompleteQuests.length + overdueQuests.length + unreadChatCount;
 
   if (!isOpen) return null;
 
@@ -77,21 +85,44 @@ export function NotificationModal({ isOpen, onClose }: NotificationModalProps) {
 
         {/* 알림 목록 - 유연한 스크롤 영역 */}
         <div className="flex-1 overflow-y-auto overscroll-contain">
-          {/* 미완료 퀘스트 섹션 */}
-          {incompleteQuests.length > 0 && (
+          {/* 밀린 퀘스트 섹션 (과거 날짜) */}
+          {overdueQuests.length > 0 && (
             <div className="border-b border-[var(--paper-lines)]">
-              <div className="px-4 py-2 bg-amber-50">
-                <span className="text-xs font-medium text-amber-700 flex items-center gap-1">
+              <div className="px-4 py-2 bg-red-50">
+                <span className="text-xs font-medium text-red-700 flex items-center gap-1">
                   <CheckSquare size={14} />
-                  오늘 미완료 퀘스트 ({incompleteQuests.length})
+                  밀린 퀘스트 ({overdueQuests.length})
                 </span>
               </div>
               <div className="divide-y divide-[var(--paper-lines)]">
-                {incompleteQuests.map((quest) => (
+                {overdueQuests.map((quest) => (
                   <QuestNotificationItem
                     key={quest.id}
                     quest={quest}
                     onClick={() => handleQuestClick(quest)}
+                    isOverdue={true}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 오늘 미완료 퀘스트 섹션 */}
+          {todayIncompleteQuests.length > 0 && (
+            <div className="border-b border-[var(--paper-lines)]">
+              <div className="px-4 py-2 bg-amber-50">
+                <span className="text-xs font-medium text-amber-700 flex items-center gap-1">
+                  <CheckSquare size={14} />
+                  오늘 미완료 퀘스트 ({todayIncompleteQuests.length})
+                </span>
+              </div>
+              <div className="divide-y divide-[var(--paper-lines)]">
+                {todayIncompleteQuests.map((quest) => (
+                  <QuestNotificationItem
+                    key={quest.id}
+                    quest={quest}
+                    onClick={() => handleQuestClick(quest)}
+                    isOverdue={false}
                   />
                 ))}
               </div>
@@ -145,7 +176,7 @@ export function NotificationModal({ isOpen, onClose }: NotificationModalProps) {
           )}
 
           {/* 빈 상태 */}
-          {incompleteQuests.length === 0 && notifications.filter(n => !n.isRead).length === 0 && unreadChatCount === 0 && (
+          {overdueQuests.length === 0 && todayIncompleteQuests.length === 0 && notifications.filter(n => !n.isRead).length === 0 && unreadChatCount === 0 && (
             <div className="py-12 text-center">
               <Bell size={32} className="text-[var(--pencil-gray)] mx-auto mb-2 opacity-50" />
               <p className="text-sm text-[var(--pencil-gray)]">
@@ -162,19 +193,27 @@ export function NotificationModal({ isOpen, onClose }: NotificationModalProps) {
 // 퀘스트 알림 아이템 (클릭 시 플랜 페이지로 이동)
 function QuestNotificationItem({
   quest,
-  onClick
+  onClick,
+  isOverdue
 }: {
   quest: QuestWithPlan;
   onClick: () => void;
+  isOverdue: boolean;
 }) {
   return (
     <button
       onClick={onClick}
-      className="w-full px-4 py-3 bg-white text-left hover:bg-amber-50 transition-colors"
+      className={`w-full px-4 py-3 bg-white text-left transition-colors ${
+        isOverdue ? 'hover:bg-red-50' : 'hover:bg-amber-50'
+      }`}
     >
       <div className="flex items-start gap-3">
-        <div className="w-8 h-8 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-          <span className="text-amber-600 text-xs font-bold">{quest.unitNumber}</span>
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+          isOverdue ? 'bg-red-100' : 'bg-amber-100'
+        }`}>
+          <span className={`text-xs font-bold ${isOverdue ? 'text-red-600' : 'text-amber-600'}`}>
+            {quest.unitNumber}
+          </span>
         </div>
         <div className="flex-1 min-w-0">
           <p className="text-sm text-[var(--ink-black)] line-clamp-1">
@@ -183,13 +222,17 @@ function QuestNotificationItem({
           <p className="text-xs text-[var(--pencil-gray)] mt-0.5">
             {quest.planName} · {quest.estimatedMinutes}분
           </p>
-          {/* 스케줄 조정 프롬프트 */}
-          <p className="text-xs text-amber-600 font-medium mt-1 flex items-center gap-1">
-            <span className="inline-block w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse" />
-            스케줄 조정해주세요!
+          {/* 퀘스트 상태별 메시지 */}
+          <p className={`text-xs font-medium mt-1 flex items-center gap-1 ${
+            isOverdue ? 'text-red-600' : 'text-amber-600'
+          }`}>
+            <span className={`inline-block w-1.5 h-1.5 rounded-full animate-pulse ${
+              isOverdue ? 'bg-red-500' : 'bg-amber-500'
+            }`} />
+            {isOverdue ? '스케줄 조정이 필요해요!' : '오늘 완료해주세요!'}
           </p>
         </div>
-        <div className="flex-shrink-0 text-amber-500">
+        <div className={`flex-shrink-0 ${isOverdue ? 'text-red-500' : 'text-amber-500'}`}>
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
