@@ -6,6 +6,7 @@
 import { useState, useCallback } from 'react';
 import { supabase, retryQuery } from '../../lib/supabase';
 import { isCacheStale, setToCache, getFromCache, invalidateCacheByPrefix } from '../../lib/cache';
+import { ensureValidSession } from '../../lib/session-guard';
 import {
   CRAWL_API_BASE,
   defaultHeaders,
@@ -88,6 +89,11 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
   // 강좌 추가 (URL 크롤링 + 백엔드 저장)
   // P1: 데이터 무결성 개선 - 백엔드에서 저장 처리
   const addCourse = useCallback(async (url: string, teacher?: string, subject?: string) => {
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
+      return null;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -141,6 +147,11 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
   // 강좌 업데이트 (재크롤링 + 백엔드 저장)
   // P1: 데이터 무결성 개선 - 백엔드에서 저장 처리
   const updateCourse = useCallback(async (courseId: string) => {
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
+      return null;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -205,6 +216,11 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
   ) => {
     if (!supabase) {
       setError('Supabase가 설정되지 않았습니다');
+      return null;
+    }
+
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
       return null;
     }
 
@@ -296,6 +312,11 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       return false;
     }
 
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
+      return false;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -346,6 +367,11 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
       current?: { url: string; success: boolean; name?: string; error?: string };
     }) => void
   ) => {
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
+      return { success: 0, failed: urls.length, results: [] };
+    }
+
     setLoading(true);
     setError(null);
 

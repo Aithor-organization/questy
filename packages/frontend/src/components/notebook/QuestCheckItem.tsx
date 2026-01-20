@@ -80,13 +80,13 @@ function isVideoLectureQuest(quest: QuestWithPlan): boolean {
   return false;
 }
 
-// 문제풀이/자습 퀘스트 여부 판별
+// 문제풀이/자습/교재 퀘스트 여부 판별
 function isPracticeQuest(quest: QuestWithPlan): boolean {
   const title = quest.unitTitle || '';
   const range = quest.range || '';
 
-  // 문제풀이 관련 키워드
-  const practiceKeywords = ['자습', '문제풀이', '문제', '연습', '실전'];
+  // 문제풀이/교재 관련 키워드
+  const practiceKeywords = ['자습', '문제풀이', '문제', '연습', '실전', '교재'];
 
   // isPractice 플래그가 있으면 문제풀이
   if (quest.isPractice) {

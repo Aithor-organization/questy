@@ -284,60 +284,68 @@ function clearMessageCache(roomId?: string): void {
   }
 }
 
+// 스토어 초기화 시 캐시에서 동기적으로 로드 (카카오톡처럼 즉시 표시)
+function getInitialRoomsFromCache(): { rooms: ChatRoom[]; hasCache: boolean } {
+  const cachedRooms = getCachedRooms();
+  if (!cachedRooms || cachedRooms.length === 0) {
+    return { rooms: [], hasCache: false };
+  }
+
+  const roomsFromCache: ChatRoom[] = cachedRooms.map((cached) => ({
+    id: cached.id,
+    name: cached.name,
+    emoji: cached.emoji,
+    description: cached.description,
+    createdAt: cached.createdAt,
+    isDefault: cached.isDefault,
+    messages: cached.lastMessage
+      ? [
+          {
+            id: `cached-${cached.id}`,
+            role: cached.lastMessage.role,
+            content: cached.lastMessage.content,
+            timestamp: cached.lastMessage.timestamp,
+            isRead: true,
+          },
+        ]
+      : [],
+  }));
+
+  return { rooms: roomsFromCache, hasCache: true };
+}
+
+// 스토어 생성 전에 캐시 로드 (동기)
+const initialCache = getInitialRoomsFromCache();
+
 export const useChatStore = create<ChatStore>()((set, get) => ({
-  rooms: [],
+  // 캐시가 있으면 바로 표시 (카카오톡처럼 즉시 로딩)
+  rooms: initialCache.rooms,
   notifications: [],
   pendingResponses: [],
   isLoading: false,
-  isInitialized: false,
+  // 캐시가 있으면 이미 초기화된 것으로 표시 (즉시 렌더링)
+  isInitialized: initialCache.hasCache,
   loadedRoomIds: new Set<string>(),
 
   // Supabase에서 채팅 데이터 로드 (캐시 우선 + 백그라운드 동기화)
   initializeChat: async () => {
-    const { isInitialized, isLoading } = get();
-    if (isInitialized || isLoading) {
-      console.log('[ChatStore] 이미 초기화됨 또는 로딩 중');
+    const { isLoading, rooms } = get();
+    // 이미 동기화 중이면 중복 호출 방지
+    if (isLoading) {
+      console.log('[ChatStore] 이미 동기화 진행 중');
       return;
     }
 
-    set({ isLoading: true });
-    console.log('[ChatStore] 초기화 시작 (캐시 우선 로딩)...');
-
-    // 1. 먼저 캐시에서 채팅방 목록 로드 (즉시 표시)
-    const cachedRooms = getCachedRooms();
-    if (cachedRooms && cachedRooms.length > 0) {
-      console.log(`[ChatStore] 캐시에서 ${cachedRooms.length}개 채팅방 즉시 로드`);
-
-      // 캐시된 방에 마지막 메시지를 포함하여 표시
-      const roomsFromCache: ChatRoom[] = cachedRooms.map((cached) => ({
-        id: cached.id,
-        name: cached.name,
-        emoji: cached.emoji,
-        description: cached.description,
-        createdAt: cached.createdAt,
-        isDefault: cached.isDefault,
-        // 마지막 메시지만 임시로 넣어서 목록에서 미리보기 표시
-        messages: cached.lastMessage
-          ? [
-              {
-                id: `cached-${cached.id}`,
-                role: cached.lastMessage.role,
-                content: cached.lastMessage.content,
-                timestamp: cached.lastMessage.timestamp,
-                isRead: true, // 캐시된 메시지는 이미 읽은 것으로 표시
-              },
-            ]
-          : [],
-      }));
-
-      // 캐시 데이터로 먼저 화면 표시 (로딩 상태 해제)
-      set({
-        rooms: roomsFromCache,
-        isLoading: false,
-        isInitialized: true,
-        loadedRoomIds: new Set<string>(),
-      });
+    // 이미 캐시된 데이터가 표시되어 있으면 로딩 표시 없이 백그라운드 동기화만 진행
+    // (동기 로드로 이미 채팅방이 있거나, reset 후에는 빈 배열)
+    const hasDisplayedRooms = rooms.length > 0;
+    if (!hasDisplayedRooms) {
+      set({ isLoading: true });
     }
+    console.log(`[ChatStore] Supabase 동기화 시작 (표시된 채팅방: ${rooms.length}개)...`);
+
+    // 캐시 데이터 가져오기 (마지막 메시지 정보용)
+    const cachedRooms = getCachedRooms();
 
     // 2. 백그라운드에서 Supabase 최신 데이터 가져오기
     try {
@@ -345,9 +353,9 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
       const defaultRoom = await chatApi.getOrCreateDefaultRoom();
       if (!defaultRoom) {
         console.log('[ChatStore] 기본 채팅방 생성 실패 (로그인 필요)');
-        // 캐시가 있으면 캐시 상태 유지, 없으면 로딩 해제
-        if (!cachedRooms || cachedRooms.length === 0) {
-          set({ isLoading: false });
+        // 표시된 채팅방이 없으면 로딩 해제
+        if (!hasDisplayedRooms) {
+          set({ isLoading: false, isInitialized: true });
         }
         return;
       }
@@ -391,9 +399,9 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
       setCachedRooms(roomsWithoutMessages);
     } catch (error) {
       console.error('[ChatStore] Supabase 동기화 실패:', error);
-      // 캐시가 있으면 캐시 상태 유지
-      if (!cachedRooms || cachedRooms.length === 0) {
-        set({ isLoading: false });
+      // 표시된 채팅방이 없으면 로딩 해제
+      if (!hasDisplayedRooms) {
+        set({ isLoading: false, isInitialized: true });
       }
     }
   },

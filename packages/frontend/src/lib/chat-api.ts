@@ -33,10 +33,44 @@ export interface DbChatMessage {
 // 사용자의 student_id 캐시 (세션 내 중복 호출 방지)
 let cachedStudentId: string | null = null;
 let studentIdPromise: Promise<string | null> | null = null;
+let lastSessionCheck: number = 0;
+const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5분마다 세션 재확인
+
+// 탭이 다시 활성화될 때 세션 재확인을 위한 플래그
+let needsSessionRevalidation = false;
+
+// visibility change 이벤트 핸들러 등록 (한 번만)
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      // 탭이 다시 활성화되면 세션 재확인 필요 표시
+      needsSessionRevalidation = true;
+      console.log('[ChatAPI] 탭 활성화 - 다음 API 호출 시 세션 재확인');
+    }
+  });
+}
 
 // 사용자의 student_id 가져오기 (캐싱, 자동 생성)
 async function getStudentId(): Promise<string | null> {
   if (!supabase) return null;
+
+  const now = Date.now();
+  const shouldRevalidate = needsSessionRevalidation || (now - lastSessionCheck > SESSION_CHECK_INTERVAL);
+
+  // 캐시가 있지만 세션 재확인이 필요한 경우
+  if (cachedStudentId && shouldRevalidate) {
+    console.log('[ChatAPI] 세션 재확인 중...');
+    needsSessionRevalidation = false;
+    lastSessionCheck = now;
+
+    // 세션 유효성 확인
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      console.log('[ChatAPI] 세션 만료됨 - 캐시 초기화');
+      cachedStudentId = null;
+      return null;
+    }
+  }
 
   // 이미 캐시된 값이 있으면 반환
   if (cachedStudentId) return cachedStudentId;
@@ -61,6 +95,7 @@ async function getStudentId(): Promise<string | null> {
 
       if (student?.id) {
         cachedStudentId = student.id;
+        lastSessionCheck = Date.now();
         console.log('[ChatAPI] student 조회 성공:', student.id);
         return student.id;
       }
@@ -81,6 +116,7 @@ async function getStudentId(): Promise<string | null> {
       }
 
       cachedStudentId = newStudent.id;
+      lastSessionCheck = Date.now();
       console.log('[ChatAPI] student 자동 생성 완료:', newStudent.id);
       return newStudent.id;
     } catch (error: any) {
@@ -103,6 +139,8 @@ async function getStudentId(): Promise<string | null> {
 export function clearStudentIdCache(): void {
   cachedStudentId = null;
   studentIdPromise = null;
+  lastSessionCheck = 0;
+  needsSessionRevalidation = false;
 }
 
 /**

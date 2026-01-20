@@ -5,6 +5,7 @@
 
 import { useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
+import { Analytics } from '@vercel/analytics/react';
 import { useAuthStore } from './stores/authStore';
 import { useQuestStore } from './stores/questStore';
 import { useChatStore } from './stores/chatStore';
@@ -12,6 +13,7 @@ import { syncFromSupabase } from './lib/supabase-storage';
 import { useScheduledNotifications } from './hooks/useScheduledNotifications';
 import { useCoachScheduler } from './hooks/useCoachScheduler';
 import { useMembership } from './hooks/useMembership';
+import { useSessionKeepAlive } from './lib/session-keepalive';
 import { createLogger } from './lib/logger';
 import {
   LoginPage,
@@ -169,6 +171,9 @@ function App() {
   // 자동 코치 메시지 스케줄러 (10시 리마인더, 자정 요약)
   useCoachScheduler();
 
+  // 세션 유지: 로그인 상태에서 10분마다 자동 갱신 (모든 페이지 공통)
+  useSessionKeepAlive(isAuthenticated);
+
   // 인증 초기화 중 로딩 표시
   if (isLoading) {
     return (
@@ -183,6 +188,9 @@ function App() {
 
   return (
     <BrowserRouter>
+      {/* Vercel Analytics - 페이지뷰 추적 */}
+      <Analytics />
+
       {/* 페이지 이동 시 스크롤 맨 위로 */}
       <ScrollToTop />
 

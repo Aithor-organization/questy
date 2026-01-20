@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useQuestStore, type QuestPlan } from '../stores/questStore';
 import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
+import { refreshSession } from '../lib/session-keepalive';
 import { API_BASE_URL } from '../config';
 import type {
   Course,
@@ -116,6 +117,11 @@ export function useCurriculumGeneration() {
 
       // Supabase 사용 가능한 경우 직접 호출 (빠름)
       if (supabase) {
+        // 세션 갱신 시도 (세션 만료 시 자동 복구)
+        await refreshSession(1).catch(() => {
+          console.log('[useCurriculumGeneration] Session refresh skipped or failed, proceeding anyway');
+        });
+
         let queryBuilder = supabase
           .from('courses')
           .select('*')
@@ -145,6 +151,49 @@ export function useCurriculumGeneration() {
 
         if (error) {
           console.error('[useCurriculumGeneration] Supabase error:', error);
+
+          // 세션 관련 에러인 경우 세션 갱신 후 재시도
+          const isSessionError = error.message?.includes('JWT') ||
+                                  error.message?.includes('token') ||
+                                  error.message?.includes('session') ||
+                                  error.code === 'PGRST301' || // JWT expired
+                                  error.code === '401';
+
+          if (isSessionError) {
+            console.log('[useCurriculumGeneration] Session error detected, refreshing and retrying...');
+            const refreshed = await refreshSession(2);
+            if (refreshed) {
+              // 세션 갱신 성공 → 재시도
+              const retryResult = await supabase
+                .from('courses')
+                .select('*')
+                .order('teacher_name')
+                .order('name')
+                .limit(50);
+
+              if (!retryResult.error) {
+                // 성공적으로 재시도됨
+                const courses: Course[] = (retryResult.data || []).map((course: any) => ({
+                  id: course.id,
+                  courseName: course.name,
+                  lecturer: course.teacher_name,
+                  subject: course.subject || '',
+                  platform: course.platform || 'megastudy',
+                  url: course.url || '',
+                  chapters: typeof course.lectures === 'string'
+                    ? JSON.parse(course.lectures || '[]')
+                    : (course.lectures || []),
+                  lectureCount: course.lecture_count || 0,
+                  totalDuration: course.total_duration || '',
+                  isCompleted: course.is_completed || false,
+                }));
+                console.log('[useCurriculumGeneration] Retry successful:', courses.length);
+                setSearchResults(courses);
+                return;
+              }
+            }
+          }
+
           throw new Error(error.message);
         }
 

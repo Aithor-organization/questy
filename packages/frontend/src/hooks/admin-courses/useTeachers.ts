@@ -5,6 +5,7 @@
 
 import { useState, useCallback } from 'react';
 import { supabase, retryQuery } from '../../lib/supabase';
+import { ensureValidSession } from '../../lib/session-guard';
 import type { Teacher } from './types';
 
 export function useTeachers() {
@@ -92,6 +93,11 @@ export function useTeachers() {
       return false;
     }
 
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
+      return false;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -130,6 +136,11 @@ export function useTeachers() {
       return false;
     }
 
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
+      return false;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -164,6 +175,11 @@ export function useTeachers() {
   const deleteTeacher = useCallback(async (teacherName: string) => {
     if (!supabase) {
       setError('Supabase가 설정되지 않았습니다');
+      return false;
+    }
+
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
       return false;
     }
 

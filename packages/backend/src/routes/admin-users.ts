@@ -122,7 +122,7 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
     }
 
     // 현재 페이지 사용자들의 auth 정보만 조회 (최적화)
-    const userInfo: Record<string, { email: string; name: string }> = {};
+    const userInfo: Record<string, { email: string; name: string; lastSignInAt: string | null }> = {};
 
     // 현재 페이지 사용자들만 개별 조회 (N개만 조회하므로 효율적)
     const userPromises = userIds.map(async (userId) => {
@@ -131,7 +131,8 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
         if (userData?.user) {
           const email = userData.user.email || '';
           const name = userData.user.user_metadata?.name || email.split('@')[0] || '이름 없음';
-          userInfo[userId] = { email, name };
+          const lastSignInAt = userData.user.last_sign_in_at || null;
+          userInfo[userId] = { email, name, lastSignInAt };
         }
       } catch (e) {
         // 개별 사용자 조회 실패는 무시

@@ -44,11 +44,11 @@ function isVideoLectureQuest(quest: QuestWithPlan): boolean {
   return false;
 }
 
-// 문제풀이/자습 퀘스트 여부 판별
+// 문제풀이/자습/교재 퀘스트 여부 판별
 function isPracticeQuest(quest: QuestWithPlan): boolean {
   const title = quest.unitTitle || '';
   const range = quest.range || '';
-  const practiceKeywords = ['자습', '문제풀이', '문제', '연습', '실전'];
+  const practiceKeywords = ['자습', '문제풀이', '문제', '연습', '실전', '교재'];
 
   if (quest.isPractice) return true;
 

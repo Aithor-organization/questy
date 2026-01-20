@@ -5,6 +5,7 @@
 
 import { useCallback } from 'react';
 import { supabase, retryQuery } from '../../lib/supabase';
+import { ensureValidSession } from '../../lib/session-guard';
 import {
   CRAWL_API_BASE,
   defaultHeaders,
@@ -20,6 +21,12 @@ export function useBatchUpdate() {
   ) => {
     if (!supabase) {
       onProgress({ type: 'error', error: 'Supabase가 설정되지 않았습니다' });
+      return;
+    }
+
+    // 세션 유효성 확인 (만료 시 알림 후 중단)
+    if (!(await ensureValidSession())) {
+      onProgress({ type: 'error', error: '세션이 만료되었습니다. 페이지를 새로고침해주세요.' });
       return;
     }
 
