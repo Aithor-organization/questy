@@ -327,7 +327,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   isInitialized: initialCache.hasCache,
   loadedRoomIds: new Set<string>(),
 
-  // Supabase에서 채팅 데이터 로드 (캐시 우선 + 백그라운드 동기화)
+  // Supabase에서 채팅 데이터 로드 (캐시 우선 + 백그라운드 동기화 + 마지막 메시지 로드)
   initializeChat: async () => {
     const { isLoading, rooms } = get();
     // 이미 동기화 중이면 중복 호출 방지
@@ -337,69 +337,80 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     }
 
     // 이미 캐시된 데이터가 표시되어 있으면 로딩 표시 없이 백그라운드 동기화만 진행
-    // (동기 로드로 이미 채팅방이 있거나, reset 후에는 빈 배열)
     const hasDisplayedRooms = rooms.length > 0;
     if (!hasDisplayedRooms) {
       set({ isLoading: true });
     }
     console.log(`[ChatStore] Supabase 동기화 시작 (표시된 채팅방: ${rooms.length}개)...`);
 
-    // 캐시 데이터 가져오기 (마지막 메시지 정보용)
+    // 캐시 데이터 가져오기 (마지막 메시지 정보용 - fallback)
     const cachedRooms = getCachedRooms();
 
-    // 2. 백그라운드에서 Supabase 최신 데이터 가져오기
     try {
       // 기본 채팅방 가져오기 또는 생성
       const defaultRoom = await chatApi.getOrCreateDefaultRoom();
       if (!defaultRoom) {
         console.log('[ChatStore] 기본 채팅방 생성 실패 (로그인 필요)');
-        // 표시된 채팅방이 없으면 로딩 해제
         if (!hasDisplayedRooms) {
           set({ isLoading: false, isInitialized: true });
         }
         return;
       }
 
-      // 모든 채팅방 조회 (메시지 없이 메타데이터만)
+      // 모든 채팅방 조회
       const dbRooms = await chatApi.fetchChatRooms();
 
-      // 채팅방 메타데이터만 저장 (메시지는 빈 배열, 캐시된 마지막 메시지 유지)
-      const roomsWithoutMessages: ChatRoom[] = dbRooms.map((dbRoom) => {
-        // 캐시에서 마지막 메시지 정보 가져오기
-        const cachedRoom = cachedRooms?.find((c) => c.id === dbRoom.id);
-        const lastMessage = cachedRoom?.lastMessage;
+      // 🔥 각 채팅방의 마지막 메시지를 병렬로 가져오기 (미리보기용)
+      const roomsWithLastMessage: ChatRoom[] = await Promise.all(
+        dbRooms.map(async (dbRoom) => {
+          // 캐시에서 먼저 확인 (빠른 표시용)
+          const cachedRoom = cachedRooms?.find((c) => c.id === dbRoom.id);
+          const cachedLastMessage = cachedRoom?.lastMessage;
 
-        return {
-          ...dbRoomToFrontend(dbRoom, []),
-          // 캐시된 마지막 메시지가 있으면 미리보기용으로 유지
-          messages: lastMessage
-            ? [
-                {
-                  id: `cached-${dbRoom.id}`,
-                  role: lastMessage.role,
-                  content: lastMessage.content,
-                  timestamp: lastMessage.timestamp,
-                  isRead: true,
-                },
-              ]
-            : [],
-        };
-      });
+          // Supabase에서 마지막 메시지 1개만 가져오기 (최신 데이터)
+          let lastMessage: ChatMessage | undefined;
+          try {
+            const dbMessages = await chatApi.fetchMessages(dbRoom.id);
+            if (dbMessages.length > 0) {
+              const lastDbMsg = dbMessages[dbMessages.length - 1];
+              lastMessage = dbMessageToFrontend(lastDbMsg);
+            }
+          } catch (e) {
+            // 실패 시 캐시 사용
+            console.warn(`[ChatStore] ${dbRoom.id} 마지막 메시지 로드 실패, 캐시 사용`);
+          }
 
-      console.log(`[ChatStore] Supabase에서 ${roomsWithoutMessages.length}개 채팅방 동기화 완료`);
+          // 최종 마지막 메시지 결정: Supabase > 캐시 > 없음
+          const finalLastMessage = lastMessage || (cachedLastMessage
+            ? {
+                id: `cached-${dbRoom.id}`,
+                role: cachedLastMessage.role,
+                content: cachedLastMessage.content,
+                timestamp: cachedLastMessage.timestamp,
+                isRead: true,
+              }
+            : undefined);
+
+          return {
+            ...dbRoomToFrontend(dbRoom, []),
+            messages: finalLastMessage ? [finalLastMessage] : [],
+          };
+        })
+      );
+
+      console.log(`[ChatStore] Supabase에서 ${roomsWithLastMessage.length}개 채팅방 동기화 완료 (마지막 메시지 포함)`);
 
       set({
-        rooms: roomsWithoutMessages,
+        rooms: roomsWithLastMessage,
         isLoading: false,
         isInitialized: true,
         loadedRoomIds: new Set<string>(),
       });
 
-      // 3. 채팅방 캐시 업데이트 (나중에 메시지 로드 시 다시 업데이트됨)
-      setCachedRooms(roomsWithoutMessages);
+      // 채팅방 캐시 업데이트 (마지막 메시지 포함)
+      setCachedRooms(roomsWithLastMessage);
     } catch (error) {
       console.error('[ChatStore] Supabase 동기화 실패:', error);
-      // 표시된 채팅방이 없으면 로딩 해제
       if (!hasDisplayedRooms) {
         set({ isLoading: false, isInitialized: true });
       }
