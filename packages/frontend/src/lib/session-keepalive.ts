@@ -104,7 +104,7 @@ export function useSessionKeepAlive(
   enabled: boolean = true,
   intervalMs: number = DEFAULT_REFRESH_INTERVAL
 ): void {
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     // 비활성화 상태면 아무것도 하지 않음
