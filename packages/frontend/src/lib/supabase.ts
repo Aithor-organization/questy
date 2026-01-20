@@ -9,7 +9,12 @@ const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('[Supabase] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY');
+  console.warn('%c[Supabase] ⚠️ 환경변수 누락 - VITE_SUPABASE_URL 또는 VITE_SUPABASE_ANON_KEY', 'color: #f59e0b; font-weight: bold;');
+  console.warn('[Supabase] URL:', supabaseUrl ? '설정됨' : '누락');
+  console.warn('[Supabase] ANON_KEY:', supabaseAnonKey ? '설정됨' : '누락');
+} else {
+  console.log('%c[Supabase] ✅ 클라이언트 초기화 완료', 'color: #22c55e; font-weight: bold;');
+  console.log('[Supabase] URL:', supabaseUrl.replace(/https?:\/\//, '').split('.')[0] + '...');
 }
 
 // Anon Client (RLS 적용)
