@@ -18,6 +18,42 @@ export interface AuthUser {
   role: UserRole;
 }
 
+// 활동 추적 쓰로틀링 (메모리 캐시)
+const lastActivityUpdate = new Map<string, number>();
+const ACTIVITY_UPDATE_INTERVAL = 60 * 1000; // 1분
+
+/**
+ * 사용자 활동 시간 업데이트 (쓰로틀링 적용)
+ * 1분에 한 번만 DB 업데이트하여 효율성 확보
+ */
+async function updateUserActivity(userId: string): Promise<void> {
+  if (!supabase) return;
+
+  const now = Date.now();
+  const lastUpdate = lastActivityUpdate.get(userId) || 0;
+
+  // 1분 이내에 이미 업데이트했으면 스킵
+  if (now - lastUpdate < ACTIVITY_UPDATE_INTERVAL) {
+    return;
+  }
+
+  try {
+    // 비동기로 업데이트 (응답 대기 안 함)
+    supabase
+      .from('user_profiles')
+      .update({ last_active_at: new Date().toISOString() })
+      .eq('id', userId)
+      .then(() => {
+        lastActivityUpdate.set(userId, now);
+      })
+      .catch((err) => {
+        console.warn('[AuthMiddleware] Activity update failed:', err.message);
+      });
+  } catch {
+    // 무시 - 활동 추적 실패가 요청을 막으면 안 됨
+  }
+}
+
 /**
  * JWT 토큰에서 사용자 정보 추출
  */
@@ -70,6 +106,9 @@ export async function authenticate(c: Context, next: Next) {
 
   // Context에 사용자 정보 저장
   c.set('user', user);
+
+  // 활동 시간 업데이트 (쓰로틀링 적용, 비동기)
+  updateUserActivity(user.id);
 
   await next();
 }

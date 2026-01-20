@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import type { UserMembership, MembershipType, MembershipStatus } from './types';
-import { REFERRAL_SOURCE_OPTIONS } from './types';
+import { REFERRAL_SOURCE_OPTIONS, isUserOnline } from './types';
 
 // 멤버십 타입 라벨
 const membershipTypeLabels: Record<MembershipType, string> = {
@@ -798,6 +798,12 @@ function UserCard({
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
                 <h3 className="font-medium text-gray-800 truncate">{user.name}</h3>
+                {isUserOnline(user.lastActiveAt) && (
+                  <span className="flex items-center gap-1 px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-xs font-medium">
+                    <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+                    온라인
+                  </span>
+                )}
               <span className={`px-2 py-0.5 rounded text-xs font-medium ${statusColors[status]}`}>
                 {membershipStatusLabels[status]}
               </span>

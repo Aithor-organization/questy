@@ -52,7 +52,8 @@ export interface UserMembership {
   name: string;
   email?: string;
   createdAt: string;
-  lastLoginAt?: string | null;  // 마지막 로그인 시간
+  lastLoginAt?: string | null;  // 마지막 로그인 시간 (실제 인증 시)
+  lastActiveAt?: string | null;  // 마지막 활동 시간 (API 호출 시)
   referralSource?: string | null;  // 유입 경로
   membership: {
     type: MembershipType;
@@ -61,6 +62,13 @@ export interface UserMembership {
     expiresAt: string | null;
     adminNote: string | null;
   } | null;
+}
+
+// 온라인 상태 확인 헬퍼 (5분 이내 활동)
+export function isUserOnline(lastActiveAt: string | null | undefined): boolean {
+  if (!lastActiveAt) return false;
+  const fiveMinutesAgo = Date.now() - (5 * 60 * 1000);
+  return new Date(lastActiveAt).getTime() > fiveMinutesAgo;
 }
 
 // 유입 경로 옵션

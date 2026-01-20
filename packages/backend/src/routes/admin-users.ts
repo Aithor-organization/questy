@@ -188,16 +188,19 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
     });
     await Promise.all(userPromises);
 
-    // user_profiles에서 referral_source 조회
-    const profileInfo: Record<string, { referralSource: string | null }> = {};
+    // user_profiles에서 referral_source, last_active_at 조회
+    const profileInfo: Record<string, { referralSource: string | null; lastActiveAt: string | null }> = {};
     const { data: profiles } = await supabase
       .from('user_profiles')
-      .select('id, referral_source')
+      .select('id, referral_source, last_active_at')
       .in('id', userIds);
 
     if (profiles) {
       for (const p of profiles) {
-        profileInfo[p.id] = { referralSource: p.referral_source };
+        profileInfo[p.id] = {
+          referralSource: p.referral_source,
+          lastActiveAt: p.last_active_at,
+        };
       }
     }
 
@@ -211,6 +214,7 @@ adminUsersRoutes.get('/users', adminOnly, async (c) => {
         email: info?.email || '',
         createdAt: m.created_at,
         lastLoginAt: info?.lastSignInAt || null,
+        lastActiveAt: profile?.lastActiveAt || null,
         referralSource: profile?.referralSource || null,
         membership: {
           type: m.membership_type,
