@@ -26,7 +26,10 @@ let isRefreshing = false;
  * @returns 성공 여부
  */
 export async function refreshSession(maxRetries: number = 3): Promise<boolean> {
-  if (!supabase) return false;
+  if (!supabase) {
+    console.warn('%c[SessionKeepAlive] ⚠️ Supabase 클라이언트 없음', 'color: #f59e0b;');
+    return false;
+  }
 
   // 이미 갱신 중이면 스킵
   if (isRefreshing) {
@@ -77,6 +80,7 @@ export async function refreshSession(maxRetries: number = 3): Promise<boolean> {
         return true;
       }
 
+      console.warn('%c[SessionKeepAlive] ⚠️ 활성 세션 없음 - 갱신 불가', 'color: #f59e0b;');
       isRefreshing = false;
       return false;
     } catch (err: any) {
@@ -116,10 +120,15 @@ export function useSessionKeepAlive(
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
+    console.log(`%c[SessionKeepAlive] 훅 실행 (enabled: ${enabled})`, 'color: #6b7280;');
+
     // 비활성화 상태면 아무것도 하지 않음
     if (!enabled) {
+      console.log('%c[SessionKeepAlive] ⏸️ 비활성화 상태 - 세션 갱신 중지', 'color: #6b7280;');
       return;
     }
+
+    console.log(`%c[SessionKeepAlive] ▶️ 세션 갱신 활성화 (주기: ${intervalMs / 1000}초)`, 'color: #22c55e;');
 
     // 마운트 시 약간의 딜레이 후 세션 갱신 (다른 초기화와 충돌 방지)
     const mountTimeout = setTimeout(() => {
