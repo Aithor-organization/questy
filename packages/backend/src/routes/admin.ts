@@ -11,6 +11,60 @@ import { adminOnly } from '../middleware/auth.js';
 import { supabase } from '../db/supabase.js';
 
 /**
+ * 탐구 과목 매핑 (제목에서 추출한 값 → 정규화된 과목명)
+ */
+const TAMGU_SUBJECT_MAPPING: Record<string, string> = {
+  // 과학탐구
+  '물리학I': '물리학Ⅰ',
+  '물리학Ⅰ': '물리학Ⅰ',
+  '물리학II': '물리학Ⅱ',
+  '물리학Ⅱ': '물리학Ⅱ',
+  '화학I': '화학Ⅰ',
+  '화학Ⅰ': '화학Ⅰ',
+  '화학II': '화학Ⅱ',
+  '화학Ⅱ': '화학Ⅱ',
+  '생명과학I': '생명과학Ⅰ',
+  '생명과학Ⅰ': '생명과학Ⅰ',
+  '생명과학II': '생명과학Ⅱ',
+  '생명과학Ⅱ': '생명과학Ⅱ',
+  '지구과학I': '지구과학Ⅰ',
+  '지구과학Ⅰ': '지구과학Ⅰ',
+  '지구과학II': '지구과학Ⅱ',
+  '지구과학Ⅱ': '지구과학Ⅱ',
+  // 사회탐구
+  '생활과윤리': '생활과윤리',
+  '윤리와사상': '윤리와사상',
+  '한국지리': '한국지리',
+  '세계지리': '세계지리',
+  '동아시아사': '동아시아사',
+  '세계사': '세계사',
+  '경제': '경제',
+  '정치와법': '정치와법',
+  '사회문화': '사회문화',
+};
+
+/**
+ * 제목에서 세부 과목 추출 (예: "[화학I] 베테랑의 개념완성" → "화학Ⅰ")
+ * 탐구 과목인 경우에만 세부 과목으로 변환, 아니면 원래 subject 반환
+ */
+function extractDetailedSubject(title: string, originalSubject: string | null): string | null {
+  // 탐구 과목이 아니면 원래 과목 그대로 반환
+  if (originalSubject && originalSubject !== '탐구') {
+    return originalSubject;
+  }
+
+  // 제목에서 [과목명] 패턴 추출
+  const match = title.match(/^\[(.+?)\]/);
+  if (!match) return originalSubject;
+
+  const rawSubject = match[1];
+  const normalizedSubject = TAMGU_SUBJECT_MAPPING[rawSubject];
+
+  // 매핑된 과목이 있으면 반환, 없으면 원래 subject 반환
+  return normalizedSubject || originalSubject;
+}
+
+/**
  * URL에서 플랫폼 감지
  */
 function detectPlatformFromUrl(url: string): 'megastudy' | 'mimac' | 'etoos' {
@@ -172,12 +226,16 @@ adminRoutes.post('/crawl-and-save', adminOnly, async (c) => {
     // 커리큘럼 파싱
     const curriculum = result.curriculum?.map((item, idx) => parseCurriculumItem(item, idx)) || [];
 
+    // 제목에서 세부 과목 자동 추출 (탐구 과목인 경우)
+    const courseName = result.title || '제목 없음';
+    const detailedSubject = extractDetailedSubject(courseName, subject || null);
+
     // Supabase에 저장 (upsert)
     const courseData = {
       id: result.courseId || `course-${Date.now()}`,
-      name: result.title || '제목 없음',
+      name: courseName,
       teacher_name: teacher || result.lecturer || '미지정',
-      subject: subject || null,
+      subject: detailedSubject,
       platform,
       url,
       lectures: curriculum,
