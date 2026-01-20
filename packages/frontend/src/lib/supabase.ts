@@ -86,14 +86,33 @@ export async function withRetry<T>(
  * 사용 예: const { data, error } = await retryQuery(() => supabase.from('table').select('*'));
  */
 export async function retryQuery<T>(
-  queryFn: () => PromiseLike<{ data: T | null; error: any }>
+  queryFn: () => PromiseLike<{ data: T | null; error: any }>,
+  timeoutMs: number = 15000 // 15초 타임아웃
 ): Promise<{ data: T | null; error: any }> {
   try {
-    return await withRetry(async () => {
+    const startTime = Date.now();
+    console.log('[Supabase] 쿼리 시작...');
+
+    // 타임아웃 Promise
+    const timeoutPromise = new Promise<never>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`쿼리 타임아웃 (${timeoutMs / 1000}초)`));
+      }, timeoutMs);
+    });
+
+    // 실제 쿼리 실행
+    const queryPromise = withRetry(async () => {
       const result = await queryFn();
       return result;
     });
+
+    const result = await Promise.race([queryPromise, timeoutPromise]);
+    const elapsed = Date.now() - startTime;
+    console.log(`[Supabase] 쿼리 완료 (${elapsed}ms)`);
+
+    return result;
   } catch (error: any) {
+    console.error('[Supabase] 쿼리 에러:', error.message);
     return { data: null, error };
   }
 }
