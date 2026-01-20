@@ -81,6 +81,7 @@ interface AuthStore {
   setUserProfile: (profile: UserProfile | null) => void;  // 프로필 업데이트
   loadMembership: () => Promise<MembershipData | null>;  // 멤버십 로드
   setMembershipData: (data: MembershipData | null) => void;  // 멤버십 업데이트
+  revalidateSession: () => Promise<void>;  // 세션 재검증 (탭 복귀 시)
 }
 
 // Supabase User를 앱 User로 변환
@@ -121,6 +122,7 @@ let isVerifyingSession = false;
 
 // 리스너 등록 상태 (중복 등록 방지)
 let isListenerRegistered = false;
+let isVisibilityListenerRegistered = false;
 
 // 타입 정의
 type SetState = (partial: Partial<AuthStore> | ((state: AuthStore) => Partial<AuthStore>)) => void;
@@ -232,7 +234,7 @@ function setupAuthStateListener(set: SetState): void {
           // 새 사용자: students 레코드 생성
           isNewUser = true;
           const userName = newSession.user.user_metadata?.name ||
-                           newSession.user.email?.split('@')[0] || '학생';
+            newSession.user.email?.split('@')[0] || '학생';
           const { data: newStudent } = await client
             .from('students')
             .insert({ user_id: newSession.user.id, name: userName })
@@ -313,6 +315,60 @@ function setupAuthStateListener(set: SetState): void {
   });
 }
 
+// 탭 visibility 변경 리스너 설정 (중복 등록 방지)
+function setupVisibilityListener(get: GetState, set: SetState): void {
+  if (isVisibilityListenerRegistered) {
+    log.log(' Visibility listener already registered, skipping');
+    return;
+  }
+  isVisibilityListenerRegistered = true;
+  log.log(' Setting up visibility change listener');
+
+  document.addEventListener('visibilitychange', async () => {
+    // 탭이 다시 보이게 되었을 때만 세션 재검증
+    if (document.visibilityState === 'visible') {
+      const state = get();
+      // 로그인 상태일 때만 재검증
+      if (state.isAuthenticated && state.user) {
+        log.log(' 🔄 Tab visible: revalidating session...');
+        await revalidateSessionInternal(get, set);
+      }
+    }
+  });
+}
+
+// 세션 재검증 내부 함수
+async function revalidateSessionInternal(get: GetState, set: SetState): Promise<void> {
+  if (!supabase) return;
+
+  try {
+    const { data: { session }, error } = await supabase.auth.getSession();
+
+    if (error || !session) {
+      // 세션 만료 - 로그아웃 처리
+      console.warn('[Auth] ⚠️ Session expired on tab return, logging out');
+      set({ user: null, session: null, isAuthenticated: false });
+      localStorage.removeItem('questybook_student_id');
+      localStorage.removeItem('questybook_student_name');
+      return;
+    }
+
+    // 세션 유효 - 최신 세션으로 업데이트
+    const currentUser = get().user;
+    if (currentUser) {
+      set({ session });
+      log.log(' ✅ Session revalidated successfully');
+    }
+  } catch (err: any) {
+    // AbortError는 무시
+    if (err?.name === 'AbortError') {
+      log.log(' Session revalidation cancelled');
+      return;
+    }
+    console.error('[Auth] Session revalidation error:', err);
+  }
+}
+
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set, get) => ({
@@ -390,6 +446,9 @@ export const useAuthStore = create<AuthStore>()(
 
           // 백그라운드에서 세션 검증 (UI 블로킹 없음)
           verifySessionInBackground(set, get);
+
+          // 탭 visibility 변경 리스너 등록 (세션 재검증용)
+          setupVisibilityListener(get, set);
           return;
         }
 
@@ -445,6 +504,9 @@ export const useAuthStore = create<AuthStore>()(
 
           // 인증 상태 변경 리스너 등록
           setupAuthStateListener(set);
+
+          // 탭 visibility 변경 리스너 등록 (세션 재검증용)
+          setupVisibilityListener(get, set);
 
           const elapsed = performance.now() - startTime;
           console.log(`[Auth] ✅ Init completed in ${elapsed.toFixed(0)}ms`);
@@ -995,6 +1057,11 @@ export const useAuthStore = create<AuthStore>()(
       // 멤버십 데이터 업데이트 (로컬 상태만)
       setMembershipData: (data: MembershipData | null) => {
         set({ membershipData: data });
+      },
+
+      // 세션 재검증 (탭 복귀 시 또는 수동 호출)
+      revalidateSession: async () => {
+        await revalidateSessionInternal(get, set);
       },
     }),
     {
