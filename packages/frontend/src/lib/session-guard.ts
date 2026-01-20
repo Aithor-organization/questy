@@ -87,15 +87,5 @@ export async function withSessionGuard<T>(
   return operation();
 }
 
-/**
- * 탭 활성화 시 세션 재확인
- */
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      // 탭 활성화 시 캐시 무효화 → 다음 중요 작업에서 재확인
-      lastValidationTime = 0;
-      console.log('[SessionGuard] 탭 활성화 - 세션 재확인 예약됨');
-    }
-  });
-}
+// 참고: 탭 활성화 시 세션 재확인은 Supabase SDK가 내부적으로 처리
+// 수동 visibility 리스너 제거 (Web Locks API 충돌 방지)

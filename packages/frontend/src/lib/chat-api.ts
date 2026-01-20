@@ -5,7 +5,6 @@
  */
 
 import { supabase } from './supabase';
-import { refreshSession } from './session-keepalive';
 
 // Supabase 쿼리 로그 헬퍼
 const logQuery = (table: string, action: string, details?: string) => {
@@ -60,37 +59,22 @@ let studentIdPromise: Promise<string | null> | null = null;
 let lastSessionCheck: number = 0;
 const SESSION_CHECK_INTERVAL = 5 * 60 * 1000; // 5분마다 세션 재확인
 
-// 탭이 다시 활성화될 때 세션 재확인을 위한 플래그
-let needsSessionRevalidation = false;
-
-// visibility change 이벤트 핸들러 등록 (한 번만)
-if (typeof document !== 'undefined') {
-  document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible') {
-      // 탭이 다시 활성화되면 세션 재확인 필요 표시
-      needsSessionRevalidation = true;
-      console.log('[ChatAPI] 탭 활성화 - 다음 API 호출 시 세션 재확인');
-    }
-  });
-}
+// 참고: 탭 활성화 시 세션 처리는 Supabase SDK가 내부적으로 담당
+// 수동 visibility 리스너 제거 (Web Locks API 충돌 방지)
 
 // 사용자의 student_id 가져오기 (캐싱, 자동 생성)
 async function getStudentId(): Promise<string | null> {
   if (!supabase) return null;
 
   const now = Date.now();
-  const shouldRevalidate = needsSessionRevalidation || (now - lastSessionCheck > SESSION_CHECK_INTERVAL);
+  const shouldRevalidate = now - lastSessionCheck > SESSION_CHECK_INTERVAL;
 
-  // 캐시가 있지만 세션 재확인이 필요한 경우
+  // 캐시가 있지만 주기적 세션 재확인이 필요한 경우
   if (cachedStudentId && shouldRevalidate) {
-    console.log('[ChatAPI] 세션 재확인 중...');
-    needsSessionRevalidation = false;
+    console.log('[ChatAPI] 주기적 세션 확인 중...');
     lastSessionCheck = now;
 
-    // 먼저 세션 갱신 시도 (만료된 토큰 갱신)
-    await refreshSession(2);
-
-    // 세션 유효성 확인
+    // 세션 유효성 확인 (Supabase SDK가 토큰 갱신은 자동 처리)
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       console.log('[ChatAPI] 세션 만료됨 - 캐시 초기화');
@@ -167,7 +151,6 @@ export function clearStudentIdCache(): void {
   cachedStudentId = null;
   studentIdPromise = null;
   lastSessionCheck = 0;
-  needsSessionRevalidation = false;
 }
 
 /**
