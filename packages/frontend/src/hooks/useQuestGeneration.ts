@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { BookMetadata, DailyQuestAPI } from '@questybook/shared';
 import {
-  canGeneratePlan,
-  incrementGenerationCount,
+  canGeneratePlanAsync,
+  incrementGenerationCountAsync,
+  getRemainingGenerationsAsync,
   getRemainingGenerations,
 } from '../lib/plan-generation-storage';
 
@@ -107,10 +108,18 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
   const [isReviewing, setIsReviewing] = useState(false);
   const [review, setReview] = useState<PlanReview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // 남은 생성 횟수 상태 (초기값은 localStorage 캐시에서)
+  const [remainingGens, setRemainingGens] = useState<number>(getRemainingGenerations());
+
+  // 마운트 시 Supabase에서 정확한 남은 횟수 조회
+  useEffect(() => {
+    getRemainingGenerationsAsync().then(setRemainingGens);
+  }, []);
 
   const generate = useCallback(async (data: FormData) => {
-    // 생성 횟수 제한 체크
-    if (!canGeneratePlan()) {
+    // 생성 횟수 제한 체크 (Supabase에서 정확한 값 확인)
+    const canGenerate = await canGeneratePlanAsync();
+    if (!canGenerate) {
       setError(`오늘의 플랜 생성 횟수(3회)를 모두 사용했습니다. 내일 다시 시도해주세요.`);
       return;
     }
@@ -185,8 +194,11 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
       setResult(resultData);
       setIsLoading(false);
 
-      // 생성 성공 시 카운트 증가
-      incrementGenerationCount();
+      // 생성 성공 시 카운트 증가 (Supabase에 저장)
+      await incrementGenerationCountAsync();
+      // 남은 횟수 업데이트
+      const remaining = await getRemainingGenerationsAsync();
+      setRemainingGens(remaining);
 
       // 플랜 생성 완료 후 자동으로 첫 번째 플랜 리뷰 시작
       if (resultData.plans.length > 0) {
@@ -342,6 +354,6 @@ export function useQuestGeneration(): UseQuestGenerationReturn {
     review,
     error,
     reset,
-    remainingGenerations: getRemainingGenerations(),
+    remainingGenerations: remainingGens,
   };
 }
