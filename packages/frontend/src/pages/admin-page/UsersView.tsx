@@ -37,7 +37,7 @@ const membershipTypeLabels: Record<MembershipType, string> = {
 };
 
 // 정렬 옵션
-type SortOption = 'createdAt' | 'lastLoginAt';
+type SortOption = 'createdAt' | 'lastActiveAt';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001';
 
@@ -120,7 +120,7 @@ export function UsersView() {
       // 1. user_profiles 조회 (referral_source도 여기에 있음)
       let profileQuery = supabase
         .from('user_profiles')
-        .select('id, email, display_name, last_sign_in_at, created_at, referral_source', { count: 'exact' });
+        .select('id, email, display_name, last_sign_in_at, last_active_at, created_at, referral_source', { count: 'exact' });
 
       // 검색 필터
       if (debouncedSearch) {
@@ -128,7 +128,7 @@ export function UsersView() {
       }
 
       // 정렬
-      const sortColumn = sortBy === 'createdAt' ? 'created_at' : 'last_sign_in_at';
+      const sortColumn = sortBy === 'createdAt' ? 'created_at' : 'last_active_at';
       profileQuery = profileQuery.order(sortColumn, { ascending: sortOrder === 'asc', nullsFirst: false });
 
       // 페이지네이션
@@ -177,7 +177,7 @@ export function UsersView() {
           name: profile.display_name || profile.email?.split('@')[0] || 'Unknown',
           createdAt: profile.created_at,
           lastLoginAt: profile.last_sign_in_at || null,
-          lastActiveAt: profile.last_sign_in_at || null,
+          lastActiveAt: profile.last_active_at || profile.last_sign_in_at || null,
           referralSource: profile.referral_source || null,
           membership: membership ? {
             type: membership.membership_type as MembershipType,
@@ -603,16 +603,16 @@ export function UsersView() {
               {sortBy === 'createdAt' && (sortOrder === 'desc' ? ' ↓' : ' ↑')}
             </button>
             <button
-              onClick={() => handleSortChange('lastLoginAt')}
+              onClick={() => handleSortChange('lastActiveAt')}
               className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors flex items-center gap-1 ${
-                sortBy === 'lastLoginAt'
+                sortBy === 'lastActiveAt'
                   ? 'bg-indigo-500 text-white'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
             >
               <Clock size={12} />
-              로그인순
-              {sortBy === 'lastLoginAt' && (sortOrder === 'desc' ? ' ↓' : ' ↑')}
+              온라인순
+              {sortBy === 'lastActiveAt' && (sortOrder === 'desc' ? ' ↓' : ' ↑')}
             </button>
           </div>
 
@@ -955,6 +955,17 @@ function UserCard({
               {membership?.approvedAt && (
                 <span>승인: {new Date(membership.approvedAt).toLocaleDateString('ko-KR')}</span>
               )}
+              {user.lastActiveAt && (
+                <span className="text-green-500">
+                  <Clock size={12} className="inline mr-1" />
+                  최근 온라인: {new Date(user.lastActiveAt).toLocaleString('ko-KR', {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit'
+                  })}
+                </span>
+              )}
               {user.lastLoginAt && (
                 <span className="text-blue-500">
                   <Clock size={12} className="inline mr-1" />
@@ -966,8 +977,8 @@ function UserCard({
                   })}
                 </span>
               )}
-              {!user.lastLoginAt && (
-                <span className="text-gray-300">로그인 기록 없음</span>
+              {!user.lastActiveAt && !user.lastLoginAt && (
+                <span className="text-gray-300">활동 기록 없음</span>
               )}
               {user.referralSource && (
                 <span className="text-purple-500">
