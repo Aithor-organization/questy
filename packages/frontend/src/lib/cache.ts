@@ -34,7 +34,8 @@ export function isCacheStale(key: string, staleTime: number = DEFAULT_STALE_TIME
   try {
     const entry = JSON.parse(cached) as CacheEntry<unknown>;
     return Date.now() - entry.timestamp > staleTime;
-  } catch {
+  } catch (e) {
+    console.warn('[Cache] 캐시 stale 체크 파싱 실패:', e);
     return true;
   }
 }
@@ -52,7 +53,8 @@ export function getFromCache<T>(key: string): T | null {
   try {
     const entry = JSON.parse(cached) as CacheEntry<T>;
     return entry.data;
-  } catch {
+  } catch (e) {
+    console.warn('[Cache] 캐시 데이터 파싱 실패:', e);
     return null;
   }
 }
@@ -142,8 +144,8 @@ export function getCacheInfo(): Array<{ key: string; timestamp: number; age: str
             age: ageMin < 1 ? `${Math.floor(ageMs / 1000)}초` : `${ageMin}분`,
           });
         }
-      } catch {
-        // 파싱 실패는 무시
+      } catch (e) {
+        console.warn('[Cache] 캐시 정보 파싱 실패:', e);
       }
     }
   }

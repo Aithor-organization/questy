@@ -143,6 +143,9 @@ interface QuestStore {
   cancelTimer: () => void;
   getElapsedSeconds: () => number;
   saveTimerProgress: () => void;  // 주기적 저장용
+
+  // 상태 초기화 (로그아웃 시)
+  resetQuest: () => void;
 }
 
 // 오늘 날짜를 YYYY-MM-DD 형식으로 반환
@@ -706,6 +709,22 @@ export const useQuestStore = create<QuestStore>()(
         });
 
         console.log(`[QuestStore] 타이머 진행 저장: ${elapsed}s`);
+      },
+
+      // 상태 초기화 (로그아웃 시)
+      resetQuest: () => {
+        // localStorage 캐시 삭제
+        try {
+          localStorage.removeItem('questybook-storage');
+          console.log('[QuestStore] 상태 초기화됨 (캐시 삭제)');
+        } catch (e) {
+          console.warn('[QuestStore] 캐시 삭제 실패:', e);
+        }
+        set({
+          plans: [],
+          isHydrated: false,
+          activeTimer: null,
+        });
       },
     }),
     {

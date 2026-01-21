@@ -132,13 +132,18 @@ function App() {
   // 로그인 후 스토어 동기화 (Supabase → Zustand)
   const initializeChat = useChatStore((state) => state.initializeChat);
   const resetChat = useChatStore((state) => state.resetChat);
+  const resetQuest = useQuestStore((state) => state.resetQuest);
 
   useEffect(() => {
     async function syncStoresFromSupabase() {
+      // 아직 인증 확인 중이면 대기
+      if (isLoading) return;
+
       if (!isAuthenticated) {
-        // 로그아웃 시 플래그 리셋 및 채팅 상태 초기화
+        // 로그아웃 시 플래그 리셋 및 스토어 상태 초기화
         hasSyncedRef.current = false;
         resetChat();
+        resetQuest();
         return;
       }
 
@@ -163,7 +168,7 @@ function App() {
     }
 
     syncStoresFromSupabase();
-  }, [isAuthenticated, initializeChat, resetChat]);
+  }, [isLoading, isAuthenticated, initializeChat, resetChat, resetQuest]);
 
   // 예약된 알림 백그라운드 체크 (1분마다)
   useScheduledNotifications();

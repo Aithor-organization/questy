@@ -25,7 +25,8 @@ async function getUserId(): Promise<string | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     return user?.id || null;
-  } catch {
+  } catch (e) {
+    console.warn('[SupabaseStorage] 사용자 조회 실패:', e);
     return null;
   }
 }
@@ -34,7 +35,8 @@ async function getUserId(): Promise<string | null> {
 function getLocalStorage(key: string): string | null {
   try {
     return localStorage.getItem(key);
-  } catch {
+  } catch (e) {
+    console.warn('[SupabaseStorage] localStorage 조회 실패:', e);
     return null;
   }
 }
@@ -55,35 +57,13 @@ function removeLocalStorage(key: string): void {
   }
 }
 
-/**
- * 사용자 변경 감지 및 localStorage 초기화
- * 다른 사용자로 로그인 시 이전 사용자의 캐시된 데이터를 삭제
- */
-function checkAndClearOnUserChange(currentUserId: string, key: string): boolean {
-  const lastUserId = getLocalStorage(LAST_USER_KEY);
-
-  if (lastUserId && lastUserId !== currentUserId) {
-    // 사용자가 변경됨 - localStorage 데이터 삭제
-    console.log('[SupabaseStorage] 사용자 변경 감지, 캐시 초기화:', lastUserId, '→', currentUserId);
-    removeLocalStorage(key);
-    setLocalStorage(LAST_USER_KEY, currentUserId);
-    return true; // 캐시가 초기화됨
-  }
-
-  if (!lastUserId) {
-    // 첫 로그인 - 사용자 ID 저장
-    setLocalStorage(LAST_USER_KEY, currentUserId);
-  }
-
-  return false; // 캐시 유효
-}
-
 // JSON 문자열을 StorageValue로 파싱
 function parseStorageValue<T>(value: string | null): StorageValue<T> | null {
   if (!value) return null;
   try {
     return JSON.parse(value) as StorageValue<T>;
-  } catch {
+  } catch (e) {
+    console.warn('[SupabaseStorage] JSON 파싱 실패:', e);
     return null;
   }
 }
@@ -96,21 +76,46 @@ function parseStorageValue<T>(value: string | null): StorageValue<T> | null {
 export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
   return {
     getItem: async (key: string): Promise<StorageValue<T> | null> => {
-      // 1. 사용자 ID 확인
-      const userId = await getUserId();
+      // 1. 먼저 localStorage에서 데이터 확인 (즉시 반환으로 깜빡임 방지)
+      const localData = getLocalStorage(key);
+      const lastUserId = getLocalStorage(LAST_USER_KEY);
 
-      // 2. Supabase가 설정되지 않았으면 localStorage만 사용
-      if (!userId || !supabase) {
-        const localData = getLocalStorage(key);
+      // 2. Supabase가 없으면 localStorage만 사용
+      if (!supabase) {
         return parseStorageValue<T>(localData);
       }
 
-      // 3. 사용자 변경 감지 및 캐시 초기화
-      const cacheCleared = checkAndClearOnUserChange(userId, key);
+      // 3. 사용자 ID 확인
+      const userId = await getUserId();
+
+      // 4. 비로그인 상태면 localStorage 반환
+      if (!userId) {
+        return parseStorageValue<T>(localData);
+      }
+
+      // 5. 사용자 변경 감지 - 변경되었으면 캐시 무효화
+      if (lastUserId && lastUserId !== userId) {
+        console.log('[SupabaseStorage] 사용자 변경 감지, 캐시 무효화:', lastUserId, '→', userId);
+        removeLocalStorage(key);
+        setLocalStorage(LAST_USER_KEY, userId);
+        // 사용자 변경 시에는 Supabase에서 새로 가져와야 함
+      } else {
+        // 6. 사용자 동일 + localStorage에 데이터 있으면 즉시 반환 (캐시 히트)
+        //    Supabase 동기화는 App.tsx에서 syncFromSupabase로 별도 처리
+        if (localData) {
+          if (!lastUserId) {
+            setLocalStorage(LAST_USER_KEY, userId);
+          }
+          return parseStorageValue<T>(localData);
+        }
+      }
+
+      // 7. localStorage에 없으면 Supabase에서 가져오기
+      if (!lastUserId) {
+        setLocalStorage(LAST_USER_KEY, userId);
+      }
 
       try {
-        // 4. Supabase에서 최신 데이터 가져오기 (사용자별 데이터)
-        // maybeSingle() 사용: 결과가 없어도 에러 발생하지 않음 (406 에러 방지)
         const { data, error } = await supabase
           .from(STORAGE_TABLE)
           .select('value, updated_at')
@@ -121,12 +126,7 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
 
         if (error) {
           console.warn('[SupabaseStorage] 조회 실패:', error.message);
-          // 캐시가 초기화되었으면 null 반환 (이전 사용자 데이터 방지)
-          if (cacheCleared) {
-            return null;
-          }
-          const localData = getLocalStorage(key);
-          return parseStorageValue<T>(localData);
+          return null;
         }
 
         if (data?.value) {
@@ -135,21 +135,10 @@ export function createSupabaseStorage<T>(storeName: string): PersistStorage<T> {
           return parseStorageValue<T>(data.value);
         }
 
-        // Supabase에 데이터 없음 - 캐시가 초기화되었으면 null 반환
-        if (cacheCleared) {
-          return null;
-        }
-
-        const localData = getLocalStorage(key);
-        return parseStorageValue<T>(localData);
+        return null;
       } catch (error) {
         console.error('[SupabaseStorage] getItem 에러:', error);
-        // 오류 시에도 캐시가 초기화되었으면 null 반환
-        if (cacheCleared) {
-          return null;
-        }
-        const localData = getLocalStorage(key);
-        return parseStorageValue<T>(localData);
+        return null;
       }
     },
 

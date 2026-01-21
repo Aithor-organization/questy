@@ -1,5 +1,10 @@
 import OpenAI from 'openai';
 
+// 환경변수 검증
+if (!process.env.OPENROUTER_API_KEY) {
+  console.warn('[OpenRouter] OPENROUTER_API_KEY 환경변수가 설정되지 않았습니다. AI 기능이 비활성화됩니다.');
+}
+
 // OpenRouter는 OpenAI SDK 호환
 export const openrouter = new OpenAI({
   baseURL: 'https://openrouter.ai/api/v1',

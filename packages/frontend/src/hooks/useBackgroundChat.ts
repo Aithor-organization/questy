@@ -85,7 +85,7 @@ export function useBackgroundChat(roomId: string) {
         localStorage.setItem('questybook_session_id', sessionId);
       }
 
-      const userName = localStorage.getItem('questybook_user_name') || '학생';
+      const userName = localStorage.getItem('questybook_student_name') || '학생';
 
       // 사용자 메시지 추가 (async)
       const userMessageId = await addMessage(roomId, {

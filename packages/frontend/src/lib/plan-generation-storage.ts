@@ -67,7 +67,8 @@ async function getUserId(): Promise<string | null> {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     return user?.id || null;
-  } catch {
+  } catch (e) {
+    console.warn('[PlanStorage] 사용자 조회 실패:', e);
     return null;
   }
 }
@@ -80,7 +81,8 @@ function getLocalGenerationData(): GenerationData | null {
     const data = localStorage.getItem(GENERATION_DATA_KEY);
     if (!data) return null;
     return JSON.parse(data);
-  } catch {
+  } catch (e) {
+    console.warn('[PlanStorage] 로컬 데이터 파싱 실패:', e);
     return null;
   }
 }
@@ -355,7 +357,8 @@ export function getPendingPlan(): PendingPlanData | null {
     }
 
     return parsed;
-  } catch {
+  } catch (e) {
+    console.warn('[PlanStorage] 미적용 플랜 파싱 실패:', e);
     return null;
   }
 }
@@ -382,7 +385,8 @@ export function getPendingPlanTimeRemaining(): number {
     const parsed: PendingPlanData = JSON.parse(data);
     const expiryTime = parsed.createdAt + (PENDING_PLAN_EXPIRY_HOURS * 60 * 60 * 1000);
     return Math.max(0, expiryTime - Date.now());
-  } catch {
+  } catch (e) {
+    console.warn('[PlanStorage] 남은 시간 계산 실패:', e);
     return 0;
   }
 }
