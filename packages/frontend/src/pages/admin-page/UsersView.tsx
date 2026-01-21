@@ -71,7 +71,7 @@ export function UsersView() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active'>('all');
   const [typeFilter, setTypeFilter] = useState<MembershipType | 'all'>('all');
   const [referralFilter, setReferralFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<SortOption>('createdAt');
+  const [sortBy, setSortBy] = useState<SortOption>('lastActiveAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
