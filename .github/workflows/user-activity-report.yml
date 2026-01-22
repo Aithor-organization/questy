@@ -6,8 +6,6 @@ on:
     - cron: '0 1 * * *'
     # 매일 오후 10시 KST (13:00 UTC)
     - cron: '0 13 * * *'
-    # 매주 월요일 새벽 2시 KST (일요일 17:00 UTC)
-    - cron: '0 17 * * 0'
   workflow_dispatch: # 수동 실행 가능
 
 jobs:
@@ -19,7 +17,7 @@ jobs:
         id: time
         run: |
           echo "kst_time=$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
-          echo "report_type=$(TZ='Asia/Seoul' date '+%H' | awk '{if($1=="10") print "morning"; else if($1=="22") print "evening"; else print "weekly"}')" >> $GITHUB_OUTPUT
+          echo "report_type=$(TZ='Asia/Seoul' date '+%H' | awk '{if($1=="10") print "morning"; else print "evening"}')" >> $GITHUB_OUTPUT
 
       - name: Fetch users from Supabase
         id: fetch

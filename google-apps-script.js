@@ -152,7 +152,6 @@ function handleUserActivityReport(spreadsheet, data) {
   const reportTypeKorean = {
     'morning': '오전10시',
     'evening': '오후10시',
-    'weekly': '주간(월요일새벽2시)',
     'manual': '수동실행'
   }[reportType] || reportType;
 
