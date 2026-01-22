@@ -60,8 +60,8 @@ jobs:
             --argjson users '${{ steps.fetch.outputs.users }}' \
             '{type: $type, reportTime: $reportTime, reportType: $reportType, users: $users}')
 
-          # Google Apps Script로 전송 (-L: follow redirects)
-          RESPONSE=$(curl -s -L -w "\n%{http_code}" -X POST \
+          # Google Apps Script로 전송 (--post302: keep POST on redirect)
+          RESPONSE=$(curl -s -L --post301 --post302 --post303 -w "\n%{http_code}" \
             "${{ secrets.GOOGLE_SHEETS_API_URL }}" \
             -H "Content-Type: text/plain" \
             -d "$PAYLOAD")
