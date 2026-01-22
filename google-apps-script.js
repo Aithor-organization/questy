@@ -1,39 +1,22 @@
 /**
  * Questy 사용자 활동 리포트 - Google Apps Script
  *
- * 매일 오전 10시, 오후 10시에 GitHub Actions에서 호출되어
- * 사용자들의 온라인 상태를 날짜별 시트에 기록합니다.
- *
- * 사용 방법:
- * 1. Google Sheets를 새로 생성하세요
- * 2. 확장 프로그램 > Apps Script 메뉴로 이동
- * 3. 아래 코드를 붙여넣으세요
- * 4. 저장 후 배포 > 새 배포 > 유형: 웹 앱 선택
- * 5. 실행 사용자: 나 자신, 액세스 권한: 모든 사용자로 설정
- * 6. 배포 후 생성되는 웹 앱 URL을 GitHub Secrets에 추가
+ * 구조:
+ * - 가로 확장: 날짜별 (1월22일 오전10시, 1월22일 오후10시, 1월23일 오전10시, ...)
+ * - 세로 확장: 새 유저 추가
+ * - 활동 변동 있으면 시간 표시, 없으면 "-"
+ * - 맨 밑 합계: 해당 시간대에 활동 있었던 사람 수
  */
 
 function doPost(e) {
   try {
     const data = JSON.parse(e.postData.contents);
+    const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
 
-    // 스프레드시트 열기
-    const properties = PropertiesService.getScriptProperties();
-    let SPREADSHEET_ID = properties.getProperty('SPREADSHEET_ID');
-
-    if (!SPREADSHEET_ID) {
-      SPREADSHEET_ID = SpreadsheetApp.getActiveSpreadsheet().getId();
-      properties.setProperty('SPREADSHEET_ID', SPREADSHEET_ID);
-    }
-
-    const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-
-    // 사용자 활동 리포트 처리
     if (data.type === 'user_activity_report') {
       return handleUserActivityReport(spreadsheet, data);
     }
 
-    // 알 수 없는 타입
     return ContentService
       .createTextOutput(JSON.stringify({ success: false, error: 'Unknown type: ' + data.type }))
       .setMimeType(ContentService.MimeType.JSON);
@@ -47,115 +30,237 @@ function doPost(e) {
 
 /**
  * 사용자 활동 리포트 처리
- * 날짜별 시트에 오전/오후 리포트를 기록
- *
- * 시트 구조 (날짜별 시트: "2026-01-22"):
- * | 시간 | 이름 | 이메일 | 마지막활동 | 온라인상태 |
  */
 function handleUserActivityReport(spreadsheet, data) {
   const now = new Date();
-  const reportType = data.reportType || 'manual';
-  const reportTypeKorean = {
-    'morning': '오전10시',
-    'evening': '오후10시',
-    'manual': '수동'
-  }[reportType] || reportType;
+  const reportType = data.reportType || 'manual'; // 'morning' or 'evening'
 
-  // 오늘 날짜로 시트 이름 생성 (KST 기준)
-  const dateStr = Utilities.formatDate(now, 'Asia/Seoul', 'yyyy-MM-dd');
-  let sheet = spreadsheet.getSheetByName(dateStr);
-
-  // 시트가 없으면 새로 생성
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(dateStr, 0); // 맨 앞에 추가
-    sheet.appendRow(['시간', '이름', '이메일', '마지막활동', '온라인상태']);
-    sheet.getRange(1, 1, 1, 5).setFontWeight('bold').setBackground('#4285f4').setFontColor('#ffffff');
-    sheet.setFrozenRows(1);
-    sheet.setColumnWidth(1, 80);
-    sheet.setColumnWidth(2, 120);
-    sheet.setColumnWidth(3, 200);
-    sheet.setColumnWidth(4, 150);
-    sheet.setColumnWidth(5, 80);
+  // 메인 시트 가져오기 또는 생성
+  let mainSheet = spreadsheet.getSheetByName('사용자활동');
+  if (!mainSheet) {
+    mainSheet = spreadsheet.insertSheet('사용자활동', 0);
+    initializeMainSheet(mainSheet);
   }
 
-  // 구분선 추가 (오전/오후 리포트 구분)
-  sheet.appendRow([reportTypeKorean, '---', '---', '---', '---']);
-  const separatorRow = sheet.getLastRow();
-  sheet.getRange(separatorRow, 1, 1, 5).setBackground('#e8f0fe').setFontWeight('bold');
-
-  // 사용자 데이터가 없으면
-  if (!data.users || data.users.length === 0) {
-    sheet.appendRow([reportTypeKorean, '(사용자 없음)', '', '', '']);
-    return ContentService
-      .createTextOutput(JSON.stringify({ success: true, message: '사용자 없음', userCount: 0 }))
-      .setMimeType(ContentService.MimeType.JSON);
+  // 데이터 추적 시트 (숨김) - 이전 last_active_at 저장용
+  let dataSheet = spreadsheet.getSheetByName('_UserData');
+  if (!dataSheet) {
+    dataSheet = spreadsheet.insertSheet('_UserData');
+    dataSheet.hideSheet();
+    dataSheet.appendRow(['user_id', 'email', 'last_active_at']);
   }
 
-  // 온라인 판별 (15분 이내)
-  const ONLINE_THRESHOLD_MS = 15 * 60 * 1000;
-  let onlineCount = 0;
-  let offlineCount = 0;
+  // 날짜/시간 라벨 생성
+  const dateStr = Utilities.formatDate(now, 'Asia/Seoul', 'M월d일');
+  const timeLabel = reportType === 'morning' ? '오전10시' : (reportType === 'evening' ? '오후10시' : '수동');
+  const columnHeader = dateStr + '\n' + timeLabel;
 
-  // 사용자 데이터 정렬 (온라인 먼저, 그 다음 마지막 활동 시간순)
-  const sortedUsers = data.users.sort(function(a, b) {
-    const aActive = a.last_active_at ? new Date(a.last_active_at) : new Date(0);
-    const bActive = b.last_active_at ? new Date(b.last_active_at) : new Date(0);
-    const aOnline = (now.getTime() - aActive.getTime()) < ONLINE_THRESHOLD_MS;
-    const bOnline = (now.getTime() - bActive.getTime()) < ONLINE_THRESHOLD_MS;
+  // 해당 날짜/시간 열 찾기 또는 생성
+  const colIndex = findOrCreateColumn(mainSheet, columnHeader);
 
-    if (aOnline && !bOnline) return -1;
-    if (!aOnline && bOnline) return 1;
-    return bActive.getTime() - aActive.getTime(); // 최근 활동순
-  });
+  // 저장된 last_active 데이터 가져오기
+  const storedData = getStoredUserData(dataSheet);
 
-  // 행 데이터 생성
-  const rows = sortedUsers.map(function(user) {
-    const lastActive = user.last_active_at ? new Date(user.last_active_at) : null;
-    const isOnline = lastActive && (now.getTime() - lastActive.getTime()) < ONLINE_THRESHOLD_MS;
+  // 사용자 처리
+  const users = data.users || [];
+  let activeCount = 0;
 
-    if (isOnline) onlineCount++;
-    else offlineCount++;
+  for (const user of users) {
+    // 유저 행 찾기 또는 생성
+    const rowIndex = findOrCreateUserRow(mainSheet, user);
 
-    return [
-      reportTypeKorean,
-      user.display_name || '(이름없음)',
-      user.email || '',
-      lastActive ? Utilities.formatDate(lastActive, 'Asia/Seoul', 'MM-dd HH:mm') : '없음',
-      isOnline ? '🟢' : '⚪'
-    ];
-  });
+    const currentLastActive = user.last_active_at;
+    const storedLastActive = storedData[user.id];
 
-  // 일괄 추가
-  if (rows.length > 0) {
-    sheet.getRange(sheet.getLastRow() + 1, 1, rows.length, 5).setValues(rows);
+    let cellValue = '-';
+
+    // 활동 변동 체크: 저장된 값과 다르면 변동 있음
+    if (currentLastActive && currentLastActive !== storedLastActive) {
+      const activeTime = new Date(currentLastActive);
+      cellValue = Utilities.formatDate(activeTime, 'Asia/Seoul', 'H:mm');
+      activeCount++;
+
+      // 저장값 업데이트
+      updateStoredUserData(dataSheet, user.id, user.email, currentLastActive);
+    }
+
+    mainSheet.getRange(rowIndex, colIndex).setValue(cellValue).setHorizontalAlignment('center');
   }
 
-  // 통계 행 추가
-  sheet.appendRow(['', '합계', onlineCount + offlineCount + '명', '온라인: ' + onlineCount + '명', '']);
-  const statsRow = sheet.getLastRow();
-  sheet.getRange(statsRow, 1, 1, 5).setFontStyle('italic').setFontColor('#666666');
+  // 합계 행 업데이트
+  const totalRowIndex = findTotalRow(mainSheet);
+  mainSheet.getRange(totalRowIndex, colIndex).setValue(activeCount + '명').setHorizontalAlignment('center');
 
   return ContentService
     .createTextOutput(JSON.stringify({
       success: true,
-      message: '리포트 저장 완료',
       date: dateStr,
-      reportType: reportTypeKorean,
-      userCount: data.users.length,
-      onlineCount: onlineCount,
-      offlineCount: offlineCount
+      reportType: timeLabel,
+      activeCount: activeCount,
+      totalUsers: users.length
     }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * 스프레드시트 ID 설정 (선택사항)
- * 다른 스프레드시트를 사용하려면 이 함수를 실행하세요
+ * 메인 시트 초기화
  */
-function setupSpreadsheetId() {
-  const SPREADSHEET_ID = 'YOUR_SPREADSHEET_ID_HERE';
-  PropertiesService.getScriptProperties().setProperty('SPREADSHEET_ID', SPREADSHEET_ID);
-  Logger.log('스프레드시트 ID 설정됨: ' + SPREADSHEET_ID);
+function initializeMainSheet(sheet) {
+  // 헤더 행
+  sheet.getRange(1, 1).setValue('이름');
+  sheet.getRange(1, 2).setValue('이메일');
+  sheet.getRange(1, 1, 1, 2).setFontWeight('bold').setBackground('#4285f4').setFontColor('#ffffff');
+
+  // 합계 행
+  sheet.getRange(2, 1).setValue('합계');
+  sheet.getRange(2, 2).setValue('');
+  sheet.getRange(2, 1, 1, 2).setFontWeight('bold').setBackground('#f3f3f3');
+
+  // 고정 설정
+  sheet.setFrozenRows(1);
+  sheet.setFrozenColumns(2);
+  sheet.setColumnWidth(1, 100);
+  sheet.setColumnWidth(2, 180);
+}
+
+/**
+ * 열 찾기 또는 생성 (날짜/시간 헤더 기준)
+ */
+function findOrCreateColumn(sheet, columnHeader) {
+  const lastCol = Math.max(sheet.getLastColumn(), 2);
+  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+
+  // 기존 열 찾기
+  for (let i = 2; i < headerRow.length; i++) {
+    if (headerRow[i] === columnHeader) {
+      return i + 1;
+    }
+  }
+
+  // 새 열 생성
+  const newColIndex = lastCol + 1;
+
+  // 헤더 설정
+  sheet.getRange(1, newColIndex)
+    .setValue(columnHeader)
+    .setFontWeight('bold')
+    .setBackground('#e8f0fe')
+    .setWrap(true)
+    .setHorizontalAlignment('center')
+    .setVerticalAlignment('middle');
+
+  sheet.setColumnWidth(newColIndex, 75);
+
+  // 기존 유저 행들에 '-' 초기화
+  const lastRow = sheet.getLastRow();
+  if (lastRow > 1) {
+    for (let row = 2; row <= lastRow; row++) {
+      const nameValue = sheet.getRange(row, 1).getValue();
+      if (nameValue && nameValue !== '합계') {
+        sheet.getRange(row, newColIndex).setValue('-').setHorizontalAlignment('center');
+      }
+    }
+  }
+
+  return newColIndex;
+}
+
+/**
+ * 유저 행 찾기 또는 생성
+ */
+function findOrCreateUserRow(sheet, user) {
+  const lastRow = sheet.getLastRow();
+  const displayName = user.display_name || '(이름없음)';
+
+  // 기존 유저 찾기 (이메일로 매칭)
+  if (lastRow > 1) {
+    const emailCol = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+    for (let i = 0; i < emailCol.length; i++) {
+      if (emailCol[i][0] === user.email) {
+        // 이름 업데이트 (변경되었을 수 있음)
+        sheet.getRange(i + 2, 1).setValue(displayName);
+        return i + 2;
+      }
+    }
+  }
+
+  // 새 유저 - 합계 행 위에 삽입
+  const totalRowIndex = findTotalRow(sheet);
+  sheet.insertRowBefore(totalRowIndex);
+
+  // 새 유저 정보 입력
+  sheet.getRange(totalRowIndex, 1).setValue(displayName);
+  sheet.getRange(totalRowIndex, 2).setValue(user.email || '');
+
+  // 기존 날짜 열들에 '-' 입력
+  const lastCol = sheet.getLastColumn();
+  for (let col = 3; col <= lastCol; col++) {
+    sheet.getRange(totalRowIndex, col).setValue('-').setHorizontalAlignment('center');
+  }
+
+  return totalRowIndex;
+}
+
+/**
+ * 합계 행 인덱스 찾기
+ */
+function findTotalRow(sheet) {
+  const lastRow = sheet.getLastRow();
+  const nameCol = sheet.getRange(1, 1, lastRow, 1).getValues();
+
+  for (let i = 0; i < nameCol.length; i++) {
+    if (nameCol[i][0] === '합계') {
+      return i + 1;
+    }
+  }
+
+  // 합계 행이 없으면 생성
+  const newRow = lastRow + 1;
+  sheet.getRange(newRow, 1).setValue('합계');
+  sheet.getRange(newRow, 1, 1, 2).setFontWeight('bold').setBackground('#f3f3f3');
+  return newRow;
+}
+
+/**
+ * 저장된 유저 데이터 가져오기
+ */
+function getStoredUserData(dataSheet) {
+  const lastRow = dataSheet.getLastRow();
+  if (lastRow <= 1) return {};
+
+  const data = dataSheet.getRange(2, 1, lastRow - 1, 3).getValues();
+  const result = {};
+
+  for (let i = 0; i < data.length; i++) {
+    const userId = data[i][0];
+    const lastActive = data[i][2];
+    if (userId) {
+      result[userId] = lastActive;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * 저장된 유저 데이터 업데이트
+ */
+function updateStoredUserData(dataSheet, userId, email, lastActiveAt) {
+  const lastRow = dataSheet.getLastRow();
+
+  // 기존 데이터 찾기
+  if (lastRow > 1) {
+    const userIds = dataSheet.getRange(2, 1, lastRow - 1, 1).getValues();
+    for (let i = 0; i < userIds.length; i++) {
+      if (userIds[i][0] === userId) {
+        dataSheet.getRange(i + 2, 3).setValue(lastActiveAt);
+        return;
+      }
+    }
+  }
+
+  // 새 유저 추가
+  dataSheet.appendRow([userId, email, lastActiveAt]);
 }
 
 /**
@@ -166,12 +271,27 @@ function testReport() {
     type: 'user_activity_report',
     reportType: 'morning',
     users: [
-      { display_name: '테스트유저1', email: 'test1@test.com', last_active_at: new Date().toISOString() },
-      { display_name: '테스트유저2', email: 'test2@test.com', last_active_at: new Date(Date.now() - 3600000).toISOString() }
+      { id: 'user1', display_name: '테스트유저1', email: 'test1@test.com', last_active_at: new Date().toISOString() },
+      { id: 'user2', display_name: '테스트유저2', email: 'test2@test.com', last_active_at: new Date(Date.now() - 3600000).toISOString() }
     ]
   };
 
   const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
   const result = handleUserActivityReport(spreadsheet, testData);
   Logger.log(result.getContent());
+}
+
+/**
+ * 시트 초기화 (테스트용)
+ */
+function resetSheets() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  const mainSheet = spreadsheet.getSheetByName('사용자활동');
+  if (mainSheet) spreadsheet.deleteSheet(mainSheet);
+
+  const dataSheet = spreadsheet.getSheetByName('_UserData');
+  if (dataSheet) spreadsheet.deleteSheet(dataSheet);
+
+  Logger.log('시트 초기화 완료');
 }
