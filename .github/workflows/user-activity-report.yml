@@ -26,7 +26,7 @@ jobs:
 
           # Supabase에서 사용자 데이터 조회
           RESPONSE=$(curl -s -w "\n%{http_code}" \
-            "${{ secrets.SUPABASE_URL }}/rest/v1/user_profiles?select=id,name,email,last_active_at,last_sign_in_at,created_at" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/user_profiles?select=id,display_name,email,last_active_at,last_sign_in_at,created_at" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
 

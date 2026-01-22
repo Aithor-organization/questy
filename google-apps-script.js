@@ -193,7 +193,7 @@ function handleUserActivityReport(spreadsheet, data) {
       reportTime,
       reportTypeKorean,
       user.id || '',
-      user.name || '(이름없음)',
+      user.display_name || '(이름없음)',
       user.email || '',
       lastActive ? formatDateKST(lastActive) : '없음',
       lastSignIn ? formatDateKST(lastSignIn) : '없음',
