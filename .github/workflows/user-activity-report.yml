@@ -49,22 +49,33 @@ jobs:
           echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Send to Google Sheets
+        env:
+          GOOGLE_SHEETS_URL: ${{ secrets.GOOGLE_SHEETS_API_URL }}
         run: |
           echo "Sending report to Google Sheets..."
 
-          # JSON 페이로드 구성
+          # URL 디버깅 (길이만 출력)
+          echo "URL length: ${#GOOGLE_SHEETS_URL}"
+
+          # JSON 페이로드를 파일로 저장 (GitHub Actions output escape 문제 회피)
+          cat > /tmp/payload.json << 'EOFPAYLOAD'
+          ${{ steps.fetch.outputs.users }}
+          EOFPAYLOAD
+
+          # 페이로드 구성
           PAYLOAD=$(jq -n \
             --arg type "user_activity_report" \
             --arg reportTime "${{ steps.time.outputs.kst_time }}" \
             --arg reportType "${{ steps.time.outputs.report_type }}" \
-            --argjson users '${{ steps.fetch.outputs.users }}' \
-            '{type: $type, reportTime: $reportTime, reportType: $reportType, users: $users}')
+            --slurpfile users /tmp/payload.json \
+            '{type: $type, reportTime: $reportTime, reportType: $reportType, users: $users[0]}')
 
-          # Google Apps Script로 전송 (--post302: keep POST on redirect)
-          RESPONSE=$(curl -s -L --post301 --post302 --post303 -w "\n%{http_code}" \
-            "${{ secrets.GOOGLE_SHEETS_API_URL }}" \
-            -H "Content-Type: text/plain" \
-            -d "$PAYLOAD")
+          echo "Payload preview: $(echo "$PAYLOAD" | head -c 200)..."
+
+          # Google Apps Script로 전송 (리다이렉트 후 결과 URL에서 데이터 가져오기)
+          RESPONSE=$(curl -s -L -w "\n%{http_code}" \
+            -d "$PAYLOAD" \
+            "$GOOGLE_SHEETS_URL")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           BODY=$(echo "$RESPONSE" | sed '$d')
