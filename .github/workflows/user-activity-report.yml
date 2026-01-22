@@ -24,11 +24,11 @@ jobs:
         run: |
           echo "Fetching user activity data from Supabase..."
 
-          # Supabase에서 사용자 데이터 조회
+          # Supabase에서 사용자 데이터 조회 (service_role key 필요 - RLS bypass)
           RESPONSE=$(curl -s -w "\n%{http_code}" \
             "${{ secrets.SUPABASE_URL }}/rest/v1/user_profiles?select=id,display_name,email,last_active_at,last_sign_in_at,created_at" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+            -H "apikey: ${{ secrets.SUPABASE_SERVICE_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_KEY }}")
 
           HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
           USERS=$(echo "$RESPONSE" | sed '$d')
