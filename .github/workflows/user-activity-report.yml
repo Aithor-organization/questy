@@ -1,0 +1,91 @@
+name: User Activity Report to Google Sheets
+
+on:
+  schedule:
+    # 매일 오전 10시 KST (01:00 UTC)
+    - cron: '0 1 * * *'
+    # 매일 오후 10시 KST (13:00 UTC)
+    - cron: '0 13 * * *'
+    # 매주 월요일 새벽 2시 KST (일요일 17:00 UTC)
+    - cron: '0 17 * * 0'
+  workflow_dispatch: # 수동 실행 가능
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Get current time in KST
+        id: time
+        run: |
+          echo "kst_time=$(TZ='Asia/Seoul' date '+%Y-%m-%d %H:%M:%S')" >> $GITHUB_OUTPUT
+          echo "report_type=$(TZ='Asia/Seoul' date '+%H' | awk '{if($1=="10") print "morning"; else if($1=="22") print "evening"; else print "weekly"}')" >> $GITHUB_OUTPUT
+
+      - name: Fetch users from Supabase
+        id: fetch
+        run: |
+          echo "Fetching user activity data from Supabase..."
+
+          # Supabase에서 사용자 데이터 조회
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/user_profiles?select=id,name,email,last_active_at,last_sign_in_at,created_at" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          USERS=$(echo "$RESPONSE" | sed '$d')
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "Error: Failed to fetch users (HTTP $HTTP_CODE)"
+            echo "$USERS"
+            exit 1
+          fi
+
+          # 사용자 수 출력
+          USER_COUNT=$(echo "$USERS" | jq 'length')
+          echo "Found $USER_COUNT users"
+
+          # 환경 변수로 저장 (multiline JSON)
+          echo "users<<EOF" >> $GITHUB_OUTPUT
+          echo "$USERS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: Send to Google Sheets
+        run: |
+          echo "Sending report to Google Sheets..."
+
+          # JSON 페이로드 구성
+          PAYLOAD=$(jq -n \
+            --arg type "user_activity_report" \
+            --arg reportTime "${{ steps.time.outputs.kst_time }}" \
+            --arg reportType "${{ steps.time.outputs.report_type }}" \
+            --argjson users '${{ steps.fetch.outputs.users }}' \
+            '{type: $type, reportTime: $reportTime, reportType: $reportType, users: $users}')
+
+          # Google Apps Script로 전송
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "${{ secrets.GOOGLE_SHEETS_API_URL }}" \
+            -H "Content-Type: text/plain" \
+            -d "$PAYLOAD")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
+
+          echo "Response: $BODY"
+          echo "HTTP Code: $HTTP_CODE"
+
+          # 성공 여부 확인
+          SUCCESS=$(echo "$BODY" | jq -r '.success // false')
+          if [ "$SUCCESS" != "true" ]; then
+            echo "Warning: Google Sheets API did not return success"
+          fi
+
+          echo "Report sent successfully!"
+
+      - name: Summary
+        run: |
+          echo "## 📊 User Activity Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Time (KST)**: ${{ steps.time.outputs.kst_time }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Report Type**: ${{ steps.time.outputs.report_type }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Status**: ✅ Completed" >> $GITHUB_STEP_SUMMARY
