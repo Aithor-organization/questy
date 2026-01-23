@@ -2,10 +2,12 @@
  * Questy 사용자 활동 리포트 - Google Apps Script
  *
  * 구조:
- * - 가로 확장: 날짜별 (1월22일 오전10시, 1월22일 오후10시, 1월23일 오전10시, ...)
- * - 세로 확장: 새 유저 추가
- * - 활동 변동 있으면 시간 표시, 없으면 "-"
- * - 맨 밑 합계: 해당 시간대에 활동 있었던 사람 수
+ * - Row 1: 이름, 이메일, 날짜 헤더 (1월22일, 1월23일, ...)
+ * - Row 2: (빈칸), (빈칸), 시간 헤더 (오전10시, 오후10시, ...)
+ * - Row 3+: 유저 데이터
+ * - 마지막 행: 합계
+ *
+ * 타임스탬프 형식: YYYYMMDDHHmm (예: 202601230932)
  */
 
 function doPost(e) {
@@ -53,10 +55,9 @@ function handleUserActivityReport(spreadsheet, data) {
   // 날짜/시간 라벨 생성
   const dateStr = Utilities.formatDate(now, 'Asia/Seoul', 'M월d일');
   const timeLabel = reportType === 'morning' ? '오전10시' : (reportType === 'evening' ? '오후10시' : '수동');
-  const columnHeader = dateStr + '\n' + timeLabel;
 
   // 해당 날짜/시간 열 찾기 또는 생성
-  const colIndex = findOrCreateColumn(mainSheet, columnHeader);
+  const colIndex = findOrCreateColumn(mainSheet, dateStr, timeLabel);
 
   // 저장된 last_active 데이터 가져오기
   const storedData = getStoredUserData(dataSheet);
@@ -77,7 +78,8 @@ function handleUserActivityReport(spreadsheet, data) {
     // 활동 변동 체크: 저장된 값과 다르면 변동 있음
     if (currentLastActive && currentLastActive !== storedLastActive) {
       const activeTime = new Date(currentLastActive);
-      cellValue = Utilities.formatDate(activeTime, 'Asia/Seoul', 'H:mm');
+      // 타임스탬프 형식: YYYYMMDDHHmm
+      cellValue = Utilities.formatDate(activeTime, 'Asia/Seoul', 'yyyyMMddHHmm');
       activeCount++;
 
       // 저장값 업데이트
@@ -103,36 +105,44 @@ function handleUserActivityReport(spreadsheet, data) {
 }
 
 /**
- * 메인 시트 초기화
+ * 메인 시트 초기화 (2행 헤더)
  */
 function initializeMainSheet(sheet) {
-  // 헤더 행
+  // Row 1: 날짜 헤더
   sheet.getRange(1, 1).setValue('이름');
   sheet.getRange(1, 2).setValue('이메일');
   sheet.getRange(1, 1, 1, 2).setFontWeight('bold').setBackground('#4285f4').setFontColor('#ffffff');
 
-  // 합계 행
-  sheet.getRange(2, 1).setValue('합계');
+  // Row 2: 시간 헤더 (이름/이메일 칸은 빈칸)
+  sheet.getRange(2, 1).setValue('');
   sheet.getRange(2, 2).setValue('');
-  sheet.getRange(2, 1, 1, 2).setFontWeight('bold').setBackground('#f3f3f3');
+  sheet.getRange(2, 1, 1, 2).setBackground('#4285f4');
 
-  // 고정 설정
-  sheet.setFrozenRows(1);
+  // Row 3: 합계 행
+  sheet.getRange(3, 1).setValue('합계');
+  sheet.getRange(3, 2).setValue('');
+  sheet.getRange(3, 1, 1, 2).setFontWeight('bold').setBackground('#f3f3f3');
+
+  // 고정 설정 (2행 고정)
+  sheet.setFrozenRows(2);
   sheet.setFrozenColumns(2);
   sheet.setColumnWidth(1, 100);
   sheet.setColumnWidth(2, 180);
 }
 
 /**
- * 열 찾기 또는 생성 (날짜/시간 헤더 기준)
+ * 열 찾기 또는 생성 (날짜: Row1, 시간: Row2)
  */
-function findOrCreateColumn(sheet, columnHeader) {
+function findOrCreateColumn(sheet, dateStr, timeLabel) {
   const lastCol = Math.max(sheet.getLastColumn(), 2);
-  const headerRow = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
 
-  // 기존 열 찾기
-  for (let i = 2; i < headerRow.length; i++) {
-    if (headerRow[i] === columnHeader) {
+  // Row 1 (날짜), Row 2 (시간) 읽기
+  const row1 = sheet.getRange(1, 1, 1, lastCol).getValues()[0];
+  const row2 = sheet.getRange(2, 1, 1, lastCol).getValues()[0];
+
+  // 기존 열 찾기 (날짜 + 시간 매칭)
+  for (let i = 2; i < row1.length; i++) {
+    if (row1[i] === dateStr && row2[i] === timeLabel) {
       return i + 1;
     }
   }
@@ -140,21 +150,26 @@ function findOrCreateColumn(sheet, columnHeader) {
   // 새 열 생성
   const newColIndex = lastCol + 1;
 
-  // 헤더 설정
+  // Row 1: 날짜 헤더
   sheet.getRange(1, newColIndex)
-    .setValue(columnHeader)
+    .setValue(dateStr)
     .setFontWeight('bold')
     .setBackground('#e8f0fe')
-    .setWrap(true)
-    .setHorizontalAlignment('center')
-    .setVerticalAlignment('middle');
+    .setHorizontalAlignment('center');
 
-  sheet.setColumnWidth(newColIndex, 75);
+  // Row 2: 시간 헤더
+  sheet.getRange(2, newColIndex)
+    .setValue(timeLabel)
+    .setFontWeight('bold')
+    .setBackground('#d0e0fc')
+    .setHorizontalAlignment('center');
 
-  // 기존 유저 행들에 '-' 초기화
+  sheet.setColumnWidth(newColIndex, 110);
+
+  // 기존 유저 행들에 '-' 초기화 (Row 3부터)
   const lastRow = sheet.getLastRow();
-  if (lastRow > 1) {
-    for (let row = 2; row <= lastRow; row++) {
+  if (lastRow > 2) {
+    for (let row = 3; row <= lastRow; row++) {
       const nameValue = sheet.getRange(row, 1).getValue();
       if (nameValue && nameValue !== '합계') {
         sheet.getRange(row, newColIndex).setValue('-').setHorizontalAlignment('center');
@@ -172,14 +187,14 @@ function findOrCreateUserRow(sheet, user) {
   const lastRow = sheet.getLastRow();
   const displayName = user.display_name || '(이름없음)';
 
-  // 기존 유저 찾기 (이메일로 매칭)
-  if (lastRow > 1) {
-    const emailCol = sheet.getRange(2, 2, lastRow - 1, 1).getValues();
+  // 기존 유저 찾기 (이메일로 매칭) - Row 3부터 검색
+  if (lastRow > 2) {
+    const emailCol = sheet.getRange(3, 2, lastRow - 2, 1).getValues();
     for (let i = 0; i < emailCol.length; i++) {
       if (emailCol[i][0] === user.email) {
         // 이름 업데이트 (변경되었을 수 있음)
-        sheet.getRange(i + 2, 1).setValue(displayName);
-        return i + 2;
+        sheet.getRange(i + 3, 1).setValue(displayName);
+        return i + 3;
       }
     }
   }
@@ -214,8 +229,8 @@ function findTotalRow(sheet) {
     }
   }
 
-  // 합계 행이 없으면 생성
-  const newRow = lastRow + 1;
+  // 합계 행이 없으면 생성 (Row 3에)
+  const newRow = Math.max(lastRow + 1, 3);
   sheet.getRange(newRow, 1).setValue('합계');
   sheet.getRange(newRow, 1, 1, 2).setFontWeight('bold').setBackground('#f3f3f3');
   return newRow;
