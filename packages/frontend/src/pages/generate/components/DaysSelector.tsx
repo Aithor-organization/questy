@@ -14,6 +14,8 @@ interface DaysSelectorProps {
   onTotalDaysChange: (days: number) => void;
   onSelectedDaysChange: (days: DayOfWeek[]) => void;
   onScheduleModeChange: (mode: 'manual' | 'ai') => void;
+  /** 직접 만들기 모드에서 일정 설정 숨김 */
+  hideScheduleMode?: boolean;
 }
 
 export function DaysSelector({
@@ -23,6 +25,7 @@ export function DaysSelector({
   onTotalDaysChange,
   onSelectedDaysChange,
   onScheduleModeChange,
+  hideScheduleMode = false,
 }: DaysSelectorProps) {
   // 요일 토글
   const toggleDay = (day: DayOfWeek) => {
@@ -107,71 +110,75 @@ export function DaysSelector({
         </p>
       </div>
 
-      {/* 일정 설정 모드 */}
-      <div>
-        <label className="block text-sm text-[var(--pencil-gray)] mb-2">
-          일정 설정
-        </label>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => onScheduleModeChange('ai')}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm transition-all ${
-              scheduleMode === 'ai'
-                ? 'bg-[var(--sticker-mint)] text-white'
-                : 'bg-[var(--paper-cream)] text-[var(--pencil-gray)] border border-[var(--paper-lines)]'
-            }`}
-          >
-            ✨ AI 추천
-          </button>
-          <button
-            type="button"
-            onClick={() => onScheduleModeChange('manual')}
-            className={`flex-1 py-3 px-4 rounded-lg text-sm transition-all ${
-              scheduleMode === 'manual'
-                ? 'bg-[var(--ink-blue)] text-white'
-                : 'bg-[var(--paper-cream)] text-[var(--pencil-gray)] border border-[var(--paper-lines)]'
-            }`}
-          >
-            📅 직접 입력
-          </button>
-        </div>
-      </div>
-
-      {/* 직접 입력 모드 */}
-      {scheduleMode === 'manual' && (
-        <div>
-          <label className="block text-sm text-[var(--pencil-gray)] mb-2">
-            목표 퀘스트 수
-          </label>
-          <div className="flex items-center gap-4">
-            <input
-              type="range"
-              min="7"
-              max="90"
-              value={totalDays}
-              onChange={(e) => onTotalDaysChange(Number(e.target.value))}
-              className="flex-1 h-2 bg-[var(--paper-lines)] rounded-lg appearance-none cursor-pointer"
-            />
-            <div className="sticker sticker-gold">{totalDays}개</div>
+      {/* 일정 설정 모드 (직접 만들기 모드에서는 숨김) */}
+      {!hideScheduleMode && (
+        <>
+          <div>
+            <label className="block text-sm text-[var(--pencil-gray)] mb-2">
+              일정 설정
+            </label>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => onScheduleModeChange('ai')}
+                className={`flex-1 py-3 px-4 rounded-lg text-sm transition-all ${
+                  scheduleMode === 'ai'
+                    ? 'bg-[var(--sticker-mint)] text-white'
+                    : 'bg-[var(--paper-cream)] text-[var(--pencil-gray)] border border-[var(--paper-lines)]'
+                }`}
+              >
+                ✨ AI 추천
+              </button>
+              <button
+                type="button"
+                onClick={() => onScheduleModeChange('manual')}
+                className={`flex-1 py-3 px-4 rounded-lg text-sm transition-all ${
+                  scheduleMode === 'manual'
+                    ? 'bg-[var(--ink-blue)] text-white'
+                    : 'bg-[var(--paper-cream)] text-[var(--pencil-gray)] border border-[var(--paper-lines)]'
+                }`}
+              >
+                📅 직접 입력
+              </button>
+            </div>
           </div>
-          <div className="flex justify-between text-xs text-[var(--pencil-gray)] mt-1">
-            <span>빠르게 (7개)</span>
-            <span>여유롭게 (90개)</span>
-          </div>
-        </div>
-      )}
 
-      {/* AI 추천 모드 안내 */}
-      {scheduleMode === 'ai' && (
-        <div className="p-4 bg-[var(--highlight-green)] rounded-lg">
-          <p className="text-sm text-[var(--ink-black)]">
-            ✨ AI가 교재 분량과 선택한 요일을 분석하여 최적의 학습 일정을 추천해 드립니다.
-          </p>
-          <p className="text-xs text-[var(--pencil-gray)] mt-2">
-            생성 후 일정을 조정할 수 있습니다.
-          </p>
-        </div>
+          {/* 직접 입력 모드 */}
+          {scheduleMode === 'manual' && (
+            <div>
+              <label className="block text-sm text-[var(--pencil-gray)] mb-2">
+                목표 퀘스트 수
+              </label>
+              <div className="flex items-center gap-4">
+                <input
+                  type="range"
+                  min="7"
+                  max="90"
+                  value={totalDays}
+                  onChange={(e) => onTotalDaysChange(Number(e.target.value))}
+                  className="flex-1 h-2 bg-[var(--paper-lines)] rounded-lg appearance-none cursor-pointer"
+                />
+                <div className="sticker sticker-gold">{totalDays}개</div>
+              </div>
+              <div className="flex justify-between text-xs text-[var(--pencil-gray)] mt-1">
+                <span>빠르게 (7개)</span>
+                <span>여유롭게 (90개)</span>
+              </div>
+            </div>
+          )}
+
+          {/* AI 추천 모드 안내 */}
+          {scheduleMode === 'ai' && (
+            <div className="p-4 bg-[var(--highlight-green)] rounded-lg">
+              <p className="text-sm text-[var(--ink-black)]">
+                ✨ AI가 교재 분량과 선택한 요일을 분석하여 최적의 학습 일정을 추천해 드립니다.
+              </p>
+              <p className="text-xs text-[var(--pencil-gray)] mt-2">
+                생성 후 일정을 조정할 수 있습니다.
+              </p>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

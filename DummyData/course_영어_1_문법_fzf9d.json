@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_영어_1_문법_fzf9d",
+    "name": "기초 문법",
+    "teacher_name": "1타강사_영어",
+    "subject": "영어",
+    "platform": "megastudy",
+    "url": "https://example.com/course/2/2/1",
+    "lectures": "[{\"num\": 1, \"title\": \"기초 문법 - 1강\", \"duration\": \"52:00\"}, {\"num\": 2, \"title\": \"기초 문법 - 2강\", \"duration\": \"33:00\"}, {\"num\": 3, \"title\": \"기초 문법 - 3강\", \"duration\": \"47:00\"}, {\"num\": 4, \"title\": \"기초 문법 - 4강\", \"duration\": \"50:00\"}, {\"num\": 5, \"title\": \"기초 문법 - 5강\", \"duration\": \"56:00\"}, {\"num\": 6, \"title\": \"기초 문법 - 6강\", \"duration\": \"52:00\"}, {\"num\": 7, \"title\": \"기초 문법 - 7강\", \"duration\": \"48:00\"}, {\"num\": 8, \"title\": \"기초 문법 - 8강\", \"duration\": \"34:00\"}, {\"num\": 9, \"title\": \"기초 문법 - 9강\", \"duration\": \"50:00\"}, {\"num\": 10, \"title\": \"기초 문법 - 10강\", \"duration\": \"52:00\"}, {\"num\": 11, \"title\": \"기초 문법 - 11강\", \"duration\": \"21:00\"}, {\"num\": 12, \"title\": \"기초 문법 - 12강\", \"duration\": \"20:00\"}, {\"num\": 13, \"title\": \"기초 문법 - 13강\", \"duration\": \"41:00\"}, {\"num\": 14, \"title\": \"기초 문법 - 14강\", \"duration\": \"33:00\"}, {\"num\": 15, \"title\": \"기초 문법 - 15강\", \"duration\": \"57:00\"}, {\"num\": 16, \"title\": \"기초 문법 - 16강\", \"duration\": \"50:00\"}, {\"num\": 17, \"title\": \"기초 문법 - 17강\", \"duration\": \"20:00\"}, {\"num\": 18, \"title\": \"기초 문법 - 18강\", \"duration\": \"27:00\"}, {\"num\": 19, \"title\": \"기초 문법 - 19강\", \"duration\": \"55:00\"}, {\"num\": 20, \"title\": \"기초 문법 - 20강\", \"duration\": \"50:00\"}]",
+    "lecture_count": 20,
+    "total_duration": "1000분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

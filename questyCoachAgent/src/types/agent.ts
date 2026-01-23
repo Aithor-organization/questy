@@ -290,6 +290,8 @@ export interface DirectorContext {
 // 모델 설정
 export type ModelId =
   | 'gpt-5-nano'        // 의도 분류
+  | 'openai/gpt-5-nano' // Explicit ID
+  | 'openai/gpt-5-mini' // Explicit ID (User Request)
   | 'claude-4.5-haiku'  // 코칭
   | 'gemini-3-flash';   // 분석
 

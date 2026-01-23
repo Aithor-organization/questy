@@ -1,0 +1,762 @@
+[
+  {
+    "courseId": "course_경제_1_bnev9",
+    "courseName": "경제 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_경제_2_avz7d",
+    "courseName": "경제 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_경제_3_1oupc",
+    "courseName": "경제 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_경제_4_79fvd",
+    "courseName": "경제 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_1_독서_p4d4k",
+    "courseName": "기초 독서",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_1_문학_5quuq",
+    "courseName": "기초 문학",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_1_언어와 매체_puxwj",
+    "courseName": "기초 언어와 매체",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_1_화법과 작문_g368h",
+    "courseName": "기초 화법과 작문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_2_독서_en7ma",
+    "courseName": "기본 독서",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_2_문학_fkrml",
+    "courseName": "기본 문학",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_2_언어와 매체_pf4zv",
+    "courseName": "기본 언어와 매체",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_2_화법과 작문_t6t21",
+    "courseName": "기본 화법과 작문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_3_독서_d72dg",
+    "courseName": "심화 독서",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_3_문학_r4s9w",
+    "courseName": "심화 문학",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_3_언어와 매체_3vofc",
+    "courseName": "심화 언어와 매체",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_국어_3_화법과 작문_ks6lb",
+    "courseName": "심화 화법과 작문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_동아시아사_1_4x7gf",
+    "courseName": "동아시아사 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_동아시아사_2_5z7p3",
+    "courseName": "동아시아사 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_동아시아사_3_dhoz8",
+    "courseName": "동아시아사 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_동아시아사_4_gnlkg",
+    "courseName": "동아시아사 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_물리학I_1_ojovz",
+    "courseName": "물리학I 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_물리학I_2_c6amj",
+    "courseName": "물리학I 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_물리학I_3_cfqsl",
+    "courseName": "물리학I 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_물리학I_4_e96pm",
+    "courseName": "물리학I 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_사회문화_1_59980",
+    "courseName": "사회문화 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_사회문화_2_gevi9",
+    "courseName": "사회문화 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_사회문화_3_dyu8s",
+    "courseName": "사회문화 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_사회문화_4_2lxwm",
+    "courseName": "사회문화 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생명과학I_1_8zmah",
+    "courseName": "생명과학I 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생명과학I_2_5s2m5",
+    "courseName": "생명과학I 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생명과학I_3_v3uch",
+    "courseName": "생명과학I 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생명과학I_4_ze7ky",
+    "courseName": "생명과학I 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생활과윤리_1_qloe7",
+    "courseName": "생활과윤리 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생활과윤리_2_dt4zv",
+    "courseName": "생활과윤리 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생활과윤리_3_9ib7n",
+    "courseName": "생활과윤리 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_생활과윤리_4_2072u",
+    "courseName": "생활과윤리 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계사_1_6rv14",
+    "courseName": "세계사 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계사_2_7dw7b",
+    "courseName": "세계사 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계사_3_zfpu4",
+    "courseName": "세계사 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계사_4_b087m",
+    "courseName": "세계사 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계지리_1_tlwxg",
+    "courseName": "세계지리 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계지리_2_ulh7p",
+    "courseName": "세계지리 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계지리_3_y3uwx",
+    "courseName": "세계지리 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_세계지리_4_rd3ko",
+    "courseName": "세계지리 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_1_기하_579px",
+    "courseName": "기초 기하",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_1_미적분_qh8u1",
+    "courseName": "기초 미적분",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_1_수학II_ginmd",
+    "courseName": "기초 수학II",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_1_수학I_fws28",
+    "courseName": "기초 수학I",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_1_확률과 통계_e5m6n",
+    "courseName": "기초 확률과 통계",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_2_기하_y8x9o",
+    "courseName": "기본 기하",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_2_미적분_wbpml",
+    "courseName": "기본 미적분",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_2_수학II_38x9k",
+    "courseName": "기본 수학II",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_2_수학I_aczax",
+    "courseName": "기본 수학I",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_2_확률과 통계_5co3l",
+    "courseName": "기본 확률과 통계",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_3_기하_frla7",
+    "courseName": "심화 기하",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_3_미적분_uulfv",
+    "courseName": "심화 미적분",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_3_수학II_j2s89",
+    "courseName": "심화 수학II",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_3_수학I_692gv",
+    "courseName": "심화 수학I",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_수학_3_확률과 통계_l2682",
+    "courseName": "심화 확률과 통계",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_1_구문_5ev8h",
+    "courseName": "기초 구문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_1_독해_cqnif",
+    "courseName": "기초 독해",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_1_문법_fzf9d",
+    "courseName": "기초 문법",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_1_어휘_cbzl4",
+    "courseName": "기초 어휘",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_2_구문_txmhf",
+    "courseName": "기본 구문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_2_독해_m1u5s",
+    "courseName": "기본 독해",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_2_문법_ug4q3",
+    "courseName": "기본 문법",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_2_어휘_yibam",
+    "courseName": "기본 어휘",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_3_구문_rhqkx",
+    "courseName": "심화 구문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_3_독해_hfksw",
+    "courseName": "심화 독해",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_3_문법_f4s79",
+    "courseName": "심화 문법",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_영어_3_어휘_0ay5i",
+    "courseName": "심화 어휘",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_윤리와사상_1_o3yby",
+    "courseName": "윤리와사상 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_윤리와사상_2_is984",
+    "courseName": "윤리와사상 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_윤리와사상_3_du4s2",
+    "courseName": "윤리와사상 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_윤리와사상_4_aywh0",
+    "courseName": "윤리와사상 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_정치와법_1_ps8gg",
+    "courseName": "정치와법 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_정치와법_2_idhws",
+    "courseName": "정치와법 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_정치와법_3_kmjj0",
+    "courseName": "정치와법 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_정치와법_4_6oiq9",
+    "courseName": "정치와법 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_지구과학I_1_bh1d8",
+    "courseName": "지구과학I 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_지구과학I_2_jggrc",
+    "courseName": "지구과학I 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_지구과학I_3_ff6d6",
+    "courseName": "지구과학I 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_지구과학I_4_pfczv",
+    "courseName": "지구과학I 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국사_1_qfk8z",
+    "courseName": "한국사 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국사_2_pzco1",
+    "courseName": "한국사 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국사_3_g0q0w",
+    "courseName": "한국사 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국사_4_587j0",
+    "courseName": "한국사 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국지리_1_0nkw6",
+    "courseName": "한국지리 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국지리_2_kjbi2",
+    "courseName": "한국지리 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국지리_3_a6x9i",
+    "courseName": "한국지리 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_한국지리_4_rczmc",
+    "courseName": "한국지리 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_화학I_1_111zp",
+    "courseName": "화학I 기초 입문",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_화학I_2_udvug",
+    "courseName": "화학I 기본 완성",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_화학I_3_583ye",
+    "courseName": "화학I 심화 문제풀이",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  },
+  {
+    "courseId": "course_화학I_4_tldvt",
+    "courseName": "화학I 파이널 모의고사",
+    "isSuccess": true,
+    "score": 100,
+    "critique": [],
+    "durationVariance": 0
+  }
+]

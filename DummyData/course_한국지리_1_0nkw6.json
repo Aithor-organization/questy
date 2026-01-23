@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_한국지리_1_0nkw6",
+    "name": "한국지리 기초 입문",
+    "teacher_name": "1타강사_한국지리",
+    "subject": "한국지리",
+    "platform": "megastudy",
+    "url": "https://example.com/course/10/1",
+    "lectures": "[{\"num\": 1, \"title\": \"한국지리 기초 입문 - 1강\", \"duration\": \"58:00\"}, {\"num\": 2, \"title\": \"한국지리 기초 입문 - 2강\", \"duration\": \"50:00\"}, {\"num\": 3, \"title\": \"한국지리 기초 입문 - 3강\", \"duration\": \"25:00\"}, {\"num\": 4, \"title\": \"한국지리 기초 입문 - 4강\", \"duration\": \"44:00\"}, {\"num\": 5, \"title\": \"한국지리 기초 입문 - 5강\", \"duration\": \"31:00\"}, {\"num\": 6, \"title\": \"한국지리 기초 입문 - 6강\", \"duration\": \"50:00\"}, {\"num\": 7, \"title\": \"한국지리 기초 입문 - 7강\", \"duration\": \"24:00\"}, {\"num\": 8, \"title\": \"한국지리 기초 입문 - 8강\", \"duration\": \"20:00\"}, {\"num\": 9, \"title\": \"한국지리 기초 입문 - 9강\", \"duration\": \"48:00\"}, {\"num\": 10, \"title\": \"한국지리 기초 입문 - 10강\", \"duration\": \"23:00\"}, {\"num\": 11, \"title\": \"한국지리 기초 입문 - 11강\", \"duration\": \"33:00\"}, {\"num\": 12, \"title\": \"한국지리 기초 입문 - 12강\", \"duration\": \"55:00\"}, {\"num\": 13, \"title\": \"한국지리 기초 입문 - 13강\", \"duration\": \"25:00\"}, {\"num\": 14, \"title\": \"한국지리 기초 입문 - 14강\", \"duration\": \"48:00\"}]",
+    "lecture_count": 14,
+    "total_duration": "700분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

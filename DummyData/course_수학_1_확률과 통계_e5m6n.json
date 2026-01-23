@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_수학_1_확률과 통계_e5m6n",
+    "name": "기초 확률과 통계",
+    "teacher_name": "1타강사_수학",
+    "subject": "수학",
+    "platform": "megastudy",
+    "url": "https://example.com/course/1/4/1",
+    "lectures": "[{\"num\": 1, \"title\": \"기초 확률과 통계 - 1강\", \"duration\": \"53:00\"}, {\"num\": 2, \"title\": \"기초 확률과 통계 - 2강\", \"duration\": \"30:00\"}, {\"num\": 3, \"title\": \"기초 확률과 통계 - 3강\", \"duration\": \"26:00\"}, {\"num\": 4, \"title\": \"기초 확률과 통계 - 4강\", \"duration\": \"43:00\"}, {\"num\": 5, \"title\": \"기초 확률과 통계 - 5강\", \"duration\": \"53:00\"}, {\"num\": 6, \"title\": \"기초 확률과 통계 - 6강\", \"duration\": \"40:00\"}, {\"num\": 7, \"title\": \"기초 확률과 통계 - 7강\", \"duration\": \"36:00\"}, {\"num\": 8, \"title\": \"기초 확률과 통계 - 8강\", \"duration\": \"49:00\"}, {\"num\": 9, \"title\": \"기초 확률과 통계 - 9강\", \"duration\": \"45:00\"}, {\"num\": 10, \"title\": \"기초 확률과 통계 - 10강\", \"duration\": \"40:00\"}, {\"num\": 11, \"title\": \"기초 확률과 통계 - 11강\", \"duration\": \"57:00\"}, {\"num\": 12, \"title\": \"기초 확률과 통계 - 12강\", \"duration\": \"42:00\"}, {\"num\": 13, \"title\": \"기초 확률과 통계 - 13강\", \"duration\": \"57:00\"}, {\"num\": 14, \"title\": \"기초 확률과 통계 - 14강\", \"duration\": \"58:00\"}, {\"num\": 15, \"title\": \"기초 확률과 통계 - 15강\", \"duration\": \"20:00\"}, {\"num\": 16, \"title\": \"기초 확률과 통계 - 16강\", \"duration\": \"52:00\"}]",
+    "lecture_count": 16,
+    "total_duration": "800분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

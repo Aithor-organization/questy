@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_수학_1_미적분_qh8u1",
+    "name": "기초 미적분",
+    "teacher_name": "1타강사_수학",
+    "subject": "수학",
+    "platform": "megastudy",
+    "url": "https://example.com/course/1/2/1",
+    "lectures": "[{\"num\": 1, \"title\": \"기초 미적분 - 1강\", \"duration\": \"39:00\"}, {\"num\": 2, \"title\": \"기초 미적분 - 2강\", \"duration\": \"27:00\"}, {\"num\": 3, \"title\": \"기초 미적분 - 3강\", \"duration\": \"41:00\"}, {\"num\": 4, \"title\": \"기초 미적분 - 4강\", \"duration\": \"40:00\"}, {\"num\": 5, \"title\": \"기초 미적분 - 5강\", \"duration\": \"44:00\"}, {\"num\": 6, \"title\": \"기초 미적분 - 6강\", \"duration\": \"35:00\"}, {\"num\": 7, \"title\": \"기초 미적분 - 7강\", \"duration\": \"44:00\"}, {\"num\": 8, \"title\": \"기초 미적분 - 8강\", \"duration\": \"32:00\"}, {\"num\": 9, \"title\": \"기초 미적분 - 9강\", \"duration\": \"55:00\"}, {\"num\": 10, \"title\": \"기초 미적분 - 10강\", \"duration\": \"23:00\"}, {\"num\": 11, \"title\": \"기초 미적분 - 11강\", \"duration\": \"43:00\"}]",
+    "lecture_count": 11,
+    "total_duration": "550분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

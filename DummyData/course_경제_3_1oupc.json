@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_경제_3_1oupc",
+    "name": "경제 심화 문제풀이",
+    "teacher_name": "1타강사_경제",
+    "subject": "경제",
+    "platform": "megastudy",
+    "url": "https://example.com/course/15/3",
+    "lectures": "[{\"num\": 1, \"title\": \"경제 심화 문제풀이 - 1강\", \"duration\": \"30:00\"}, {\"num\": 2, \"title\": \"경제 심화 문제풀이 - 2강\", \"duration\": \"50:00\"}, {\"num\": 3, \"title\": \"경제 심화 문제풀이 - 3강\", \"duration\": \"26:00\"}, {\"num\": 4, \"title\": \"경제 심화 문제풀이 - 4강\", \"duration\": \"23:00\"}, {\"num\": 5, \"title\": \"경제 심화 문제풀이 - 5강\", \"duration\": \"57:00\"}, {\"num\": 6, \"title\": \"경제 심화 문제풀이 - 6강\", \"duration\": \"29:00\"}, {\"num\": 7, \"title\": \"경제 심화 문제풀이 - 7강\", \"duration\": \"44:00\"}, {\"num\": 8, \"title\": \"경제 심화 문제풀이 - 8강\", \"duration\": \"58:00\"}, {\"num\": 9, \"title\": \"경제 심화 문제풀이 - 9강\", \"duration\": \"32:00\"}, {\"num\": 10, \"title\": \"경제 심화 문제풀이 - 10강\", \"duration\": \"45:00\"}]",
+    "lecture_count": 10,
+    "total_duration": "500분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.691Z",
+    "created_at": "2026-01-20T16:54:17.691Z",
+    "updated_at": "2026-01-20T16:54:17.691Z",
+    "teacher_id": null
+  }
+]

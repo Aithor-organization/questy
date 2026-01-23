@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_사회문화_3_dyu8s",
+    "name": "사회문화 심화 문제풀이",
+    "teacher_name": "1타강사_사회문화",
+    "subject": "사회문화",
+    "platform": "megastudy",
+    "url": "https://example.com/course/16/3",
+    "lectures": "[{\"num\": 1, \"title\": \"사회문화 심화 문제풀이 - 1강\", \"duration\": \"35:00\"}, {\"num\": 2, \"title\": \"사회문화 심화 문제풀이 - 2강\", \"duration\": \"31:00\"}, {\"num\": 3, \"title\": \"사회문화 심화 문제풀이 - 3강\", \"duration\": \"41:00\"}, {\"num\": 4, \"title\": \"사회문화 심화 문제풀이 - 4강\", \"duration\": \"57:00\"}, {\"num\": 5, \"title\": \"사회문화 심화 문제풀이 - 5강\", \"duration\": \"56:00\"}, {\"num\": 6, \"title\": \"사회문화 심화 문제풀이 - 6강\", \"duration\": \"30:00\"}, {\"num\": 7, \"title\": \"사회문화 심화 문제풀이 - 7강\", \"duration\": \"30:00\"}, {\"num\": 8, \"title\": \"사회문화 심화 문제풀이 - 8강\", \"duration\": \"48:00\"}, {\"num\": 9, \"title\": \"사회문화 심화 문제풀이 - 9강\", \"duration\": \"43:00\"}, {\"num\": 10, \"title\": \"사회문화 심화 문제풀이 - 10강\", \"duration\": \"28:00\"}, {\"num\": 11, \"title\": \"사회문화 심화 문제풀이 - 11강\", \"duration\": \"49:00\"}, {\"num\": 12, \"title\": \"사회문화 심화 문제풀이 - 12강\", \"duration\": \"22:00\"}]",
+    "lecture_count": 12,
+    "total_duration": "600분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.691Z",
+    "created_at": "2026-01-20T16:54:17.691Z",
+    "updated_at": "2026-01-20T16:54:17.691Z",
+    "teacher_id": null
+  }
+]

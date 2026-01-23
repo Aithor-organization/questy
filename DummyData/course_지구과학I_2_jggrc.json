@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_지구과학I_2_jggrc",
+    "name": "지구과학I 기본 완성",
+    "teacher_name": "1타강사_지구과학I",
+    "subject": "지구과학I",
+    "platform": "megastudy",
+    "url": "https://example.com/course/7/2",
+    "lectures": "[{\"num\": 1, \"title\": \"지구과학I 기본 완성 - 1강\", \"duration\": \"30:00\"}, {\"num\": 2, \"title\": \"지구과학I 기본 완성 - 2강\", \"duration\": \"48:00\"}, {\"num\": 3, \"title\": \"지구과학I 기본 완성 - 3강\", \"duration\": \"47:00\"}, {\"num\": 4, \"title\": \"지구과학I 기본 완성 - 4강\", \"duration\": \"38:00\"}, {\"num\": 5, \"title\": \"지구과학I 기본 완성 - 5강\", \"duration\": \"38:00\"}, {\"num\": 6, \"title\": \"지구과학I 기본 완성 - 6강\", \"duration\": \"59:00\"}, {\"num\": 7, \"title\": \"지구과학I 기본 완성 - 7강\", \"duration\": \"50:00\"}, {\"num\": 8, \"title\": \"지구과학I 기본 완성 - 8강\", \"duration\": \"49:00\"}, {\"num\": 9, \"title\": \"지구과학I 기본 완성 - 9강\", \"duration\": \"46:00\"}, {\"num\": 10, \"title\": \"지구과학I 기본 완성 - 10강\", \"duration\": \"36:00\"}]",
+    "lecture_count": 10,
+    "total_duration": "500분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_국어_1_언어와 매체_puxwj",
+    "name": "기초 언어와 매체",
+    "teacher_name": "1타강사_국어",
+    "subject": "국어",
+    "platform": "megastudy",
+    "url": "https://example.com/course/0/3/1",
+    "lectures": "[{\"num\": 1, \"title\": \"기초 언어와 매체 - 1강\", \"duration\": \"32:00\"}, {\"num\": 2, \"title\": \"기초 언어와 매체 - 2강\", \"duration\": \"58:00\"}, {\"num\": 3, \"title\": \"기초 언어와 매체 - 3강\", \"duration\": \"57:00\"}, {\"num\": 4, \"title\": \"기초 언어와 매체 - 4강\", \"duration\": \"51:00\"}, {\"num\": 5, \"title\": \"기초 언어와 매체 - 5강\", \"duration\": \"24:00\"}, {\"num\": 6, \"title\": \"기초 언어와 매체 - 6강\", \"duration\": \"30:00\"}, {\"num\": 7, \"title\": \"기초 언어와 매체 - 7강\", \"duration\": \"23:00\"}, {\"num\": 8, \"title\": \"기초 언어와 매체 - 8강\", \"duration\": \"22:00\"}, {\"num\": 9, \"title\": \"기초 언어와 매체 - 9강\", \"duration\": \"24:00\"}, {\"num\": 10, \"title\": \"기초 언어와 매체 - 10강\", \"duration\": \"37:00\"}, {\"num\": 11, \"title\": \"기초 언어와 매체 - 11강\", \"duration\": \"27:00\"}, {\"num\": 12, \"title\": \"기초 언어와 매체 - 12강\", \"duration\": \"59:00\"}, {\"num\": 13, \"title\": \"기초 언어와 매체 - 13강\", \"duration\": \"50:00\"}, {\"num\": 14, \"title\": \"기초 언어와 매체 - 14강\", \"duration\": \"46:00\"}]",
+    "lecture_count": 14,
+    "total_duration": "700분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.689Z",
+    "created_at": "2026-01-20T16:54:17.689Z",
+    "updated_at": "2026-01-20T16:54:17.689Z",
+    "teacher_id": null
+  }
+]

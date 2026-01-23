@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_세계사_2_7dw7b",
+    "name": "세계사 기본 완성",
+    "teacher_name": "1타강사_세계사",
+    "subject": "세계사",
+    "platform": "megastudy",
+    "url": "https://example.com/course/13/2",
+    "lectures": "[{\"num\": 1, \"title\": \"세계사 기본 완성 - 1강\", \"duration\": \"55:00\"}, {\"num\": 2, \"title\": \"세계사 기본 완성 - 2강\", \"duration\": \"54:00\"}, {\"num\": 3, \"title\": \"세계사 기본 완성 - 3강\", \"duration\": \"47:00\"}, {\"num\": 4, \"title\": \"세계사 기본 완성 - 4강\", \"duration\": \"38:00\"}, {\"num\": 5, \"title\": \"세계사 기본 완성 - 5강\", \"duration\": \"32:00\"}, {\"num\": 6, \"title\": \"세계사 기본 완성 - 6강\", \"duration\": \"32:00\"}, {\"num\": 7, \"title\": \"세계사 기본 완성 - 7강\", \"duration\": \"20:00\"}, {\"num\": 8, \"title\": \"세계사 기본 완성 - 8강\", \"duration\": \"20:00\"}, {\"num\": 9, \"title\": \"세계사 기본 완성 - 9강\", \"duration\": \"31:00\"}, {\"num\": 10, \"title\": \"세계사 기본 완성 - 10강\", \"duration\": \"31:00\"}]",
+    "lecture_count": 10,
+    "total_duration": "500분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.691Z",
+    "created_at": "2026-01-20T16:54:17.691Z",
+    "updated_at": "2026-01-20T16:54:17.691Z",
+    "teacher_id": null
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_사회문화_2_gevi9",
+    "name": "사회문화 기본 완성",
+    "teacher_name": "1타강사_사회문화",
+    "subject": "사회문화",
+    "platform": "megastudy",
+    "url": "https://example.com/course/16/2",
+    "lectures": "[{\"num\": 1, \"title\": \"사회문화 기본 완성 - 1강\", \"duration\": \"58:00\"}, {\"num\": 2, \"title\": \"사회문화 기본 완성 - 2강\", \"duration\": \"25:00\"}, {\"num\": 3, \"title\": \"사회문화 기본 완성 - 3강\", \"duration\": \"38:00\"}, {\"num\": 4, \"title\": \"사회문화 기본 완성 - 4강\", \"duration\": \"48:00\"}, {\"num\": 5, \"title\": \"사회문화 기본 완성 - 5강\", \"duration\": \"58:00\"}, {\"num\": 6, \"title\": \"사회문화 기본 완성 - 6강\", \"duration\": \"28:00\"}, {\"num\": 7, \"title\": \"사회문화 기본 완성 - 7강\", \"duration\": \"30:00\"}, {\"num\": 8, \"title\": \"사회문화 기본 완성 - 8강\", \"duration\": \"22:00\"}, {\"num\": 9, \"title\": \"사회문화 기본 완성 - 9강\", \"duration\": \"39:00\"}, {\"num\": 10, \"title\": \"사회문화 기본 완성 - 10강\", \"duration\": \"31:00\"}, {\"num\": 11, \"title\": \"사회문화 기본 완성 - 11강\", \"duration\": \"44:00\"}, {\"num\": 12, \"title\": \"사회문화 기본 완성 - 12강\", \"duration\": \"21:00\"}]",
+    "lecture_count": 12,
+    "total_duration": "600분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.691Z",
+    "created_at": "2026-01-20T16:54:17.691Z",
+    "updated_at": "2026-01-20T16:54:17.691Z",
+    "teacher_id": null
+  }
+]

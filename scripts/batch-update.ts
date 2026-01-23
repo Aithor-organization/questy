@@ -290,8 +290,9 @@ interface CrawlResult {
 /**
  * 플랫폼 감지
  */
-function detectPlatform(url: string): 'megastudy' | 'mimac' {
+function detectPlatform(url: string): 'megastudy' | 'mimac' | 'etoos' {
   if (url.includes('mimacstudy.com')) return 'mimac';
+  if (url.includes('etoos.com')) return 'etoos';
   return 'megastudy';
 }
 
@@ -379,6 +380,155 @@ async function crawlMimac(url: string): Promise<CrawlResult> {
 }
 
 /**
+ * 이투스 강좌 상세 페이지 파싱
+ * packages/backend/src/crawlers/etoos/parser.ts의 로직과 동일
+ */
+function parseEtoosCourseDetail(html: string, courseId: string): {
+  title?: string;
+  lecturerName?: string;
+  curriculum?: string[];
+  isCompleted?: boolean;
+} | null {
+  const $ = cheerio.load(html);
+
+  try {
+    // 강의 제목 추출
+    let title = '';
+
+    // 패턴 1: <p class="title_main">
+    const titleMain = $('p.title_main').text().trim();
+    if (titleMain) {
+      title = titleMain;
+    }
+
+    // 패턴 2: <h2 class="tit">
+    if (!title) {
+      title = $('h2.tit').text().trim();
+    }
+
+    // 패턴 3: title 태그
+    if (!title) {
+      title = $('title').text().split('|')[0]?.trim() || '';
+    }
+
+    // 선생님 이름 추출
+    let lecturerName = '';
+    const teacherPatterns = [
+      /(?:수학|국어|영어|과학|사회|한국사|제2외국어)\s+([가-힣]{2,4})\s*선생님/,
+      />([가-힣]{2,4})\s*선생님</,
+    ];
+
+    for (const pattern of teacherPatterns) {
+      const match = html.match(pattern);
+      if (match) {
+        lecturerName = match[1].trim();
+        break;
+      }
+    }
+
+    // 완강 여부 추출 (강좌구성 테이블)
+    let isCompleted = false;
+    const courseInfoMatch = html.match(/<th[^>]*>강좌구성<\/th>\s*<td[^>]*>([^<]+)<\/td>/i);
+    if (courseInfoMatch) {
+      isCompleted = courseInfoMatch[1].includes('완강');
+    }
+
+    // 커리큘럼 추출
+    const curriculum: string[] = [];
+
+    // ORIENTATION 확인
+    if (html.includes('>ORIENTATION<')) {
+      curriculum.push('ORIENTATION');
+    }
+
+    // 패턴 1: >01강 - xxx< (일반 강좌)
+    const lecturePattern1 = />(\d{2}강 - [^<]+)</g;
+    let match;
+    while ((match = lecturePattern1.exec(html)) !== null) {
+      const lectureTitle = match[1].trim();
+      if (!curriculum.includes(lectureTitle)) {
+        curriculum.push(lectureTitle);
+      }
+    }
+
+    // 패턴 2: STEP 형식 (기출끝 등)
+    const lecturePattern2 = /<td\s+class="tit">\s*<a[^>]*>([^<]+)<\/a>/g;
+    while ((match = lecturePattern2.exec(html)) !== null) {
+      const lectureTitle = match[1].trim();
+      if (lectureTitle && !curriculum.includes(lectureTitle) &&
+          (lectureTitle.includes('STEP') || lectureTitle.includes('강') || lectureTitle.match(/\d{3}/))) {
+        curriculum.push(lectureTitle);
+      }
+    }
+
+    // 강의 번호순 정렬
+    curriculum.sort((a, b) => {
+      if (a === 'ORIENTATION') return -1;
+      if (b === 'ORIENTATION') return 1;
+
+      // "NN강" 형식
+      const numA = parseInt(a.match(/^(\d+)강/)?.[1] || '0', 10);
+      const numB = parseInt(b.match(/^(\d+)강/)?.[1] || '0', 10);
+      if (numA !== 0 || numB !== 0) {
+        return numA - numB;
+      }
+
+      // "STEP N" 형식
+      const stepA = a.match(/STEP\s*(\d+)/i)?.[1] || '0';
+      const stepB = b.match(/STEP\s*(\d+)/i)?.[1] || '0';
+      return parseInt(stepA, 10) - parseInt(stepB, 10);
+    });
+
+    if (!title && curriculum.length === 0) {
+      log.warn(`No data found for etoos course ${courseId}`);
+      return null;
+    }
+
+    return {
+      title: title || `강좌 ${courseId}`,
+      lecturerName: lecturerName || '미확인',
+      curriculum: curriculum.length > 0 ? curriculum : undefined,
+      isCompleted,
+    };
+  } catch (error) {
+    log.error(`Failed to parse etoos course detail for ${courseId}: ${error}`);
+    return null;
+  }
+}
+
+/**
+ * 이투스 크롤링
+ */
+async function crawlEtoos(url: string): Promise<CrawlResult> {
+  try {
+    const html = await fetchHtmlEucKr(url);
+    if (!html) {
+      return { success: false, error: 'Failed to fetch HTML' };
+    }
+
+    // courseId 추출
+    const courseIdMatch = url.match(/lecture_id=([^&]+)/i);
+    const courseId = courseIdMatch ? courseIdMatch[1] : 'unknown';
+
+    // 파싱
+    const parsed = parseEtoosCourseDetail(html, courseId);
+
+    if (!parsed) {
+      return { success: false, error: 'Could not parse course data' };
+    }
+
+    return {
+      success: true,
+      title: parsed.title,
+      curriculum: parsed.curriculum,
+      isCompleted: parsed.isCompleted,
+    };
+  } catch (error) {
+    return { success: false, error: String(error) };
+  }
+}
+
+/**
  * URL로 크롤링 (플랫폼 자동 감지)
  */
 async function crawlUrl(url: string): Promise<CrawlResult> {
@@ -386,6 +536,9 @@ async function crawlUrl(url: string): Promise<CrawlResult> {
 
   if (platform === 'mimac') {
     return crawlMimac(url);
+  }
+  if (platform === 'etoos') {
+    return crawlEtoos(url);
   }
   return crawlMegastudy(url);
 }

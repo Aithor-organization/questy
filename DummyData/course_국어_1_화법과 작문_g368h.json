@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_국어_1_화법과 작문_g368h",
+    "name": "기초 화법과 작문",
+    "teacher_name": "1타강사_국어",
+    "subject": "국어",
+    "platform": "megastudy",
+    "url": "https://example.com/course/0/2/1",
+    "lectures": "[{\"num\": 1, \"title\": \"기초 화법과 작문 - 1강\", \"duration\": \"50:00\"}, {\"num\": 2, \"title\": \"기초 화법과 작문 - 2강\", \"duration\": \"56:00\"}, {\"num\": 3, \"title\": \"기초 화법과 작문 - 3강\", \"duration\": \"43:00\"}, {\"num\": 4, \"title\": \"기초 화법과 작문 - 4강\", \"duration\": \"38:00\"}, {\"num\": 5, \"title\": \"기초 화법과 작문 - 5강\", \"duration\": \"58:00\"}, {\"num\": 6, \"title\": \"기초 화법과 작문 - 6강\", \"duration\": \"57:00\"}, {\"num\": 7, \"title\": \"기초 화법과 작문 - 7강\", \"duration\": \"55:00\"}, {\"num\": 8, \"title\": \"기초 화법과 작문 - 8강\", \"duration\": \"31:00\"}, {\"num\": 9, \"title\": \"기초 화법과 작문 - 9강\", \"duration\": \"57:00\"}, {\"num\": 10, \"title\": \"기초 화법과 작문 - 10강\", \"duration\": \"45:00\"}, {\"num\": 11, \"title\": \"기초 화법과 작문 - 11강\", \"duration\": \"23:00\"}, {\"num\": 12, \"title\": \"기초 화법과 작문 - 12강\", \"duration\": \"49:00\"}, {\"num\": 13, \"title\": \"기초 화법과 작문 - 13강\", \"duration\": \"58:00\"}, {\"num\": 14, \"title\": \"기초 화법과 작문 - 14강\", \"duration\": \"55:00\"}]",
+    "lecture_count": 14,
+    "total_duration": "700분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.689Z",
+    "created_at": "2026-01-20T16:54:17.689Z",
+    "updated_at": "2026-01-20T16:54:17.689Z",
+    "teacher_id": null
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_영어_2_독해_m1u5s",
+    "name": "기본 독해",
+    "teacher_name": "1타강사_영어",
+    "subject": "영어",
+    "platform": "megastudy",
+    "url": "https://example.com/course/2/0/2",
+    "lectures": "[{\"num\": 1, \"title\": \"기본 독해 - 1강\", \"duration\": \"58:00\"}, {\"num\": 2, \"title\": \"기본 독해 - 2강\", \"duration\": \"23:00\"}, {\"num\": 3, \"title\": \"기본 독해 - 3강\", \"duration\": \"37:00\"}, {\"num\": 4, \"title\": \"기본 독해 - 4강\", \"duration\": \"36:00\"}, {\"num\": 5, \"title\": \"기본 독해 - 5강\", \"duration\": \"31:00\"}, {\"num\": 6, \"title\": \"기본 독해 - 6강\", \"duration\": \"51:00\"}, {\"num\": 7, \"title\": \"기본 독해 - 7강\", \"duration\": \"27:00\"}, {\"num\": 8, \"title\": \"기본 독해 - 8강\", \"duration\": \"35:00\"}, {\"num\": 9, \"title\": \"기본 독해 - 9강\", \"duration\": \"46:00\"}, {\"num\": 10, \"title\": \"기본 독해 - 10강\", \"duration\": \"48:00\"}, {\"num\": 11, \"title\": \"기본 독해 - 11강\", \"duration\": \"47:00\"}, {\"num\": 12, \"title\": \"기본 독해 - 12강\", \"duration\": \"37:00\"}, {\"num\": 13, \"title\": \"기본 독해 - 13강\", \"duration\": \"41:00\"}, {\"num\": 14, \"title\": \"기본 독해 - 14강\", \"duration\": \"58:00\"}, {\"num\": 15, \"title\": \"기본 독해 - 15강\", \"duration\": \"48:00\"}, {\"num\": 16, \"title\": \"기본 독해 - 16강\", \"duration\": \"39:00\"}, {\"num\": 17, \"title\": \"기본 독해 - 17강\", \"duration\": \"45:00\"}, {\"num\": 18, \"title\": \"기본 독해 - 18강\", \"duration\": \"32:00\"}, {\"num\": 19, \"title\": \"기본 독해 - 19강\", \"duration\": \"58:00\"}, {\"num\": 20, \"title\": \"기본 독해 - 20강\", \"duration\": \"35:00\"}]",
+    "lecture_count": 20,
+    "total_duration": "1000분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

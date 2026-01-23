@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_수학_1_수학II_ginmd",
+    "name": "기초 수학II",
+    "teacher_name": "1타강사_수학",
+    "subject": "수학",
+    "platform": "megastudy",
+    "url": "https://example.com/course/1/1/1",
+    "lectures": "[{\"num\": 1, \"title\": \"기초 수학II - 1강\", \"duration\": \"39:00\"}, {\"num\": 2, \"title\": \"기초 수학II - 2강\", \"duration\": \"41:00\"}, {\"num\": 3, \"title\": \"기초 수학II - 3강\", \"duration\": \"49:00\"}, {\"num\": 4, \"title\": \"기초 수학II - 4강\", \"duration\": \"21:00\"}, {\"num\": 5, \"title\": \"기초 수학II - 5강\", \"duration\": \"20:00\"}, {\"num\": 6, \"title\": \"기초 수학II - 6강\", \"duration\": \"43:00\"}, {\"num\": 7, \"title\": \"기초 수학II - 7강\", \"duration\": \"42:00\"}, {\"num\": 8, \"title\": \"기초 수학II - 8강\", \"duration\": \"39:00\"}, {\"num\": 9, \"title\": \"기초 수학II - 9강\", \"duration\": \"23:00\"}, {\"num\": 10, \"title\": \"기초 수학II - 10강\", \"duration\": \"43:00\"}, {\"num\": 11, \"title\": \"기초 수학II - 11강\", \"duration\": \"25:00\"}]",
+    "lecture_count": 11,
+    "total_duration": "550분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

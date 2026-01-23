@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_수학_3_기하_frla7",
+    "name": "심화 기하",
+    "teacher_name": "1타강사_수학",
+    "subject": "수학",
+    "platform": "megastudy",
+    "url": "https://example.com/course/1/3/3",
+    "lectures": "[{\"num\": 1, \"title\": \"심화 기하 - 1강\", \"duration\": \"48:00\"}, {\"num\": 2, \"title\": \"심화 기하 - 2강\", \"duration\": \"58:00\"}, {\"num\": 3, \"title\": \"심화 기하 - 3강\", \"duration\": \"23:00\"}, {\"num\": 4, \"title\": \"심화 기하 - 4강\", \"duration\": \"26:00\"}, {\"num\": 5, \"title\": \"심화 기하 - 5강\", \"duration\": \"43:00\"}, {\"num\": 6, \"title\": \"심화 기하 - 6강\", \"duration\": \"49:00\"}, {\"num\": 7, \"title\": \"심화 기하 - 7강\", \"duration\": \"43:00\"}, {\"num\": 8, \"title\": \"심화 기하 - 8강\", \"duration\": \"54:00\"}, {\"num\": 9, \"title\": \"심화 기하 - 9강\", \"duration\": \"31:00\"}, {\"num\": 10, \"title\": \"심화 기하 - 10강\", \"duration\": \"25:00\"}, {\"num\": 11, \"title\": \"심화 기하 - 11강\", \"duration\": \"22:00\"}, {\"num\": 12, \"title\": \"심화 기하 - 12강\", \"duration\": \"47:00\"}, {\"num\": 13, \"title\": \"심화 기하 - 13강\", \"duration\": \"24:00\"}, {\"num\": 14, \"title\": \"심화 기하 - 14강\", \"duration\": \"33:00\"}, {\"num\": 15, \"title\": \"심화 기하 - 15강\", \"duration\": \"53:00\"}, {\"num\": 16, \"title\": \"심화 기하 - 16강\", \"duration\": \"33:00\"}, {\"num\": 17, \"title\": \"심화 기하 - 17강\", \"duration\": \"29:00\"}, {\"num\": 18, \"title\": \"심화 기하 - 18강\", \"duration\": \"29:00\"}, {\"num\": 19, \"title\": \"심화 기하 - 19강\", \"duration\": \"44:00\"}, {\"num\": 20, \"title\": \"심화 기하 - 20강\", \"duration\": \"49:00\"}, {\"num\": 21, \"title\": \"심화 기하 - 21강\", \"duration\": \"32:00\"}, {\"num\": 22, \"title\": \"심화 기하 - 22강\", \"duration\": \"40:00\"}]",
+    "lecture_count": 22,
+    "total_duration": "1100분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

@@ -51,7 +51,7 @@ curriculumRoutes.post('/search-courses', async (c) => {
         if (course.lectures) {
           chapters = JSON.parse(course.lectures);
         }
-      } catch {}
+      } catch { }
 
       return {
         id: course.id,
@@ -273,6 +273,8 @@ curriculumRoutes.post('/generate-quests-ai', async (c) => {
           reviewDuration: options?.reviewSettings?.review_duration ?? options?.reviewSettings?.reviewDuration ?? 15,
         },
       },
+      // @ts-ignore: PlannerAgent가 existingPlans를 지원하는지 확실치 않으므로 무시
+      existingPlans: body.existingPlans,
     });
 
     if (!result.success) {
@@ -411,7 +413,7 @@ curriculumRoutes.post('/crawl-curriculum', async (c) => {
               `${lec.num}. ${lec.title} (${lec.duration})`
             );
           }
-        } catch {}
+        } catch { }
 
         // 완강 여부 감지 (마지막 강의 제목에 "완강" 포함 여부)
         const isCompleted = detectCompletion(curriculum);

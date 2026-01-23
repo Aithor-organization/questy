@@ -17,6 +17,20 @@ export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
     temperature: 0.3,
     purpose: 'Intent classification, curriculum generation',
   },
+  'openai/gpt-5-nano': {
+    id: 'openai/gpt-5-nano',
+    provider: 'openai',
+    maxTokens: 16384,
+    temperature: 0.3,
+    purpose: 'Curriculum generation (Explicit)',
+  },
+  'openai/gpt-5-mini': {
+    id: 'openai/gpt-5-mini',
+    provider: 'openai',
+    maxTokens: 16384,
+    temperature: 0.3,
+    purpose: 'User Request',
+  },
   'claude-4.5-haiku': {
     id: 'claude-4.5-haiku',
     provider: 'anthropic',
@@ -36,6 +50,8 @@ export const MODEL_CONFIGS: Record<ModelId, ModelConfig> = {
 // OpenRouter 모델 매핑
 const OPENROUTER_MODEL_MAP: Record<ModelId, string> = {
   'gpt-5-nano': 'openai/gpt-5-nano',
+  'openai/gpt-5-nano': 'openai/gpt-5-nano',
+  'openai/gpt-5-mini': 'openai/gpt-5-mini',
   'claude-4.5-haiku': 'anthropic/claude-haiku-4.5',  // Claude Haiku 4.5 (신규 모델)
   'gemini-3-flash': 'google/gemini-3-flash-preview',
 };
@@ -70,7 +86,7 @@ export interface LLMClientConfig {
 }
 
 const DEFAULT_CONFIG: LLMClientConfig = {
-  timeout: 30000,
+  timeout: 120000,
   retryAttempts: 3,
 };
 
@@ -374,6 +390,8 @@ export class LLMClient {
       'gpt-5-nano': isKorean
         ? '네, 이해했습니다. 도와드리겠습니다!'
         : 'Got it! I\'ll help you with that.',
+      'openai/gpt-5-nano': isKorean ? '네' : 'Yes',
+      'openai/gpt-5-mini': isKorean ? '네, 미니 모델입니다.' : 'Yes, I am Mini.',
       'claude-4.5-haiku': isKorean
         ? `좋은 질문이에요! 😊 차근차근 설명해 드릴게요.\n\n${this.generateCoachingResponse(lastMessage)}`
         : `Great question! Let me explain step by step.\n\n${this.generateCoachingResponse(lastMessage)}`,

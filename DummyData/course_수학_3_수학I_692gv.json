@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_수학_3_수학I_692gv",
+    "name": "심화 수학I",
+    "teacher_name": "1타강사_수학",
+    "subject": "수학",
+    "platform": "megastudy",
+    "url": "https://example.com/course/1/0/3",
+    "lectures": "[{\"num\": 1, \"title\": \"심화 수학I - 1강\", \"duration\": \"35:00\"}, {\"num\": 2, \"title\": \"심화 수학I - 2강\", \"duration\": \"27:00\"}, {\"num\": 3, \"title\": \"심화 수학I - 3강\", \"duration\": \"31:00\"}, {\"num\": 4, \"title\": \"심화 수학I - 4강\", \"duration\": \"53:00\"}, {\"num\": 5, \"title\": \"심화 수학I - 5강\", \"duration\": \"56:00\"}, {\"num\": 6, \"title\": \"심화 수학I - 6강\", \"duration\": \"37:00\"}, {\"num\": 7, \"title\": \"심화 수학I - 7강\", \"duration\": \"40:00\"}, {\"num\": 8, \"title\": \"심화 수학I - 8강\", \"duration\": \"32:00\"}, {\"num\": 9, \"title\": \"심화 수학I - 9강\", \"duration\": \"56:00\"}, {\"num\": 10, \"title\": \"심화 수학I - 10강\", \"duration\": \"43:00\"}, {\"num\": 11, \"title\": \"심화 수학I - 11강\", \"duration\": \"49:00\"}, {\"num\": 12, \"title\": \"심화 수학I - 12강\", \"duration\": \"21:00\"}, {\"num\": 13, \"title\": \"심화 수학I - 13강\", \"duration\": \"43:00\"}, {\"num\": 14, \"title\": \"심화 수학I - 14강\", \"duration\": \"58:00\"}, {\"num\": 15, \"title\": \"심화 수학I - 15강\", \"duration\": \"26:00\"}, {\"num\": 16, \"title\": \"심화 수학I - 16강\", \"duration\": \"35:00\"}, {\"num\": 17, \"title\": \"심화 수학I - 17강\", \"duration\": \"55:00\"}, {\"num\": 18, \"title\": \"심화 수학I - 18강\", \"duration\": \"29:00\"}, {\"num\": 19, \"title\": \"심화 수학I - 19강\", \"duration\": \"43:00\"}, {\"num\": 20, \"title\": \"심화 수학I - 20강\", \"duration\": \"55:00\"}, {\"num\": 21, \"title\": \"심화 수학I - 21강\", \"duration\": \"40:00\"}, {\"num\": 22, \"title\": \"심화 수학I - 22강\", \"duration\": \"28:00\"}, {\"num\": 23, \"title\": \"심화 수학I - 23강\", \"duration\": \"54:00\"}, {\"num\": 24, \"title\": \"심화 수학I - 24강\", \"duration\": \"27:00\"}, {\"num\": 25, \"title\": \"심화 수학I - 25강\", \"duration\": \"37:00\"}, {\"num\": 26, \"title\": \"심화 수학I - 26강\", \"duration\": \"42:00\"}, {\"num\": 27, \"title\": \"심화 수학I - 27강\", \"duration\": \"54:00\"}, {\"num\": 28, \"title\": \"심화 수학I - 28강\", \"duration\": \"27:00\"}, {\"num\": 29, \"title\": \"심화 수학I - 29강\", \"duration\": \"47:00\"}, {\"num\": 30, \"title\": \"심화 수학I - 30강\", \"duration\": \"37:00\"}, {\"num\": 31, \"title\": \"심화 수학I - 31강\", \"duration\": \"30:00\"}, {\"num\": 32, \"title\": \"심화 수학I - 32강\", \"duration\": \"46:00\"}, {\"num\": 33, \"title\": \"심화 수학I - 33강\", \"duration\": \"54:00\"}, {\"num\": 34, \"title\": \"심화 수학I - 34강\", \"duration\": \"39:00\"}, {\"num\": 35, \"title\": \"심화 수학I - 35강\", \"duration\": \"48:00\"}, {\"num\": 36, \"title\": \"심화 수학I - 36강\", \"duration\": \"57:00\"}]",
+    "lecture_count": 36,
+    "total_duration": "1800분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.689Z",
+    "created_at": "2026-01-20T16:54:17.689Z",
+    "updated_at": "2026-01-20T16:54:17.689Z",
+    "teacher_id": null
+  }
+]

@@ -54,6 +54,8 @@ export function useGeneratePage() {
 
   // 직접 만들기 관련 상태
   const [manualUnits, setManualUnits] = useState<ManualUnit[]>([]);
+  const [isRepeatMode, setIsRepeatMode] = useState(false);
+  const [repeatTargetDate, setRepeatTargetDate] = useState('');
 
   // 플랜 상세 보기 상태
   const [viewingPlan, setViewingPlan] = useState<GeneratedPlan | null>(null);
@@ -231,55 +233,93 @@ export function useGeneratePage() {
     setStep('result');
   };
 
-  // 직접 만들기 모드에서 플랜 생성
+  // 직접 만들기 모드에서 플랜 생성 (To-do 스타일)
   const handleManualGenerate = () => {
     if (manualUnits.length === 0 || !materialName.trim()) return;
 
-    // 선택된 요일을 JS Day 값으로 변환
-    const allowedJsDays = new Set(selectedDays.map(d => DAY_TO_JS_DAY[d]));
+    // 선택된 요일을 JS Day 값으로 변환 (0=일, 1=월, ..., 6=토)
+    const allowedJsDays = selectedDays.map(d => DAY_TO_JS_DAY[d]).sort((a, b) => a - b);
 
-    // 시작 날짜 계산 (선택된 요일만 포함)
-    const startDate = new Date();
-    const getNextDate = (baseDate: Date, daysToAdd: number): Date => {
-      const result = new Date(baseDate);
-      let added = 0;
-      while (added < daysToAdd) {
+    // 요일이 선택되지 않으면 매일로 처리
+    const effectiveDays = allowedJsDays.length > 0 ? allowedJsDays : [0, 1, 2, 3, 4, 5, 6];
+
+    // 다음 유효한 날짜 찾기
+    const getNextValidDate = (fromDate: Date, skipFirst: boolean = false): Date => {
+      const result = new Date(fromDate);
+      if (skipFirst) {
         result.setDate(result.getDate() + 1);
-        // 선택된 요일인 경우에만 카운트
-        if (allowedJsDays.has(result.getDay())) {
-          added++;
-        }
+      }
+      // 선택된 요일이 나올 때까지 날짜 증가
+      while (!effectiveDays.includes(result.getDay())) {
+        result.setDate(result.getDate() + 1);
       }
       return result;
     };
 
-    // 단원들을 일별로 분배 (totalDays 기준으로)
-    const unitsPerDay = Math.ceil(manualUnits.length / totalDays);
-    const dailyQuests = manualUnits.map((unit, index) => {
-      const dayIndex = Math.floor(index / unitsPerDay);
-      const questDate = dayIndex === 0 ? startDate : getNextDate(startDate, dayIndex);
+    let dailyQuests: any[] = [];
 
-      return {
-        id: unit.id,
-        day: dayIndex + 1,
-        date: questDate.toISOString().split('T')[0],
-        unitNumber: index + 1,
-        unitTitle: unit.title,
-        range: unit.range || unit.title,
-        estimatedMinutes: unit.estimatedMinutes,
-        completed: false,
-        topics: [unit.title],
-        objectives: [`${unit.title} 학습 완료`],
-        studyTips: {
-          importance: '일반',
-          keyPoints: [unit.title],
-          studyMethod: '학습',
-        },
-      };
-    });
+    if (isRepeatMode && repeatTargetDate) {
+      // 반복 모드: 목표 날짜까지 퀘스트를 매일 반복
+      const targetDate = new Date(repeatTargetDate);
+      targetDate.setHours(23, 59, 59, 999);
 
-    const totalMinutes = dailyQuests.reduce((sum, q) => sum + q.estimatedMinutes, 0);
-    const actualDays = Math.max(...dailyQuests.map(q => q.day));
+      let currentDate = getNextValidDate(new Date(), false);
+      let dayCount = 0;
+
+      while (currentDate <= targetDate) {
+        // 각 날짜에 모든 퀘스트를 배치
+        manualUnits.forEach((unit, unitIndex) => {
+          dailyQuests.push({
+            id: crypto.randomUUID(),
+            day: dayCount + 1,
+            date: currentDate.toISOString().split('T')[0],
+            unitNumber: unitIndex + 1,
+            unitTitle: unit.title,
+            range: unit.description || unit.title,
+            estimatedMinutes: 30,
+            completed: false,
+            topics: [unit.title],
+            objectives: [`${unit.title} 완료`],
+            studyTips: {
+              importance: '일반',
+              keyPoints: [unit.title],
+              studyMethod: '반복 할 일',
+            },
+          });
+        });
+
+        dayCount++;
+        currentDate = getNextValidDate(currentDate, true);
+      }
+    } else {
+      // 일반 모드: 퀘스트를 순차적으로 배치
+      let currentDate = getNextValidDate(new Date(), false);
+      dailyQuests = manualUnits.map((unit, index) => {
+        const questDate = index === 0 ? currentDate : getNextValidDate(currentDate, true);
+        currentDate = questDate;
+
+        return {
+          id: unit.id,
+          day: index + 1,
+          date: questDate.toISOString().split('T')[0],
+          unitNumber: index + 1,
+          unitTitle: unit.title,
+          range: unit.description || unit.title,
+          estimatedMinutes: 30,
+          completed: false,
+          topics: [unit.title],
+          objectives: [`${unit.title} 완료`],
+          studyTips: {
+            importance: '일반',
+            keyPoints: [unit.title],
+            studyMethod: '할 일',
+          },
+        };
+      });
+    }
+
+    const actualDays = new Set(dailyQuests.map(q => q.date)).size;
+    const totalQuests = dailyQuests.length;
 
     // questStore에 직접 추가
     addPlan({
@@ -287,11 +327,13 @@ export function useGeneratePage() {
       dailyQuests,
       summary: {
         totalDays: actualDays,
-        totalUnits: manualUnits.length,
-        averageMinutesPerDay: Math.round(totalMinutes / actualDays),
-        totalEstimatedHours: Math.round(totalMinutes / 60),
+        totalUnits: totalQuests,
+        averageMinutesPerDay: Math.round((totalQuests * 30) / actualDays),
+        totalEstimatedHours: Math.round((totalQuests * 30) / 60),
       },
-      aiMessage: `${manualUnits.length}개 단원의 학습 계획이 생성되었습니다.`,
+      aiMessage: isRepeatMode
+        ? `${manualUnits.length}개의 퀘스트가 ${actualDays}일간 반복 생성되었습니다. (총 ${totalQuests}개)`
+        : `${totalQuests}개의 퀘스트가 생성되었습니다.`,
     });
 
     // 플래너 페이지로 이동
@@ -345,6 +387,8 @@ export function useGeneratePage() {
     setPreviewImages([]);
     setSelectedPages([]);
     setManualUnits([]);
+    setIsRepeatMode(false);
+    setRepeatTargetDate('');
     reset();
   };
 
@@ -369,6 +413,8 @@ export function useGeneratePage() {
     error,
     // 직접 만들기
     manualUnits,
+    isRepeatMode,
+    repeatTargetDate,
     // 생성 제한 및 미적용 플랜
     remainingGenerations,
     pendingPlanData,
@@ -382,6 +428,8 @@ export function useGeneratePage() {
     setZoomedImage,
     setViewingPlan,
     setManualUnits,
+    setIsRepeatMode,
+    setRepeatTargetDate,
     handleBookSelect,
     togglePageSelection,
     handleAnalyzeBook,

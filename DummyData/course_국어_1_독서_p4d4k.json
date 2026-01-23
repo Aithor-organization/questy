@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_국어_1_독서_p4d4k",
+    "name": "기초 독서",
+    "teacher_name": "1타강사_국어",
+    "subject": "국어",
+    "platform": "megastudy",
+    "url": "https://example.com/course/0/0/1",
+    "lectures": "[{\"num\": 1, \"title\": \"기초 독서 - 1강\", \"duration\": \"34:00\"}, {\"num\": 2, \"title\": \"기초 독서 - 2강\", \"duration\": \"49:00\"}, {\"num\": 3, \"title\": \"기초 독서 - 3강\", \"duration\": \"51:00\"}, {\"num\": 4, \"title\": \"기초 독서 - 4강\", \"duration\": \"50:00\"}, {\"num\": 5, \"title\": \"기초 독서 - 5강\", \"duration\": \"25:00\"}, {\"num\": 6, \"title\": \"기초 독서 - 6강\", \"duration\": \"25:00\"}, {\"num\": 7, \"title\": \"기초 독서 - 7강\", \"duration\": \"51:00\"}, {\"num\": 8, \"title\": \"기초 독서 - 8강\", \"duration\": \"29:00\"}, {\"num\": 9, \"title\": \"기초 독서 - 9강\", \"duration\": \"32:00\"}, {\"num\": 10, \"title\": \"기초 독서 - 10강\", \"duration\": \"45:00\"}, {\"num\": 11, \"title\": \"기초 독서 - 11강\", \"duration\": \"26:00\"}, {\"num\": 12, \"title\": \"기초 독서 - 12강\", \"duration\": \"56:00\"}, {\"num\": 13, \"title\": \"기초 독서 - 13강\", \"duration\": \"38:00\"}]",
+    "lecture_count": 13,
+    "total_duration": "650분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.686Z",
+    "created_at": "2026-01-20T16:54:17.689Z",
+    "updated_at": "2026-01-20T16:54:17.689Z",
+    "teacher_id": null
+  }
+]

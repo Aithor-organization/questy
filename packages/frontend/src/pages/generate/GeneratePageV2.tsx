@@ -24,8 +24,9 @@ import {
   PlanDetailModal,
 } from './components';
 import { CurriculumContent } from './CurriculumContent';
+import { CurriculumContentBeta } from './CurriculumContentBeta';
 
-type TabType = 'plan' | 'curriculum';
+type TabType = 'plan' | 'curriculum' | 'beta';
 
 export function GeneratePageV2() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -38,6 +39,8 @@ export function GeneratePageV2() {
   useEffect(() => {
     if (tabFromUrl === 'curriculum') {
       setActiveTab('curriculum');
+    } else if (tabFromUrl === 'beta') {
+      setActiveTab('beta');
     } else {
       setActiveTab('plan');
     }
@@ -48,6 +51,8 @@ export function GeneratePageV2() {
     setActiveTab(tab);
     if (tab === 'curriculum') {
       setSearchParams({ tab: 'curriculum' });
+    } else if (tab === 'beta') {
+      setSearchParams({ tab: 'beta' });
     } else {
       setSearchParams({});
     }
@@ -77,6 +82,16 @@ export function GeneratePageV2() {
         >
           📚 커리큘럼 생성
         </button>
+        <button
+          onClick={() => handleTabChange('beta')}
+          className={`flex-1 py-3 px-4 rounded-lg font-medium transition-colors ${
+            activeTab === 'beta'
+              ? 'bg-purple-500 text-white shadow-md'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          🧪 Beta
+        </button>
       </div>
 
       {/* 탭 콘텐츠 - ErrorBoundary로 감싸서 렌더링 에러 처리 */}
@@ -94,8 +109,10 @@ export function GeneratePageV2() {
       >
         {activeTab === 'plan' ? (
           <NewPlanContent />
-        ) : (
+        ) : activeTab === 'curriculum' ? (
           <CurriculumContent />
+        ) : (
+          <CurriculumContentBeta />
         )}
       </ErrorBoundary>
     </NotebookLayout>
@@ -123,6 +140,8 @@ function NewPlanContent() {
     isLoading,
     error,
     manualUnits,
+    isRepeatMode,
+    repeatTargetDate,
     remainingGenerations,
     pendingPlanData,
     setInputMode,
@@ -134,6 +153,8 @@ function NewPlanContent() {
     setZoomedImage,
     setViewingPlan,
     setManualUnits,
+    setIsRepeatMode,
+    setRepeatTargetDate,
     handleBookSelect,
     togglePageSelection,
     handleAnalyzeBook,
@@ -208,6 +229,10 @@ function NewPlanContent() {
                 onMaterialNameChange={setMaterialName}
                 units={manualUnits}
                 onUnitsChange={setManualUnits}
+                isRepeatMode={isRepeatMode}
+                onRepeatModeChange={setIsRepeatMode}
+                repeatTargetDate={repeatTargetDate}
+                onRepeatTargetDateChange={setRepeatTargetDate}
               />
             )}
 
@@ -219,6 +244,7 @@ function NewPlanContent() {
               onTotalDaysChange={setTotalDays}
               onSelectedDaysChange={setSelectedDays}
               onScheduleModeChange={setScheduleMode}
+              hideScheduleMode={inputMode === 'manual'}
             />
 
             {/* 에러 표시 - 재시도 버튼 포함 */}
@@ -283,9 +309,9 @@ function NewPlanContent() {
               </ul>
             ) : (
               <ul className="text-sm space-y-1 text-[var(--pencil-gray)]">
-                <li>• 플랜 이름과 단원을 입력해요</li>
-                <li>• 단원별 예상 시간을 설정해요</li>
-                <li>• 순서는 드래그로 조정 가능!</li>
+                <li>• 플랜 이름과 퀘스트를 입력해요</li>
+                <li>• 드래그로 순서를 조정해요</li>
+                <li>• 선택한 요일에 순차 배치돼요!</li>
               </ul>
             )}
           </div>

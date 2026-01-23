@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_경제_4_79fvd",
+    "name": "경제 파이널 모의고사",
+    "teacher_name": "1타강사_경제",
+    "subject": "경제",
+    "platform": "megastudy",
+    "url": "https://example.com/course/15/4",
+    "lectures": "[{\"num\": 1, \"title\": \"경제 파이널 모의고사 - 1강\", \"duration\": \"58:00\"}, {\"num\": 2, \"title\": \"경제 파이널 모의고사 - 2강\", \"duration\": \"44:00\"}, {\"num\": 3, \"title\": \"경제 파이널 모의고사 - 3강\", \"duration\": \"52:00\"}, {\"num\": 4, \"title\": \"경제 파이널 모의고사 - 4강\", \"duration\": \"44:00\"}, {\"num\": 5, \"title\": \"경제 파이널 모의고사 - 5강\", \"duration\": \"21:00\"}, {\"num\": 6, \"title\": \"경제 파이널 모의고사 - 6강\", \"duration\": \"44:00\"}, {\"num\": 7, \"title\": \"경제 파이널 모의고사 - 7강\", \"duration\": \"37:00\"}, {\"num\": 8, \"title\": \"경제 파이널 모의고사 - 8강\", \"duration\": \"56:00\"}, {\"num\": 9, \"title\": \"경제 파이널 모의고사 - 9강\", \"duration\": \"48:00\"}, {\"num\": 10, \"title\": \"경제 파이널 모의고사 - 10강\", \"duration\": \"46:00\"}]",
+    "lecture_count": 10,
+    "total_duration": "500분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.691Z",
+    "created_at": "2026-01-20T16:54:17.691Z",
+    "updated_at": "2026-01-20T16:54:17.691Z",
+    "teacher_id": null
+  }
+]

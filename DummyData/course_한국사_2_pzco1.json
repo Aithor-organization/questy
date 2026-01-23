@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_한국사_2_pzco1",
+    "name": "한국사 기본 완성",
+    "teacher_name": "1타강사_한국사",
+    "subject": "한국사",
+    "platform": "megastudy",
+    "url": "https://example.com/course/3/2",
+    "lectures": "[{\"num\": 1, \"title\": \"한국사 기본 완성 - 1강\", \"duration\": \"43:00\"}, {\"num\": 2, \"title\": \"한국사 기본 완성 - 2강\", \"duration\": \"31:00\"}, {\"num\": 3, \"title\": \"한국사 기본 완성 - 3강\", \"duration\": \"56:00\"}, {\"num\": 4, \"title\": \"한국사 기본 완성 - 4강\", \"duration\": \"45:00\"}, {\"num\": 5, \"title\": \"한국사 기본 완성 - 5강\", \"duration\": \"25:00\"}, {\"num\": 6, \"title\": \"한국사 기본 완성 - 6강\", \"duration\": \"45:00\"}, {\"num\": 7, \"title\": \"한국사 기본 완성 - 7강\", \"duration\": \"28:00\"}, {\"num\": 8, \"title\": \"한국사 기본 완성 - 8강\", \"duration\": \"38:00\"}, {\"num\": 9, \"title\": \"한국사 기본 완성 - 9강\", \"duration\": \"30:00\"}, {\"num\": 10, \"title\": \"한국사 기본 완성 - 10강\", \"duration\": \"57:00\"}, {\"num\": 11, \"title\": \"한국사 기본 완성 - 11강\", \"duration\": \"30:00\"}]",
+    "lecture_count": 11,
+    "total_duration": "550분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]

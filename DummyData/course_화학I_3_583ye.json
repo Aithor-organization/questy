@@ -1,0 +1,18 @@
+[
+  {
+    "id": "course_화학I_3_583ye",
+    "name": "화학I 심화 문제풀이",
+    "teacher_name": "1타강사_화학I",
+    "subject": "화학I",
+    "platform": "megastudy",
+    "url": "https://example.com/course/5/3",
+    "lectures": "[{\"num\": 1, \"title\": \"화학I 심화 문제풀이 - 1강\", \"duration\": \"39:00\"}, {\"num\": 2, \"title\": \"화학I 심화 문제풀이 - 2강\", \"duration\": \"44:00\"}, {\"num\": 3, \"title\": \"화학I 심화 문제풀이 - 3강\", \"duration\": \"26:00\"}, {\"num\": 4, \"title\": \"화학I 심화 문제풀이 - 4강\", \"duration\": \"45:00\"}, {\"num\": 5, \"title\": \"화학I 심화 문제풀이 - 5강\", \"duration\": \"30:00\"}, {\"num\": 6, \"title\": \"화학I 심화 문제풀이 - 6강\", \"duration\": \"28:00\"}, {\"num\": 7, \"title\": \"화학I 심화 문제풀이 - 7강\", \"duration\": \"27:00\"}, {\"num\": 8, \"title\": \"화학I 심화 문제풀이 - 8강\", \"duration\": \"38:00\"}, {\"num\": 9, \"title\": \"화학I 심화 문제풀이 - 9강\", \"duration\": \"53:00\"}, {\"num\": 10, \"title\": \"화학I 심화 문제풀이 - 10강\", \"duration\": \"20:00\"}, {\"num\": 11, \"title\": \"화학I 심화 문제풀이 - 11강\", \"duration\": \"46:00\"}, {\"num\": 12, \"title\": \"화학I 심화 문제풀이 - 12강\", \"duration\": \"28:00\"}, {\"num\": 13, \"title\": \"화학I 심화 문제풀이 - 13강\", \"duration\": \"28:00\"}, {\"num\": 14, \"title\": \"화학I 심화 문제풀이 - 14강\", \"duration\": \"33:00\"}, {\"num\": 15, \"title\": \"화학I 심화 문제풀이 - 15강\", \"duration\": \"28:00\"}, {\"num\": 16, \"title\": \"화학I 심화 문제풀이 - 16강\", \"duration\": \"47:00\"}, {\"num\": 17, \"title\": \"화학I 심화 문제풀이 - 17강\", \"duration\": \"55:00\"}, {\"num\": 18, \"title\": \"화학I 심화 문제풀이 - 18강\", \"duration\": \"57:00\"}, {\"num\": 19, \"title\": \"화학I 심화 문제풀이 - 19강\", \"duration\": \"42:00\"}, {\"num\": 20, \"title\": \"화학I 심화 문제풀이 - 20강\", \"duration\": \"41:00\"}, {\"num\": 21, \"title\": \"화학I 심화 문제풀이 - 21강\", \"duration\": \"31:00\"}, {\"num\": 22, \"title\": \"화학I 심화 문제풀이 - 22강\", \"duration\": \"42:00\"}, {\"num\": 23, \"title\": \"화학I 심화 문제풀이 - 23강\", \"duration\": \"20:00\"}, {\"num\": 24, \"title\": \"화학I 심화 문제풀이 - 24강\", \"duration\": \"49:00\"}, {\"num\": 25, \"title\": \"화학I 심화 문제풀이 - 25강\", \"duration\": \"47:00\"}]",
+    "lecture_count": 25,
+    "total_duration": "1250분",
+    "is_completed": false,
+    "last_crawled_at": "2026-01-20T16:54:17.690Z",
+    "created_at": "2026-01-20T16:54:17.690Z",
+    "updated_at": "2026-01-20T16:54:17.690Z",
+    "teacher_id": null
+  }
+]
