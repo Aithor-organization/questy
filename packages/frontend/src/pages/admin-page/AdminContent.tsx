@@ -20,12 +20,14 @@ import {
   Pencil,
   MessageSquare,
   GraduationCap,
+  BarChart3,
 } from 'lucide-react';
 import { useAdminCourses } from '../../hooks/useAdminCourses';
 import { CourseCard } from './CourseCard';
 import { InquiriesView } from './InquiriesView';
 import { UsersView } from './UsersView';
 import { LearningProfilesView } from './LearningProfilesView';
+import { StatsView } from './StatsView';
 import {
   AddTeacherModal,
   AddCourseModal,
@@ -280,6 +282,11 @@ export function AdminContent({ logout, adminName }: AdminContentProps) {
           <LearningProfilesView />
         )}
 
+        {/* 통계 대시보드 탭 내용 */}
+        {viewTab === 'stats' && (
+          <StatsView />
+        )}
+
         {/* 모달 */}
         {modalType === 'add-teacher' && (
           <AddTeacherModal
@@ -499,6 +506,17 @@ function ViewTabs({
       >
         <GraduationCap size={16} />
         학습 프로필
+      </button>
+      <button
+        onClick={() => setViewTab('stats')}
+        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2 ${
+          viewTab === 'stats'
+            ? 'bg-pink-500 text-white'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        <BarChart3 size={16} />
+        통계 대시보드
       </button>
     </div>
   );

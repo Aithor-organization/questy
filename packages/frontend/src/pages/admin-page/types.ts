@@ -9,7 +9,7 @@ import type { Teacher, Course } from '../../hooks/useAdminCourses';
 export type ModalType = 'none' | 'add-teacher' | 'add-course' | 'batch-update' | 'edit-teacher' | 'edit-course';
 
 // 뷰 탭 타입
-export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries' | 'users' | 'learning-profiles';
+export type ViewTab = 'by-teacher' | 'outdated' | 'inquiries' | 'users' | 'learning-profiles' | 'stats';
 
 // 학습 프로필 타입
 export interface UserLearningProfile {

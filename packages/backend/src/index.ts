@@ -16,6 +16,7 @@ import { progressRoutes } from './routes/progress';
 import { curriculumRoutes } from './routes/curriculum';
 import { adminRoutes } from './routes/admin';
 import { adminUsersRoutes } from './routes/admin-users';
+import { adminStatsRoutes } from './routes/admin-stats';
 import { inquiryRoutes } from './routes/inquiries';
 import { cronRoutes } from './routes/cron';
 
@@ -50,6 +51,7 @@ app.route('/api/progress', progressRoutes);
 app.route('/api/curriculum', curriculumRoutes);
 app.route('/api/admin', adminRoutes);
 app.route('/api/admin', adminUsersRoutes);
+app.route('/api/admin', adminStatsRoutes);
 app.route('/api/inquiries', inquiryRoutes);
 app.route('/api/cron', cronRoutes);
 
