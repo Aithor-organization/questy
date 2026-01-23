@@ -6,8 +6,6 @@ on:
     - cron: '0 1 * * *'
     # 매일 오후 10시 KST (13:00 UTC)
     - cron: '0 13 * * *'
-    # 테스트: 오전 11시 15분 KST (02:15 UTC)
-    - cron: '15 2 * * *'
   workflow_dispatch: # 수동 실행 가능
 
 jobs:
