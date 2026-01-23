@@ -149,24 +149,32 @@ export function StatsView() {
         }),
         fetch(`${API_URL}/api/admin/stats/plans?limit=50`, {
           headers: { Authorization: `Bearer ${token}` },
-        }),
+        }).catch(() => null), // plans API 실패해도 계속 진행
       ]);
 
       if (!statsRes.ok || !growthRes.ok || !referralRes.ok) {
         throw new Error('통계 조회 실패');
       }
 
-      const [statsData, growthData, referralData, plansData] = await Promise.all([
+      const [statsData, growthData, referralData] = await Promise.all([
         statsRes.json(),
         growthRes.json(),
         referralRes.json(),
-        plansRes.json(),
       ]);
+
+      // plans는 별도로 처리 (실패해도 무시)
+      if (plansRes && plansRes.ok) {
+        try {
+          const plansData = await plansRes.json();
+          if (plansData.success) setPlans(plansData.data);
+        } catch (e) {
+          console.warn('[StatsView] Plans fetch failed:', e);
+        }
+      }
 
       if (statsData.success) setStats(statsData.data);
       if (growthData.success) setGrowth(growthData.data);
       if (referralData.success) setReferral(referralData.data);
-      if (plansData.success) setPlans(plansData.data);
     } catch (err: any) {
       console.error('[StatsView] Fetch error:', err);
       setError(err.message || '통계 조회 실패');
