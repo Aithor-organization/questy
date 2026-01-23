@@ -66,14 +66,14 @@ export function MyPage() {
             <MessageCircle className="w-5 h-5" /> 고객 지원
           </h2>
           <button
-            onClick={() => navigate('/inquiry')}
-            className="w-full py-3 px-4 bg-[var(--paper-cream)] hover:opacity-80 text-[var(--ink-black)] rounded-lg border border-[var(--paper-lines)] transition-colors flex items-center justify-center gap-2"
+            onClick={() => window.open('https://open.kakao.com/o/sC3cKiih', '_blank')}
+            className="w-full py-3 px-4 bg-[#FEE500] hover:opacity-80 text-[#3C1E1E] rounded-lg border border-[#FEE500] transition-colors flex items-center justify-center gap-2 font-medium"
           >
-            <FileText className="w-4 h-4" />
-            1:1 문의하기
+            <MessageCircle className="w-4 h-4" />
+            카카오톡 문의하기
           </button>
           <p className="text-xs text-[var(--pencil-gray)] mt-2 text-center">
-            궁금한 점이나 건의 사항이 있으면 편하게 문의해주세요
+            궁금한 점이나 건의 사항이 있으면 오픈채팅으로 문의해주세요
           </p>
         </div>
 
