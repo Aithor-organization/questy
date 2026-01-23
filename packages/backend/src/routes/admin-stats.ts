@@ -290,41 +290,64 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
     }
 
-    // 페이지네이션
-    const page = Math.max(1, parseInt(c.req.query('page') || '1'));
-    const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '20')));
-    const offset = (page - 1) * limit;
-
-    // students 테이블에서 user_id와 plans 조인
-    const { data: studentsData, error: studentsError, count } = await supabase
-      .from('students')
+    // 1. plans 테이블 직접 조회 (student 정보 포함)
+    const { data: plansData, error: plansError } = await supabase
+      .from('plans')
       .select(`
         id,
-        user_id,
-        plans (
-          id,
-          name,
-          material_name,
-          subject,
-          total_days,
-          status,
-          created_at
-        )
-      `, { count: 'exact' })
-      .range(offset, offset + limit - 1);
+        name,
+        material_name,
+        subject,
+        total_days,
+        status,
+        created_at,
+        student_id
+      `)
+      .order('created_at', { ascending: false });
 
-    if (studentsError) {
-      console.error('[AdminStats] Get plans error:', studentsError);
-      return c.json({ success: false, error: '플랜 조회 실패' }, 500);
+    if (plansError) {
+      console.error('[AdminStats] Get plans error:', plansError);
+      return c.json({ success: false, error: `플랜 조회 실패: ${plansError.message}` }, 500);
     }
 
-    // 사용자 정보 조회 (auth + profiles)
-    const userIds = studentsData?.map(s => s.user_id).filter(Boolean) || [];
+    console.log('[AdminStats] Plans found:', plansData?.length || 0);
 
+    if (!plansData || plansData.length === 0) {
+      return c.json({
+        success: true,
+        data: {
+          users: [],
+          summary: { totalPlans: 0, usersWithPlans: 0, avgPlansPerUser: 0 },
+          pagination: { page: 1, limit: 50, total: 0, totalPages: 0 },
+        },
+      });
+    }
+
+    // 2. student_id로 students 테이블에서 user_id 조회
+    const studentIds = [...new Set(plansData.map(p => p.student_id).filter(Boolean))];
+
+    const { data: studentsData, error: studentsError } = await supabase
+      .from('students')
+      .select('id, user_id')
+      .in('id', studentIds);
+
+    if (studentsError) {
+      console.error('[AdminStats] Get students error:', studentsError);
+    }
+
+    // student_id -> user_id 매핑
+    const studentToUser: Record<string, string> = {};
+    if (studentsData) {
+      for (const s of studentsData) {
+        studentToUser[s.id] = s.user_id;
+      }
+    }
+
+    // 3. user_id로 user_profiles에서 사용자 정보 조회
+    const userIds = [...new Set(Object.values(studentToUser).filter(Boolean))];
     const userInfo: Record<string, { email: string; name: string }> = {};
 
     if (userIds.length > 0) {
-      // user_profiles에서 display_name 조회
       const { data: profiles } = await supabase
         .from('user_profiles')
         .select('id, display_name, email')
@@ -338,31 +361,29 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
           };
         }
       }
-
-      // auth에서 이메일 조회 (profiles에 없는 경우)
-      for (const userId of userIds) {
-        if (!userInfo[userId]?.email) {
-          try {
-            const { data: userData } = await supabase.auth.admin.getUserById(userId);
-            if (userData?.user) {
-              userInfo[userId] = {
-                name: userInfo[userId]?.name || userData.user.user_metadata?.name || '이름 없음',
-                email: userData.user.email || '',
-              };
-            }
-          } catch (e) {
-            // 무시
-          }
-        }
-      }
     }
 
-    // 결과 조합
-    const result = studentsData?.map(student => ({
-      userId: student.user_id,
-      userName: userInfo[student.user_id]?.name || '이름 없음',
-      userEmail: userInfo[student.user_id]?.email || '',
-      plans: (student.plans as any[])?.map(plan => ({
+    // 4. 사용자별로 플랜 그룹화
+    const userPlansMap: Record<string, {
+      userId: string;
+      userName: string;
+      userEmail: string;
+      plans: any[];
+    }> = {};
+
+    for (const plan of plansData) {
+      const userId = studentToUser[plan.student_id] || plan.student_id;
+
+      if (!userPlansMap[userId]) {
+        userPlansMap[userId] = {
+          userId,
+          userName: userInfo[userId]?.name || '이름 없음',
+          userEmail: userInfo[userId]?.email || '',
+          plans: [],
+        };
+      }
+
+      userPlansMap[userId].plans.push({
         id: plan.id,
         name: plan.name,
         materialName: plan.material_name,
@@ -370,12 +391,16 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
         totalDays: plan.total_days,
         status: plan.status,
         createdAt: plan.created_at,
-      })) || [],
-      planCount: (student.plans as any[])?.length || 0,
-    })).filter(u => u.planCount > 0) || [];
+      });
+    }
 
-    // 전체 플랜 통계
-    const totalPlans = result.reduce((sum, u) => sum + u.planCount, 0);
+    // 5. 결과 정리
+    const result = Object.values(userPlansMap).map(u => ({
+      ...u,
+      planCount: u.plans.length,
+    })).sort((a, b) => b.planCount - a.planCount);
+
+    const totalPlans = plansData.length;
     const usersWithPlans = result.length;
 
     return c.json({
@@ -388,10 +413,10 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
           avgPlansPerUser: usersWithPlans > 0 ? Math.round((totalPlans / usersWithPlans) * 10) / 10 : 0,
         },
         pagination: {
-          page,
-          limit,
-          total: count || 0,
-          totalPages: Math.ceil((count || 0) / limit),
+          page: 1,
+          limit: 100,
+          total: totalPlans,
+          totalPages: 1,
         },
       },
     });
