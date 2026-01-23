@@ -66,7 +66,7 @@ export function MyPage() {
             <MessageCircle className="w-5 h-5" /> 고객 지원
           </h2>
           <button
-            onClick={() => window.open('https://open.kakao.com/o/sC3cKiih', '_blank')}
+            onClick={() => window.open('https://open.kakao.com/o/saqvbfci', '_blank')}
             className="w-full py-3 px-4 bg-[#FEE500] hover:opacity-80 text-[#3C1E1E] rounded-lg border border-[#FEE500] transition-colors flex items-center justify-center gap-2 font-medium"
           >
             <MessageCircle className="w-4 h-4" />
