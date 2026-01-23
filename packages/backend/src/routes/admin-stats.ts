@@ -283,6 +283,11 @@ adminStatsRoutes.get('/stats/growth', adminOnly, async (c) => {
 /**
  * 사용자별 커리큘럼(플랜) 생성 현황
  * GET /api/admin/stats/plans
+ *
+ * NOTE: 플랜 데이터는 user_storage 테이블에 JSON으로 저장됨
+ * - store_name: 'quest'
+ * - key: 'quest-storage'
+ * - value: { state: { plans: [...] }, version: 0 }
  */
 adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
   try {
@@ -290,29 +295,21 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
       return c.json({ success: false, error: 'Supabase not available' }, 500);
     }
 
-    // 1. plans 테이블 직접 조회 (student 정보 포함)
-    const { data: plansData, error: plansError } = await supabase
-      .from('plans')
-      .select(`
-        id,
-        name,
-        material_name,
-        subject,
-        total_days,
-        status,
-        created_at,
-        student_id
-      `)
-      .order('created_at', { ascending: false });
+    // 1. user_storage에서 quest 스토어 데이터 조회
+    const { data: storageData, error: storageError } = await supabase
+      .from('user_storage')
+      .select('user_id, value, updated_at')
+      .eq('store_name', 'quest')
+      .eq('key', 'quest-storage');
 
-    if (plansError) {
-      console.error('[AdminStats] Get plans error:', plansError);
-      return c.json({ success: false, error: `플랜 조회 실패: ${plansError.message}` }, 500);
+    if (storageError) {
+      console.error('[AdminStats] Get user_storage error:', storageError);
+      return c.json({ success: false, error: `스토리지 조회 실패: ${storageError.message}` }, 500);
     }
 
-    console.log('[AdminStats] Plans found:', plansData?.length || 0);
+    console.log('[AdminStats] Storage entries found:', storageData?.length || 0);
 
-    if (!plansData || plansData.length === 0) {
+    if (!storageData || storageData.length === 0) {
       return c.json({
         success: true,
         data: {
@@ -323,28 +320,8 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
       });
     }
 
-    // 2. student_id로 students 테이블에서 user_id 조회
-    const studentIds = [...new Set(plansData.map(p => p.student_id).filter(Boolean))];
-
-    const { data: studentsData, error: studentsError } = await supabase
-      .from('students')
-      .select('id, user_id')
-      .in('id', studentIds);
-
-    if (studentsError) {
-      console.error('[AdminStats] Get students error:', studentsError);
-    }
-
-    // student_id -> user_id 매핑
-    const studentToUser: Record<string, string> = {};
-    if (studentsData) {
-      for (const s of studentsData) {
-        studentToUser[s.id] = s.user_id;
-      }
-    }
-
-    // 3. user_id로 user_profiles에서 사용자 정보 조회
-    const userIds = [...new Set(Object.values(studentToUser).filter(Boolean))];
+    // 2. user_id 목록으로 user_profiles 조회
+    const userIds = storageData.map(s => s.user_id).filter(Boolean);
     const userInfo: Record<string, { email: string; name: string }> = {};
 
     if (userIds.length > 0) {
@@ -363,44 +340,53 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
       }
     }
 
-    // 4. 사용자별로 플랜 그룹화
-    const userPlansMap: Record<string, {
+    // 3. 각 사용자의 플랜 데이터 파싱
+    const result: Array<{
       userId: string;
       userName: string;
       userEmail: string;
       plans: any[];
-    }> = {};
+      planCount: number;
+    }> = [];
 
-    for (const plan of plansData) {
-      const userId = studentToUser[plan.student_id] || plan.student_id;
+    let totalPlans = 0;
 
-      if (!userPlansMap[userId]) {
-        userPlansMap[userId] = {
-          userId,
-          userName: userInfo[userId]?.name || '이름 없음',
-          userEmail: userInfo[userId]?.email || '',
-          plans: [],
-        };
+    for (const storage of storageData) {
+      try {
+        // JSON 파싱: { state: { plans: [...] }, version: 0 }
+        const parsed = JSON.parse(storage.value);
+        const plans = parsed?.state?.plans || [];
+
+        if (plans.length > 0) {
+          const userPlans = plans.map((plan: any) => ({
+            id: plan.id,
+            name: plan.materialName || '제목 없음',
+            materialName: plan.materialName,
+            subject: plan.summary?.subject || null,
+            totalDays: plan.summary?.totalDays || plan.dailyQuests?.length || 0,
+            status: 'active',
+            createdAt: plan.createdAt,
+            questCount: plan.dailyQuests?.length || 0,
+          }));
+
+          result.push({
+            userId: storage.user_id,
+            userName: userInfo[storage.user_id]?.name || '이름 없음',
+            userEmail: userInfo[storage.user_id]?.email || '',
+            plans: userPlans,
+            planCount: userPlans.length,
+          });
+
+          totalPlans += userPlans.length;
+        }
+      } catch (parseError) {
+        console.warn('[AdminStats] JSON parse error for user:', storage.user_id, parseError);
       }
-
-      userPlansMap[userId].plans.push({
-        id: plan.id,
-        name: plan.name,
-        materialName: plan.material_name,
-        subject: plan.subject,
-        totalDays: plan.total_days,
-        status: plan.status,
-        createdAt: plan.created_at,
-      });
     }
 
-    // 5. 결과 정리
-    const result = Object.values(userPlansMap).map(u => ({
-      ...u,
-      planCount: u.plans.length,
-    })).sort((a, b) => b.planCount - a.planCount);
+    // 4. 플랜 수 기준 정렬
+    result.sort((a, b) => b.planCount - a.planCount);
 
-    const totalPlans = plansData.length;
     const usersWithPlans = result.length;
 
     return c.json({
