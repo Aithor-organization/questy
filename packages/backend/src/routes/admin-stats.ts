@@ -296,11 +296,12 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
     }
 
     // 1. user_storage에서 quest 스토어 데이터 조회
+    // store_name: 'quest', key: 'questybook-storage' (Zustand persist name)
     const { data: storageData, error: storageError } = await supabase
       .from('user_storage')
       .select('user_id, value, updated_at')
       .eq('store_name', 'quest')
-      .eq('key', 'quest-storage');
+      .eq('key', 'questybook-storage');
 
     if (storageError) {
       console.error('[AdminStats] Get user_storage error:', storageError);
