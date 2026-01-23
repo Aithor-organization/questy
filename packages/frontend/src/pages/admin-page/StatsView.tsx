@@ -16,6 +16,9 @@ import {
   Download,
   BarChart3,
   PieChart,
+  BookOpen,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 
@@ -55,6 +58,33 @@ interface ReferralData {
   total: number;
 }
 
+interface UserPlan {
+  id: string;
+  name: string;
+  materialName: string | null;
+  subject: string | null;
+  totalDays: number;
+  status: string;
+  createdAt: string;
+}
+
+interface UserWithPlans {
+  userId: string;
+  userName: string;
+  userEmail: string;
+  plans: UserPlan[];
+  planCount: number;
+}
+
+interface PlansData {
+  users: UserWithPlans[];
+  summary: {
+    totalPlans: number;
+    usersWithPlans: number;
+    avgPlansPerUser: number;
+  };
+}
+
 // 액세스 토큰 가져오기
 async function getAccessToken(): Promise<string | null> {
   if (!supabase) return null;
@@ -76,8 +106,23 @@ export function StatsView() {
   const [stats, setStats] = useState<StatsData | null>(null);
   const [growth, setGrowth] = useState<GrowthData | null>(null);
   const [referral, setReferral] = useState<ReferralData | null>(null);
+  const [plans, setPlans] = useState<PlansData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [expandedUsers, setExpandedUsers] = useState<Set<string>>(new Set());
+
+  // 사용자 펼침/접힘 토글
+  const toggleUserExpand = (userId: string) => {
+    setExpandedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
 
   // 통계 데이터 조회
   const fetchStats = useCallback(async () => {
@@ -92,7 +137,7 @@ export function StatsView() {
       }
 
       // 병렬로 모든 통계 조회
-      const [statsRes, growthRes, referralRes] = await Promise.all([
+      const [statsRes, growthRes, referralRes, plansRes] = await Promise.all([
         fetch(`${API_URL}/api/admin/stats`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
@@ -102,21 +147,26 @@ export function StatsView() {
         fetch(`${API_URL}/api/admin/stats/referral`, {
           headers: { Authorization: `Bearer ${token}` },
         }),
+        fetch(`${API_URL}/api/admin/stats/plans?limit=50`, {
+          headers: { Authorization: `Bearer ${token}` },
+        }),
       ]);
 
       if (!statsRes.ok || !growthRes.ok || !referralRes.ok) {
         throw new Error('통계 조회 실패');
       }
 
-      const [statsData, growthData, referralData] = await Promise.all([
+      const [statsData, growthData, referralData, plansData] = await Promise.all([
         statsRes.json(),
         growthRes.json(),
         referralRes.json(),
+        plansRes.json(),
       ]);
 
       if (statsData.success) setStats(statsData.data);
       if (growthData.success) setGrowth(growthData.data);
       if (referralData.success) setReferral(referralData.data);
+      if (plansData.success) setPlans(plansData.data);
     } catch (err: any) {
       console.error('[StatsView] Fetch error:', err);
       setError(err.message || '통계 조회 실패');
@@ -404,36 +454,163 @@ export function StatsView() {
               <BarChart3 className="w-5 h-5" />
               일별 가입자 추이 (최근 30일)
             </h3>
-            <div className="h-48 flex items-end gap-1">
-              {stats.signupTrend.map((day, idx) => {
-                const maxCount = Math.max(...stats.signupTrend.map(d => d.count), 1);
-                const height = (day.count / maxCount) * 100;
-                const isToday = idx === stats.signupTrend.length - 1;
-                return (
-                  <div
-                    key={day.date}
-                    className="flex-1 flex flex-col items-center"
-                    title={`${day.date}: ${day.count}명`}
-                  >
-                    <div className="text-xs text-gray-500 mb-1">
-                      {day.count > 0 ? day.count : ''}
-                    </div>
-                    <div
-                      className={`w-full rounded-t transition-all ${
-                        isToday ? 'bg-blue-500' : 'bg-blue-300'
-                      }`}
-                      style={{ height: `${Math.max(height, 4)}%` }}
-                    />
-                    {idx % 7 === 0 && (
-                      <div className="text-xs text-gray-400 mt-1 transform -rotate-45 origin-top-left">
-                        {day.date.slice(5)}
-                      </div>
-                    )}
+            {(() => {
+              const maxCount = Math.max(...stats.signupTrend.map(d => d.count), 1);
+              return (
+                <div className="relative">
+                  {/* 차트 영역 */}
+                  <div className="h-40 flex items-end gap-0.5 mb-6">
+                    {stats.signupTrend.map((day, idx) => {
+                      const height = (day.count / maxCount) * 100;
+                      const isToday = idx === stats.signupTrend.length - 1;
+                      return (
+                        <div
+                          key={day.date}
+                          className="flex-1 flex flex-col items-center justify-end h-full"
+                          title={`${day.date}: ${day.count}명`}
+                        >
+                          {day.count > 0 && (
+                            <div className="text-xs text-gray-600 mb-1 font-medium">
+                              {day.count}
+                            </div>
+                          )}
+                          <div
+                            className={`w-full rounded-t transition-all ${
+                              isToday ? 'bg-blue-500' : day.count > 0 ? 'bg-blue-400' : 'bg-gray-200'
+                            }`}
+                            style={{ height: `${day.count > 0 ? Math.max(height, 8) : 2}%` }}
+                          />
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
-            </div>
+                  {/* X축 날짜 라벨 */}
+                  <div className="flex gap-0.5">
+                    {stats.signupTrend.map((day, idx) => (
+                      <div key={day.date} className="flex-1 text-center">
+                        {idx % 5 === 0 && (
+                          <div className="text-xs text-gray-400">
+                            {day.date.slice(5)}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
+
+          {/* 사용자별 커리큘럼 생성 현황 */}
+          {plans && (
+            <div className="bg-white p-4 rounded-lg shadow">
+              <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
+                <BookOpen className="w-5 h-5" />
+                사용자별 커리큘럼 생성 현황
+              </h3>
+
+              {/* 요약 */}
+              <div className="grid grid-cols-3 gap-4 mb-4">
+                <div className="p-3 bg-blue-50 rounded-lg text-center">
+                  <div className="text-sm text-blue-700">총 생성 플랜</div>
+                  <div className="text-xl font-bold text-blue-800">
+                    {formatNumber(plans.summary.totalPlans)}개
+                  </div>
+                </div>
+                <div className="p-3 bg-green-50 rounded-lg text-center">
+                  <div className="text-sm text-green-700">플랜 생성 사용자</div>
+                  <div className="text-xl font-bold text-green-800">
+                    {formatNumber(plans.summary.usersWithPlans)}명
+                  </div>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-lg text-center">
+                  <div className="text-sm text-purple-700">인당 평균</div>
+                  <div className="text-xl font-bold text-purple-800">
+                    {plans.summary.avgPlansPerUser}개
+                  </div>
+                </div>
+              </div>
+
+              {/* 사용자 목록 */}
+              <div className="border rounded-lg overflow-hidden">
+                <div className="bg-gray-50 px-4 py-2 border-b text-sm font-medium text-gray-700 grid grid-cols-12 gap-2">
+                  <div className="col-span-4">사용자</div>
+                  <div className="col-span-5">이메일</div>
+                  <div className="col-span-2 text-center">플랜 수</div>
+                  <div className="col-span-1"></div>
+                </div>
+                <div className="max-h-96 overflow-y-auto">
+                  {plans.users.map(user => (
+                    <div key={user.userId} className="border-b last:border-b-0">
+                      <div
+                        className="px-4 py-2 grid grid-cols-12 gap-2 items-center hover:bg-gray-50 cursor-pointer"
+                        onClick={() => toggleUserExpand(user.userId)}
+                      >
+                        <div className="col-span-4 text-sm font-medium truncate">
+                          {user.userName}
+                        </div>
+                        <div className="col-span-5 text-sm text-gray-500 truncate">
+                          {user.userEmail}
+                        </div>
+                        <div className="col-span-2 text-center">
+                          <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded text-sm">
+                            {user.planCount}개
+                          </span>
+                        </div>
+                        <div className="col-span-1 text-center">
+                          {expandedUsers.has(user.userId) ? (
+                            <ChevronUp className="w-4 h-4 text-gray-400" />
+                          ) : (
+                            <ChevronDown className="w-4 h-4 text-gray-400" />
+                          )}
+                        </div>
+                      </div>
+                      {/* 펼쳐진 플랜 목록 */}
+                      {expandedUsers.has(user.userId) && (
+                        <div className="bg-gray-50 px-4 py-2 border-t">
+                          <div className="space-y-2">
+                            {user.plans.map(plan => (
+                              <div
+                                key={plan.id}
+                                className="flex items-center justify-between text-sm p-2 bg-white rounded border"
+                              >
+                                <div className="flex-1">
+                                  <div className="font-medium text-gray-800">
+                                    {plan.name || plan.materialName || '제목 없음'}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {plan.subject && `${plan.subject} · `}
+                                    {plan.totalDays}일 과정 ·{' '}
+                                    {new Date(plan.createdAt).toLocaleDateString('ko-KR')}
+                                  </div>
+                                </div>
+                                <span
+                                  className={`px-2 py-0.5 rounded text-xs ${
+                                    plan.status === 'active'
+                                      ? 'bg-green-100 text-green-700'
+                                      : plan.status === 'completed'
+                                      ? 'bg-blue-100 text-blue-700'
+                                      : 'bg-gray-100 text-gray-600'
+                                  }`}
+                                >
+                                  {plan.status === 'active' ? '진행중' : plan.status === 'completed' ? '완료' : '일시정지'}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {plans.users.length === 0 && (
+                    <div className="px-4 py-8 text-center text-gray-500">
+                      아직 플랜을 생성한 사용자가 없습니다.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 예비창업패키지 제출 팁 */}
           <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">

@@ -279,3 +279,125 @@ adminStatsRoutes.get('/stats/growth', adminOnly, async (c) => {
     return c.json({ success: false, error: error.message || '성장률 조회 실패' }, 500);
   }
 });
+
+/**
+ * 사용자별 커리큘럼(플랜) 생성 현황
+ * GET /api/admin/stats/plans
+ */
+adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
+  try {
+    if (!supabase) {
+      return c.json({ success: false, error: 'Supabase not available' }, 500);
+    }
+
+    // 페이지네이션
+    const page = Math.max(1, parseInt(c.req.query('page') || '1'));
+    const limit = Math.min(100, Math.max(1, parseInt(c.req.query('limit') || '20')));
+    const offset = (page - 1) * limit;
+
+    // students 테이블에서 user_id와 plans 조인
+    const { data: studentsData, error: studentsError, count } = await supabase
+      .from('students')
+      .select(`
+        id,
+        user_id,
+        plans (
+          id,
+          name,
+          material_name,
+          subject,
+          total_days,
+          status,
+          created_at
+        )
+      `, { count: 'exact' })
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+
+    if (studentsError) {
+      console.error('[AdminStats] Get plans error:', studentsError);
+      return c.json({ success: false, error: '플랜 조회 실패' }, 500);
+    }
+
+    // 사용자 정보 조회 (auth + profiles)
+    const userIds = studentsData?.map(s => s.user_id).filter(Boolean) || [];
+
+    const userInfo: Record<string, { email: string; name: string }> = {};
+
+    if (userIds.length > 0) {
+      // user_profiles에서 display_name 조회
+      const { data: profiles } = await supabase
+        .from('user_profiles')
+        .select('id, display_name, email')
+        .in('id', userIds);
+
+      if (profiles) {
+        for (const p of profiles) {
+          userInfo[p.id] = {
+            name: p.display_name || '이름 없음',
+            email: p.email || '',
+          };
+        }
+      }
+
+      // auth에서 이메일 조회 (profiles에 없는 경우)
+      for (const userId of userIds) {
+        if (!userInfo[userId]?.email) {
+          try {
+            const { data: userData } = await supabase.auth.admin.getUserById(userId);
+            if (userData?.user) {
+              userInfo[userId] = {
+                name: userInfo[userId]?.name || userData.user.user_metadata?.name || '이름 없음',
+                email: userData.user.email || '',
+              };
+            }
+          } catch (e) {
+            // 무시
+          }
+        }
+      }
+    }
+
+    // 결과 조합
+    const result = studentsData?.map(student => ({
+      userId: student.user_id,
+      userName: userInfo[student.user_id]?.name || '이름 없음',
+      userEmail: userInfo[student.user_id]?.email || '',
+      plans: (student.plans as any[])?.map(plan => ({
+        id: plan.id,
+        name: plan.name,
+        materialName: plan.material_name,
+        subject: plan.subject,
+        totalDays: plan.total_days,
+        status: plan.status,
+        createdAt: plan.created_at,
+      })) || [],
+      planCount: (student.plans as any[])?.length || 0,
+    })).filter(u => u.planCount > 0) || [];
+
+    // 전체 플랜 통계
+    const totalPlans = result.reduce((sum, u) => sum + u.planCount, 0);
+    const usersWithPlans = result.length;
+
+    return c.json({
+      success: true,
+      data: {
+        users: result,
+        summary: {
+          totalPlans,
+          usersWithPlans,
+          avgPlansPerUser: usersWithPlans > 0 ? Math.round((totalPlans / usersWithPlans) * 10) / 10 : 0,
+        },
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit),
+        },
+      },
+    });
+  } catch (error: any) {
+    console.error('[AdminStats] Get plans error:', error);
+    return c.json({ success: false, error: error.message || '플랜 조회 실패' }, 500);
+  }
+});
