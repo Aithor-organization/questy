@@ -311,7 +311,6 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
           created_at
         )
       `, { count: 'exact' })
-      .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (studentsError) {
