@@ -372,7 +372,7 @@ export function StatsView() {
                 유입경로별 가입자
               </h3>
               <div className="space-y-2">
-                {referral.referralSources.slice(0, 10).map((item, idx) => {
+                {referral.referralSources.slice(0, 10).map((item) => {
                   const percent = Math.round((item.count / referral.total) * 100);
                   return (
                     <div key={item.source} className="flex items-center gap-2">
