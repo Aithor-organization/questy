@@ -210,13 +210,25 @@ export function OnboardingPage() {
         return;
       }
 
+      // 베타테스터로 멤버십 활성화
+      const { data: membershipResult, error: membershipError } = await supabase
+        .rpc('activate_beta_membership');
+
+      if (membershipError) {
+        console.error('[Onboarding] Membership activation error:', membershipError);
+        // 멤버십 활성화 실패해도 프로필은 저장됨 - pending 페이지로 이동
+        getSetOnboardingCompleted()(true);
+        navigate('/pending', { replace: true });
+        return;
+      }
+
+      console.log('[Onboarding] Membership activated:', membershipResult);
+
       // 성공 - 로컬 상태 업데이트
       getSetOnboardingCompleted()(true);
-      console.log('[Onboarding] Save successful, navigating to pending page');
 
-      // 신규 가입자는 무조건 pending 상태이므로 바로 대기 페이지로 이동
-      // (멤버십 체크 생략 - 불필요한 3초 대기 제거)
-      navigate('/pending', { replace: true });
+      // 베타테스터로 활성화되었으므로 메인 페이지로 이동
+      navigate('/', { replace: true });
     } catch (err) {
       console.error('[Onboarding] Error:', err);
       setError('오류가 발생했습니다');
