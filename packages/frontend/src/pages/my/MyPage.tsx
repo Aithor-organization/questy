@@ -3,7 +3,7 @@
  * 마이페이지 - 사용자 정보, 학습 프로필, 로그아웃
  */
 
-import { User, MessageCircle, FileText, LogOut } from 'lucide-react';
+import { User, MessageCircle, LogOut } from 'lucide-react';
 import { NotebookLayout, NotebookPage } from '../../components/notebook';
 import { useMyPage } from './hooks/useMyPage';
 import {
@@ -23,7 +23,7 @@ export function MyPage() {
     setEditName, setEditPassword, setEditPasswordConfirm, setEditProfile,
     setShowEditProfile, setShowEditLearning,
     handleLogout, openEditModal, handleUpdateProfile, openEditLearning, handleSaveProfile,
-    handleGradeChange, togglePlatform, navigate,
+    handleGradeChange, togglePlatform,
   } = useMyPage();
 
   return (
