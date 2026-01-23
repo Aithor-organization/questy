@@ -948,7 +948,11 @@ export const useAuthStore = create<AuthStore>()(
       setOnboardingCompleted: (completed: boolean) => {
         const currentUser = get().user;
         if (currentUser) {
-          set({ user: { ...currentUser, onboardingCompleted: completed } });
+          set({
+            user: { ...currentUser, onboardingCompleted: completed },
+            // 온보딩 완료 시 needsOnboarding도 false로 설정
+            ...(completed ? { needsOnboarding: false } : {}),
+          });
         }
       },
 
