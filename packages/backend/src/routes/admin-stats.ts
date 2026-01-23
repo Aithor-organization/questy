@@ -359,16 +359,36 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
         const plans = parsed?.state?.plans || [];
 
         if (plans.length > 0) {
-          const userPlans = plans.map((plan: any) => ({
-            id: plan.id,
-            name: plan.materialName || '제목 없음',
-            materialName: plan.materialName,
-            subject: plan.summary?.subject || null,
-            totalDays: plan.summary?.totalDays || plan.dailyQuests?.length || 0,
-            status: 'active',
-            createdAt: plan.createdAt,
-            questCount: plan.dailyQuests?.length || 0,
-          }));
+          const userPlans = plans.map((plan: any) => {
+            const dailyQuests = plan.dailyQuests || [];
+            const totalQuests = dailyQuests.length;
+            const completedQuests = dailyQuests.filter((q: any) => q.completed === true).length;
+            const progressPercent = totalQuests > 0
+              ? Math.round((completedQuests / totalQuests) * 100)
+              : 0;
+
+            // 총 학습 시간 계산 (초 단위)
+            const totalStudySeconds = dailyQuests.reduce((acc: number, q: any) => {
+              return acc + (q.timerRecord?.elapsedSeconds || 0);
+            }, 0);
+            const totalStudyMinutes = Math.round(totalStudySeconds / 60);
+
+            return {
+              id: plan.id,
+              name: plan.materialName || '제목 없음',
+              materialName: plan.materialName,
+              subject: plan.summary?.subject || null,
+              totalDays: plan.summary?.totalDays || totalQuests,
+              createdAt: plan.createdAt,
+              // 진행률 정보
+              totalQuests,
+              completedQuests,
+              progressPercent,
+              totalStudyMinutes,
+              // 상태 계산
+              status: progressPercent === 100 ? 'completed' : progressPercent > 0 ? 'in_progress' : 'not_started',
+            };
+          });
 
           result.push({
             userId: storage.user_id,
@@ -390,6 +410,23 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
 
     const usersWithPlans = result.length;
 
+    // 5. 전체 진행률 통계 계산
+    let totalQuestsAll = 0;
+    let totalCompletedAll = 0;
+    let totalStudyMinutesAll = 0;
+    let completedPlans = 0;
+    let inProgressPlans = 0;
+
+    for (const user of result) {
+      for (const plan of user.plans) {
+        totalQuestsAll += plan.totalQuests;
+        totalCompletedAll += plan.completedQuests;
+        totalStudyMinutesAll += plan.totalStudyMinutes;
+        if (plan.status === 'completed') completedPlans++;
+        else if (plan.status === 'in_progress') inProgressPlans++;
+      }
+    }
+
     return c.json({
       success: true,
       data: {
@@ -398,6 +435,15 @@ adminStatsRoutes.get('/stats/plans', adminOnly, async (c) => {
           totalPlans,
           usersWithPlans,
           avgPlansPerUser: usersWithPlans > 0 ? Math.round((totalPlans / usersWithPlans) * 10) / 10 : 0,
+          // 진행률 통계
+          totalQuests: totalQuestsAll,
+          totalCompleted: totalCompletedAll,
+          overallProgressPercent: totalQuestsAll > 0 ? Math.round((totalCompletedAll / totalQuestsAll) * 100) : 0,
+          totalStudyHours: Math.round(totalStudyMinutesAll / 60 * 10) / 10,
+          // 플랜 상태별 수
+          completedPlans,
+          inProgressPlans,
+          notStartedPlans: totalPlans - completedPlans - inProgressPlans,
         },
         pagination: {
           page: 1,

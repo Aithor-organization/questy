@@ -64,8 +64,13 @@ interface UserPlan {
   materialName: string | null;
   subject: string | null;
   totalDays: number;
-  status: string;
   createdAt: string;
+  // 진행률 정보
+  totalQuests: number;
+  completedQuests: number;
+  progressPercent: number;
+  totalStudyMinutes: number;
+  status: 'completed' | 'in_progress' | 'not_started';
 }
 
 interface UserWithPlans {
@@ -82,6 +87,14 @@ interface PlansData {
     totalPlans: number;
     usersWithPlans: number;
     avgPlansPerUser: number;
+    // 진행률 통계
+    totalQuests: number;
+    totalCompleted: number;
+    overallProgressPercent: number;
+    totalStudyHours: number;
+    completedPlans: number;
+    inProgressPlans: number;
+    notStartedPlans: number;
   };
 }
 
@@ -571,25 +584,46 @@ export function StatsView() {
                 사용자별 커리큘럼 생성 현황
               </h3>
 
-              {/* 요약 */}
-              <div className="grid grid-cols-3 gap-4 mb-4">
+              {/* 요약 - 상단 */}
+              <div className="grid grid-cols-3 md:grid-cols-6 gap-3 mb-4">
                 <div className="p-3 bg-blue-50 rounded-lg text-center">
-                  <div className="text-sm text-blue-700">총 생성 플랜</div>
-                  <div className="text-xl font-bold text-blue-800">
+                  <div className="text-xs text-blue-700">총 플랜</div>
+                  <div className="text-lg font-bold text-blue-800">
                     {formatNumber(plans.summary.totalPlans)}개
                   </div>
                 </div>
                 <div className="p-3 bg-green-50 rounded-lg text-center">
-                  <div className="text-sm text-green-700">플랜 생성 사용자</div>
-                  <div className="text-xl font-bold text-green-800">
+                  <div className="text-xs text-green-700">생성 사용자</div>
+                  <div className="text-lg font-bold text-green-800">
                     {formatNumber(plans.summary.usersWithPlans)}명
                   </div>
                 </div>
                 <div className="p-3 bg-purple-50 rounded-lg text-center">
-                  <div className="text-sm text-purple-700">인당 평균</div>
-                  <div className="text-xl font-bold text-purple-800">
-                    {plans.summary.avgPlansPerUser}개
+                  <div className="text-xs text-purple-700">전체 진행률</div>
+                  <div className="text-lg font-bold text-purple-800">
+                    {plans.summary.overallProgressPercent || 0}%
                   </div>
+                </div>
+                <div className="p-3 bg-indigo-50 rounded-lg text-center">
+                  <div className="text-xs text-indigo-700">완료 퀘스트</div>
+                  <div className="text-lg font-bold text-indigo-800">
+                    {formatNumber(plans.summary.totalCompleted || 0)}/{formatNumber(plans.summary.totalQuests || 0)}
+                  </div>
+                </div>
+                <div className="p-3 bg-orange-50 rounded-lg text-center">
+                  <div className="text-xs text-orange-700">총 학습 시간</div>
+                  <div className="text-lg font-bold text-orange-800">
+                    {plans.summary.totalStudyHours || 0}시간
+                  </div>
+                </div>
+                <div className="p-3 bg-gray-50 rounded-lg text-center">
+                  <div className="text-xs text-gray-700">플랜 상태</div>
+                  <div className="text-sm font-medium text-gray-800">
+                    <span className="text-green-600">{plans.summary.completedPlans || 0}</span>/
+                    <span className="text-blue-600">{plans.summary.inProgressPlans || 0}</span>/
+                    <span className="text-gray-500">{plans.summary.notStartedPlans || 0}</span>
+                  </div>
+                  <div className="text-xs text-gray-500">완료/진행/대기</div>
                 </div>
               </div>
 
@@ -634,29 +668,57 @@ export function StatsView() {
                             {user.plans.map(plan => (
                               <div
                                 key={plan.id}
-                                className="flex items-center justify-between text-sm p-2 bg-white rounded border"
+                                className="text-sm p-3 bg-white rounded border"
                               >
-                                <div className="flex-1">
-                                  <div className="font-medium text-gray-800">
-                                    {plan.name || plan.materialName || '제목 없음'}
+                                <div className="flex items-start justify-between mb-2">
+                                  <div className="flex-1">
+                                    <div className="font-medium text-gray-800">
+                                      {plan.name || plan.materialName || '제목 없음'}
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      {plan.subject && `${plan.subject} · `}
+                                      {plan.totalDays}일 과정 ·{' '}
+                                      {new Date(plan.createdAt).toLocaleDateString('ko-KR')}
+                                    </div>
                                   </div>
-                                  <div className="text-xs text-gray-500">
-                                    {plan.subject && `${plan.subject} · `}
-                                    {plan.totalDays}일 과정 ·{' '}
-                                    {new Date(plan.createdAt).toLocaleDateString('ko-KR')}
-                                  </div>
+                                  <span
+                                    className={`px-2 py-0.5 rounded text-xs whitespace-nowrap ${
+                                      plan.status === 'completed'
+                                        ? 'bg-green-100 text-green-700'
+                                        : plan.status === 'in_progress'
+                                        ? 'bg-blue-100 text-blue-700'
+                                        : 'bg-gray-100 text-gray-600'
+                                    }`}
+                                  >
+                                    {plan.status === 'completed' ? '완료' : plan.status === 'in_progress' ? '진행중' : '미시작'}
+                                  </span>
                                 </div>
-                                <span
-                                  className={`px-2 py-0.5 rounded text-xs ${
-                                    plan.status === 'active'
-                                      ? 'bg-green-100 text-green-700'
-                                      : plan.status === 'completed'
-                                      ? 'bg-blue-100 text-blue-700'
-                                      : 'bg-gray-100 text-gray-600'
-                                  }`}
-                                >
-                                  {plan.status === 'active' ? '진행중' : plan.status === 'completed' ? '완료' : '일시정지'}
-                                </span>
+                                {/* 진행률 바 */}
+                                <div className="flex items-center gap-2">
+                                  <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
+                                    <div
+                                      className={`h-full transition-all ${
+                                        plan.progressPercent === 100
+                                          ? 'bg-green-500'
+                                          : plan.progressPercent > 0
+                                          ? 'bg-blue-500'
+                                          : 'bg-gray-300'
+                                      }`}
+                                      style={{ width: `${plan.progressPercent}%` }}
+                                    />
+                                  </div>
+                                  <span className="text-xs text-gray-600 w-24 text-right">
+                                    {plan.completedQuests}/{plan.totalQuests} ({plan.progressPercent}%)
+                                  </span>
+                                </div>
+                                {/* 학습 시간 */}
+                                {plan.totalStudyMinutes > 0 && (
+                                  <div className="text-xs text-gray-400 mt-1">
+                                    총 학습: {plan.totalStudyMinutes >= 60
+                                      ? `${Math.floor(plan.totalStudyMinutes / 60)}시간 ${plan.totalStudyMinutes % 60}분`
+                                      : `${plan.totalStudyMinutes}분`}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
