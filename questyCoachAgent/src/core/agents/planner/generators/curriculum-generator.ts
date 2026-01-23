@@ -22,7 +22,8 @@ import { CURRICULUM_GENERATION_PROMPT } from '../prompts.js';
 
 // 학습 전략 상수
 const BUFFER_RATIO = 0.80;
-const MAX_LECTURE_RATIO = 0.60;
+const MAX_LECTURE_RATIO = 1.0;  // 인강 100% (문제풀이 시간 별도 배정 안 함)
+const MIN_LECTURES_PER_DAY = 1;  // 최소 1개 인강 보장
 const MAX_LECTURES_PER_DAY_WARNING = 8;
 const MAX_LECTURES_PER_DAY_ERROR = 15;
 
@@ -166,7 +167,7 @@ export async function generateCurriculumWithAI(
   pastPerformance: PlanPerformanceMemory[],
   generateResponse: (systemPrompt: string, userPrompt: string, options?: object) => Promise<string>
 ): Promise<CurriculumGenerationResult> {
-  const { courses, targetDate, dailyStudyHours, subjectHours, subjectDays, options } = request;
+  const { courses, targetDate, dailyStudyHours, minDailyStudyHours, maxDailyStudyHours, subjectHours, subjectDays, options } = request;
 
   // 유효성 검사
   if (!courses || courses.length === 0) {
@@ -218,11 +219,15 @@ export async function generateCurriculumWithAI(
     courses,
     lectures,
     targetDate,
-    effectiveDays,  // 가용 일수만 전달
+    availableDates,
     dailyStudyHours,
-    subjectHours,
-    undefined,  // subjectDays 제거 - 더 이상 LLM에 전달하지 않음
-    personalizationInfo
+    minDailyStudyHours,
+    maxDailyStudyHours,
+    // subjectHours,
+    undefined,
+    undefined,
+    personalizationInfo,
+    request.existingLoad // Pass existing load
   );
 
   try {
@@ -230,7 +235,7 @@ export async function generateCurriculumWithAI(
     const response = await generateResponse(
       CURRICULUM_GENERATION_PROMPT,
       userPrompt,
-      { model: 'gpt-5-nano', temperature: 0.3, maxTokens: 16384 }
+      { model: 'openai/gpt-5-nano', temperature: 0.3, maxTokens: 16384 }
     );
 
     // JSON 파싱
@@ -238,7 +243,7 @@ export async function generateCurriculumWithAI(
 
     if (!llmResult) {
       console.warn('[CurriculumGenerator] LLM 응답 파싱 실패, 폴백으로 전환');
-      return generateFallbackCurriculum(request, lectures, totalDays, startDate);
+      return generateFallbackCurriculum(request, lectures, totalCalendarDays, startDate, availableDates);
     }
 
     // 검증 (요일/시간 제약 포함)
@@ -300,7 +305,27 @@ function extractLectures(
   }> = [];
 
   for (const course of courses) {
-    const chapters = course.chapters || [];
+    let chapters = course.chapters || [];
+
+    // chapters가 없고 lectures 필드가 있는 경우 처리 (DB 스키마 호환)
+    if (chapters.length === 0 && (course as any).lectures) {
+      try {
+        const rawLectures = typeof (course as any).lectures === 'string'
+          ? JSON.parse((course as any).lectures)
+          : (course as any).lectures;
+
+        if (Array.isArray(rawLectures)) {
+          chapters = rawLectures.map((l: any) => ({
+            title: l.title,
+            duration: l.duration || '45:00', // 기본값
+            description: l.description
+          }));
+        }
+      } catch (e) {
+        console.warn(`[CurriculumGenerator] Failed to parse lectures for course ${course.id}`, e);
+      }
+    }
+
     const startFrom = course.startFromChapter ?? 0;
 
     for (let i = startFrom; i < chapters.length; i++) {
@@ -411,52 +436,85 @@ function buildCurriculumPrompt(
   courses: CurriculumCourse[],
   lectures: ReturnType<typeof extractLectures>,
   targetDate: string,
-  totalDays: number,
+  availableDates: string[],
   dailyStudyHours: number,
-  subjectHours?: Record<string, number | null>,
+  minDailyStudyHours: number | undefined,
+  maxDailyStudyHours: number | undefined,
+  subjectHours?: Record<string, number | { min: number; max: number } | null>,
   subjectDays?: Record<string, number[]>,
-  personalizationInfo?: string
+  personalizationInfo?: string,
+  existingLoad?: Array<{ date: string; totalMinutes: number; subjects: string[] }>
 ): string {
-  const today = format(new Date(), 'yyyy-MM-dd');
+  const todayDate = new Date();
+  const today = format(todayDate, 'yyyy-MM-dd');
+  const dayOfWeek = ['일', '월', '화', '수', '목', '금', '토'][todayDate.getDay()];
 
-  let prompt = `## 커리큘럼 생성 요청
+  let prompt = `## 목표: ${targetDate}까지 완강 일정 생성 (가용일: ${availableDates.length}일)\n`;
+  prompt += `## 📅 기준일: ${today} (${dayOfWeek}요일)\n`;
+  prompt += `⚠️ 반드시 **${today.split('-')[0]}년** 날짜를 사용하세요. (2024, 2025년 사용 금지)\n`;
 
-### 기본 정보
-- 오늘 날짜: ${today}
-- 목표 완료일: ${targetDate}
-- 총 학습 기간: ${totalDays}일
-- 일일 학습 시간: ${dailyStudyHours}시간 (${dailyStudyHours * 60}분)
+  // Calendar Strategy: Weekly Pattern + Exceptions
+  prompt += `\n### 🗓️ 학습 일정 규칙 (Weekly Pattern & Exceptions)\n`;
+  prompt += `다음 '기본 주간 패턴'을 모든 날짜에 적용하되, '예외 날짜'에는 부하(Load) 정보를 최우선으로 고려하세요.\n\n`;
 
-### 강좌 목록
-`;
-
-  for (const course of courses) {
-    const chapters = course.chapters || [];
-    const startFrom = course.startFromChapter ?? 0;
-    const totalLectures = chapters.length - startFrom;
-    const totalMinutes = chapters
-      .slice(startFrom)
-      .reduce((sum, ch) => sum + parseDuration(ch.duration), 0);
-
-    prompt += `\n#### ${course.courseName} (${course.lecturer || '강사 미상'})
-- 과목: ${course.subject}
-- 총 강의: ${totalLectures}개
-- 총 시간: ${Math.round(totalMinutes / 60 * 10) / 10}시간
-${startFrom > 0 ? `- 이어듣기: ${startFrom + 1}강부터 시작\n` : ''}`;
-  }
-
-  // 과목별 학습 시간 설정
-  if (subjectHours && Object.values(subjectHours).some(v => v !== null && v > 0)) {
-    prompt += `\n### 과목별 일일 학습 시간 설정\n`;
-    for (const [subject, hours] of Object.entries(subjectHours)) {
-      if (hours !== null && hours > 0) {
-        prompt += `- ${subject}: ${hours}시간/일\n`;
+  // 1. Weekly Pattern
+  prompt += `#### 1. 기본 주간 패턴 (Weekly Pattern)\n`;
+  const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+  for (let i = 0; i < 7; i++) {
+    const dayName = dayNames[i];
+    const allowedSubjects: string[] = [];
+    if (subjectDays) {
+      for (const [subj, days] of Object.entries(subjectDays)) {
+        if (days.includes(i)) allowedSubjects.push(subj);
       }
+    } else {
+      allowedSubjects.push('All');
+    }
+    if (allowedSubjects.length > 0) {
+      prompt += `- ${dayName}요일: ${allowedSubjects.join(', ')}\n`;
     }
   }
 
-  // 과목별 학습 요일 설정
-  if (subjectDays && Object.keys(subjectDays).length > 0) {
+  // 2. Exceptions (Load)
+  if (existingLoad && existingLoad.length > 0) {
+    prompt += `\n#### 2. 예외 및 부하 정보 (Exceptions w/ Load)\n`;
+    prompt += `이 날짜들은 '기본 패턴'보다 아래 부하 상태를 우선 고려하여 배치를 줄이거나 피하세요.\n`;
+
+    // Filter existingLoad to be relevant (within range?) - For now just list all passed
+    existingLoad.slice(0, 20).forEach(load => { // Limit to avoid spam if many
+      const d = new Date(load.date);
+      const dayName = dayNames[d.getDay()];
+
+      const dailyCapHours = maxDailyStudyHours || dailyStudyHours;
+      const dailyCapMins = dailyCapHours * 60;
+      const remainingMins = Math.max(0, dailyCapMins - load.totalMinutes);
+      const remainingHours = (remainingMins / 60).toFixed(1);
+
+      prompt += `- ${load.date} (${dayName}): [Load: ${(load.totalMinutes / 60).toFixed(1)}h (${load.subjects.join(',')}) / 잔여: ${remainingHours}h]\n`;
+    });
+  }
+
+  prompt += `\n\n`;
+
+  if (minDailyStudyHours && maxDailyStudyHours) {
+    prompt += `## 일일 가용 학습 시간: ${minDailyStudyHours}시간 ~ ${maxDailyStudyHours}시간 (유동적)\n`;
+    prompt += `### ⏳ 시간 배분 전략 (Dynamic Pacing)\n`;
+    prompt += `- **유동적 시간 활용**: 날짜별 상황에 따라 ${minDailyStudyHours}~${maxDailyStudyHours}시간 사이에서 유연하게 학습량을 조절하세요.\n`;
+    prompt += `- **겹치는 날 (Heavy Day)**: 여러 과목이 겹치는 날은 각 과목의 학습 시간을 최소화(${minDailyStudyHours}시간에 가깝게)하여 부담을 줄이세요.\n`;
+    prompt += `- **안 겹치는 날 (Focus Day)**: 특정 과목만 배치되는 날은 최대 시간(${maxDailyStudyHours}시간)을 활용하여 진도를 많이 나가세요.\n`;
+  } else {
+    prompt += `## 일일 가용 학습 시간: ${dailyStudyHours}시간\n`;
+  }
+
+  if (subjectHours) {
+    prompt += `\n### 과목별 최대 학습 시간 제한\n`;
+    for (const [subject, hours] of Object.entries(subjectHours)) {
+      if (hours) prompt += `- ${subject}: 하루 최대 ${hours}시간\n`;
+    }
+  }
+
+  // 요일 제약 정보 추가
+  if (subjectDays) {
     const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
     prompt += `\n### 과목별 학습 요일 설정 (중요!)\n`;
     for (const [subject, days] of Object.entries(subjectDays)) {
@@ -475,6 +533,7 @@ ${startFrom > 0 ? `- 이어듣기: ${startFrom + 1}강부터 시작\n` : ''}`;
   for (const lec of lectures) {
     if (lec.courseId !== currentCourseId) {
       prompt += `\n**${lec.courseName}**\n`;
+      prompt += `- 과목: ${lec.subject}\n`;
       currentCourseId = lec.courseId;
     }
     const duration = parseDuration(lec.chapter.duration);
@@ -486,12 +545,19 @@ ${startFrom > 0 ? `- 이어듣기: ${startFrom + 1}강부터 시작\n` : ''}`;
     prompt += personalizationInfo;
   }
 
-  prompt += `\n### 생성 규칙
-1. 모든 강의를 ${targetDate}까지 배치하세요
-2. 같은 강좌의 강의는 순서대로 배치하세요 (1강→2강→3강...)
+  const maxHours = maxDailyStudyHours || dailyStudyHours;
+
+  prompt += `\n### 생성 규칙 (매우 중요!)
+1. **병렬 진행 필수**: 여러 과목이 있으면 같은 날에 병렬로 배치하세요
+   - ❌ 잘못된 예: 수학 1~30강 끝 → 국어 1~20강 → 영어 1~15강 (순차 배치)
+   - ✅ 올바른 예: 1일차(수학1강+국어1강+영어1강), 2일차(수학2강+국어2강+영어2강)...
+2. 같은 강좌 내에서는 순서대로 배치하세요 (1강→2강→3강...)
 3. 과목별 학습 요일이 설정된 경우 반드시 해당 요일에만 배치하세요
 4. 하루 최대 ${MAX_LECTURES_PER_DAY_WARNING}개 이하로 강의를 배치하세요
-5. 강의가 일찍 끝나면 남은 날은 복습일로 비워두세요
+5. 모든 강의를 ${targetDate}까지 배치하세요
+6. **시간 준수**: 하루 총 학습 시간이 ${maxHours}시간을 초과하지 않도록 주의하세요
+
+⚠️ 핵심: 수학이 다 끝나고 국어가 시작되는 것이 아니라, 모든 과목이 동시에 진행되어야 합니다!
 
 JSON 형식으로만 응답하세요.`;
 
@@ -530,7 +596,7 @@ function validateLLMSchedule(
   llmResult: LLMScheduleResponse,
   totalLectures: number,
   dailyStudyHours: number,
-  subjectHours?: Record<string, number | null>,
+  subjectHours?: Record<string, number | { min: number; max: number } | null>,
   subjectDays?: Record<string, number[]>
 ): CurriculumGenerationResult['validation'] & { severity: 'valid' | 'warning' | 'invalid' } {
   const issues: Array<{ severity: 'valid' | 'warning' | 'invalid'; code: string; message: string }> = [];
@@ -726,15 +792,15 @@ function convertToQuests(
         priority: quest.chapterIndex === 1 ? 'high' : 'medium',
         studyTips: quest.tip
           ? {
-              importance: '일반',
-              keyPoints: [quest.tip],
-              studyMethod: '인강 시청',
-            }
+            importance: '일반',
+            keyPoints: [quest.tip],
+            studyMethod: '인강 시청',
+          }
           : undefined,
       });
     }
 
-    // 문제풀이 퀘스트 추가 (강의가 있는 날에 필수)
+    // 문제풀이 퀘스트 추가 (체크리스트 형식, 시간 0분)
     const lectureQuests = day.quests.filter(q => q.questType === 'lecture');
     if (lectureQuests.length > 0) {
       const lectureSubjects = [...new Set(lectureQuests.map(q => q.subject))];
@@ -753,10 +819,11 @@ function convertToQuests(
           lecturer: subjectLectures[0]?.lecturer,
           chapter: '문제풀이',
           section: null,
-          scheduledDate: actualDate,  // ⭐ 가용 날짜로 재매핑
-          estimatedMinutes: 30,
+          scheduledDate: actualDate,
+          estimatedMinutes: 0,  // 시간 계산에 포함 안 함 (체크리스트)
           status: 'pending',
           priority: 'medium',
+          isChecklist: true,  // 체크리스트 플래그
           studyTips: {
             importance: '확인 학습',
             keyPoints: ['오늘 배운 내용 문제 풀기', '틀린 문제 복습'],
@@ -828,15 +895,27 @@ function generateSummary(
 }
 
 /**
+ * 요일 프로파일 타입
+ * 각 요일(0-6)별로 어떤 과목이 몇 분씩 할당되는지 정의
+ */
+interface WeekdayProfile {
+  dayOfWeek: number;  // 0=일, 1=월, ..., 6=토
+  subjectAllocations: Map<string, number>;  // 과목 → 할당 시간(분)
+}
+
+/**
  * 폴백 커리큘럼 생성 (LLM 실패 시)
- * ⭐ 가용 날짜 기반: 선택된 요일의 날짜에만 강의 배치
+ * ⭐ 요일 프로파일 방식: 3단계 분리
+ *   Phase 1: 요일별 프로파일 계산 (1회)
+ *   Phase 2: 강좌별 강의 큐 준비
+ *   Phase 3: 날짜별 배치 (요일 프로파일 기반)
  */
 function generateFallbackCurriculum(
   request: CurriculumGenerationRequest,
   lectures: ReturnType<typeof extractLectures>,
   totalCalendarDays: number,
   startDate: Date,
-  availableDates: string[]  // ⭐ 가용 날짜 목록 (이미 계산됨)
+  availableDates: string[]
 ): CurriculumGenerationResult {
   const { dailyStudyHours, subjectHours, subjectDays, options } = request;
   const quests: CurriculumQuest[] = [];
@@ -868,129 +947,193 @@ function generateFallbackCurriculum(
 
   console.log(`[FallbackCurriculum] Using ${availableDates.length} available dates`);
 
-  // 일별 시간 계산
+  // ========================================
+  // Phase 1: 요일별 프로파일 계산 (1회만)
+  // ========================================
   const dailyMinutes = dailyStudyHours * 60 * BUFFER_RATIO;
   const maxLectureMinutes = dailyMinutes * MAX_LECTURE_RATIO;
 
-  // 과목별 일일 최대 강의 시간 (분) 계산
-  const subjectMaxMinutesPerDay: Map<string, number> = new Map();
+  // 과목별 min/max 시간 파싱
+  const subjectMinMinutes: Map<string, number> = new Map();
+  const subjectMaxMinutes: Map<string, number> = new Map();
   if (subjectHours) {
-    for (const [subject, hours] of Object.entries(subjectHours)) {
-      if (hours !== null && hours > 0) {
-        // 과목별 시간의 60%만 강의에 사용 (나머지는 복습/문제풀이)
-        subjectMaxMinutesPerDay.set(subject, hours * 60 * MAX_LECTURE_RATIO);
+    for (const [subject, hoursValue] of Object.entries(subjectHours)) {
+      if (hoursValue !== null && hoursValue !== undefined) {
+        if (typeof hoursValue === 'object' && 'min' in hoursValue && 'max' in hoursValue) {
+          const { min, max } = hoursValue as { min: number; max: number };
+          subjectMinMinutes.set(subject, min * 60 * MAX_LECTURE_RATIO);
+          subjectMaxMinutes.set(subject, max * 60 * MAX_LECTURE_RATIO);
+        } else if (typeof hoursValue === 'number' && hoursValue > 0) {
+          subjectMaxMinutes.set(subject, hoursValue * 60 * MAX_LECTURE_RATIO);
+        }
       }
     }
   }
 
-  // 과목별 강의 큐 생성 (강좌 순서 유지)
-  const lectureQueues: Map<string, typeof lectures> = new Map();
-  for (const lec of lectures) {
-    const queue = lectureQueues.get(lec.subject) || [];
-    queue.push(lec);
-    lectureQueues.set(lec.subject, queue);
-  }
+  // 모든 과목 목록
+  const allSubjects = [...new Set(lectures.map(l => l.subject))];
 
-  // 모든 강의가 배치될 때까지 반복
-  let totalPlaced = 0;
-  const totalToPlace = lectures.length;
-  const effectiveDays = availableDates.length;
+  // 요일별 프로파일 생성 (0-6)
+  const weekdayProfiles: Map<number, WeekdayProfile> = new Map();
 
-  // availableDates를 직접 순회 (이미 선택된 요일만 포함됨)
-  for (let dayIndex = 0; dayIndex < effectiveDays && totalPlaced < totalToPlace; dayIndex++) {
-    const dateStr = availableDates[dayIndex];
-    const dayOfWeek = getDay(new Date(dateStr));
-
-    let dayMinutes = 0;
-    let dayLectures = 0;
-    const lecturesPerDay = Math.ceil((totalToPlace - totalPlaced) / (effectiveDays - dayIndex));
-
-    // 과목별 오늘 사용한 시간 추적
-    const subjectTodayMinutes: Map<string, number> = new Map();
-
-    // 오늘 배치 가능한 과목 확인 (availableDates는 이미 필터링됨, 하지만 과목별 추가 제약 확인)
-    const allowedSubjects = Array.from(lectureQueues.keys()).filter(subject => {
-      // 요일 설정이 없으면 모든 날 가능
-      if (!subjectDays?.[subject] || subjectDays[subject].length === 0 || subjectDays[subject].length === 7) {
-        return true;
+  for (let dayOfWeek = 0; dayOfWeek < 7; dayOfWeek++) {
+    // 이 요일에 허용된 과목들
+    const allowedSubjects = allSubjects.filter(subject => {
+      const allowedDays = subjectDays?.[subject];
+      if (!allowedDays || allowedDays.length === 0 || allowedDays.length === 7) {
+        return true;  // 제한 없음
       }
-      // 설정된 요일에만 배치 (과목별 추가 제약)
-      return subjectDays[subject].includes(dayOfWeek);
+      return allowedDays.includes(dayOfWeek);
     });
 
-    // 오늘 배치 가능한 과목 없으면 다음 날로 (과목별 요일 제약)
     if (allowedSubjects.length === 0) {
+      // 이 요일에 배치할 과목 없음
+      weekdayProfiles.set(dayOfWeek, {
+        dayOfWeek,
+        subjectAllocations: new Map(),
+      });
       continue;
     }
 
-    // 각 과목에서 라운드로빈 방식으로 강의 배치
-    let placedThisRound = true;
-    while (
-      placedThisRound &&
-      dayLectures < lecturesPerDay &&
-      dayMinutes < maxLectureMinutes
-    ) {
-      placedThisRound = false;
+    // 과목별 시간 균등 분배
+    const subjectAllocations: Map<string, number> = new Map();
+    const baseMinutesPerSubject = maxLectureMinutes / allowedSubjects.length;
 
-      for (const subject of allowedSubjects) {
-        const queue = lectureQueues.get(subject);
-        if (!queue || queue.length === 0) continue;
-        if (dayLectures >= lecturesPerDay || dayMinutes >= maxLectureMinutes) break;
+    for (const subject of allowedSubjects) {
+      const minMin = subjectMinMinutes.get(subject) || 0;
+      const maxMin = subjectMaxMinutes.get(subject) || baseMinutesPerSubject;
 
-        // 과목별 일일 시간 제한 체크
-        const subjectMaxMinutes = subjectMaxMinutesPerDay.get(subject);
-        const subjectUsedMinutes = subjectTodayMinutes.get(subject) || 0;
-        if (subjectMaxMinutes !== undefined && subjectUsedMinutes >= subjectMaxMinutes) {
-          continue; // 이 과목은 오늘 시간 초과, 다음 과목으로
+      // 균등 분배 → min/max 범위 내로 조정
+      let allocated = baseMinutesPerSubject;
+      if (allocated < minMin) allocated = minMin;
+      if (allocated > maxMin) allocated = maxMin;
+
+      subjectAllocations.set(subject, allocated);
+    }
+
+    weekdayProfiles.set(dayOfWeek, {
+      dayOfWeek,
+      subjectAllocations,
+    });
+
+    // 디버그 로그
+    const dayNames = ['일', '월', '화', '수', '목', '금', '토'];
+    const allocStr = [...subjectAllocations.entries()]
+      .map(([s, m]) => `${s}:${Math.round(m)}분`)
+      .join(', ');
+    console.log(`[WeekdayProfile] ${dayNames[dayOfWeek]}: ${allocStr || '(없음)'}`);
+  }
+
+  // ========================================
+  // Phase 2: 강좌별 강의 큐 준비
+  // ========================================
+  const lectureQueues: Map<string, typeof lectures> = new Map();
+  for (const lec of lectures) {
+    const queue = lectureQueues.get(lec.courseId) || [];
+    queue.push(lec);
+    lectureQueues.set(lec.courseId, queue);
+  }
+
+  // 과목 → 강좌 ID 목록 매핑
+  const subjectToCourses: Map<string, string[]> = new Map();
+  for (const lec of lectures) {
+    const courses = subjectToCourses.get(lec.subject) || [];
+    if (!courses.includes(lec.courseId)) {
+      courses.push(lec.courseId);
+    }
+    subjectToCourses.set(lec.subject, courses);
+  }
+
+  // ========================================
+  // Phase 3: 날짜별 배치 (요일 프로파일 기반)
+  // ========================================
+  let totalPlaced = 0;
+  const totalToPlace = lectures.length;
+
+  for (const dateStr of availableDates) {
+    const dayOfWeek = getDay(new Date(dateStr));
+    const profile = weekdayProfiles.get(dayOfWeek);
+
+    if (!profile || profile.subjectAllocations.size === 0) {
+      continue;  // 이 요일에 배치할 과목 없음
+    }
+
+    const placedSubjectsToday: Map<string, number> = new Map();
+
+    // 각 과목별로 할당된 시간만큼 배치
+    for (const [subject, allocatedMinutes] of profile.subjectAllocations) {
+      const courseIds = subjectToCourses.get(subject) || [];
+      let subjectUsedMinutes = 0;
+
+      // 이 과목의 강좌들에서 round-robin으로 강의 배치
+      let placedInRound = true;
+      while (placedInRound && subjectUsedMinutes < allocatedMinutes) {
+        placedInRound = false;
+
+        for (const courseId of courseIds) {
+          const queue = lectureQueues.get(courseId);
+          if (!queue || queue.length === 0) continue;
+
+          const lec = queue[0];
+          const duration = parseDuration(lec.chapter.duration);
+
+          // 유동적 배치 로직
+          const isFirstLecture = subjectUsedMinutes === 0;
+          const remainingTime = allocatedMinutes - subjectUsedMinutes;
+          const remainingRatio = allocatedMinutes > 0 ? remainingTime / allocatedMinutes : 0;
+
+          if (!isFirstLecture) {
+            // 남은 시간이 50% 미만이면 추가 안 함
+            if (remainingRatio < 0.5) {
+              continue;
+            }
+            // 남은 시간이 50% 이상이어도 다음 인강이 안 들어가면 스킵
+            if (duration > remainingTime) {
+              continue;
+            }
+          }
+          // 첫 번째 인강은 무조건 배치 (시간 초과해도)
+
+          // 강의 배치
+          queue.shift();
+
+          quests.push({
+            id: uuidv4(),
+            title: `[${lec.subject}] ${lec.chapter.title}`,
+            description: lec.lecturer
+              ? `${lec.lecturer} 선생님의 ${lec.courseName} 강의를 시청하세요.`
+              : `${lec.courseName} 강의를 시청하세요.`,
+            questType: 'lecture',
+            subject: lec.subject,
+            courseId: lec.courseId,
+            courseName: lec.courseName,
+            lecturer: lec.lecturer,
+            chapter: lec.chapter.title,
+            section: null,
+            scheduledDate: dateStr,
+            estimatedMinutes: duration,
+            originalDuration: lec.chapter.duration,
+            status: 'pending',
+            priority: lec.chapterIndex === 1 ? 'high' : 'medium',
+          });
+
+          subjectUsedMinutes += duration;
+          totalPlaced++;
+          placedInRound = true;
         }
+      }
 
-        const lec = queue[0]; // peek first
-        const duration = parseDuration(lec.chapter.duration);
-
-        // 이 강의를 추가하면 과목별 시간 초과하는지 체크
-        if (subjectMaxMinutes !== undefined && subjectUsedMinutes + duration > subjectMaxMinutes) {
-          continue; // 시간 초과 예상, 다음 과목으로
-        }
-
-        // 강의 배치
-        queue.shift();
-
-        quests.push({
-          id: uuidv4(),
-          title: `[${lec.subject}] ${lec.chapter.title}`,
-          description: lec.lecturer
-            ? `${lec.lecturer} 선생님의 ${lec.courseName} 강의를 시청하세요.`
-            : `${lec.courseName} 강의를 시청하세요.`,
-          questType: 'lecture',
-          subject: lec.subject,
-          courseId: lec.courseId,
-          courseName: lec.courseName,
-          lecturer: lec.lecturer,
-          chapter: lec.chapter.title,
-          section: null,
-          scheduledDate: dateStr,
-          estimatedMinutes: duration,
-          originalDuration: lec.chapter.duration,
-          status: 'pending',
-          priority: lec.chapterIndex === 1 ? 'high' : 'medium',
-        });
-
-        dayMinutes += duration;
-        dayLectures++;
-        totalPlaced++;
-        placedThisRound = true;
-
-        // 과목별 오늘 사용 시간 업데이트
-        subjectTodayMinutes.set(lec.subject, (subjectTodayMinutes.get(lec.subject) || 0) + duration);
+      if (subjectUsedMinutes > 0) {
+        placedSubjectsToday.set(subject, subjectUsedMinutes);
       }
     }
 
-    // 문제풀이 퀘스트 추가 (강의가 있는 날에 필수)
-    if (dayLectures > 0) {
-      const todaySubjects = [...new Set(quests.filter(q => q.scheduledDate === dateStr).map(q => q.subject))];
-
-      for (const subject of todaySubjects) {
-        const subjectLectures = quests.filter(q => q.scheduledDate === dateStr && q.subject === subject && q.questType === 'lecture');
+    // 문제풀이 퀘스트 추가 (체크리스트 형식, 시간 0분)
+    for (const [subject, minutes] of placedSubjectsToday) {
+      if (minutes > 0) {
+        const subjectLectures = quests.filter(
+          q => q.scheduledDate === dateStr && q.subject === subject && q.questType === 'lecture'
+        );
 
         quests.push({
           id: uuidv4(),
@@ -1004,9 +1147,10 @@ function generateFallbackCurriculum(
           chapter: '문제풀이',
           section: null,
           scheduledDate: dateStr,
-          estimatedMinutes: 30,
+          estimatedMinutes: 0,  // 시간 계산에 포함 안 함 (체크리스트)
           status: 'pending',
           priority: 'medium',
+          isChecklist: true,  // 체크리스트 플래그
           studyTips: {
             importance: '확인 학습',
             keyPoints: ['오늘 배운 내용 문제 풀기', '틀린 문제 복습'],
@@ -1016,20 +1160,24 @@ function generateFallbackCurriculum(
       }
     }
 
-    // 복습 퀘스트 추가
-    if (options?.reviewSettings?.enabled && dayLectures > 0) {
+    // 복습 퀘스트 추가 (옵션 활성화 시)
+    if (options?.reviewSettings?.enabled && placedSubjectsToday.size > 0) {
       const reviewDuration = options.reviewSettings.reviewDuration || 15;
-      const subjects = [...new Set(quests.filter(q => q.scheduledDate === dateStr && q.questType === 'lecture').map(q => q.subject))];
 
-      for (const subject of subjects) {
+      for (const [subject] of placedSubjectsToday) {
+        const subjectLectures = quests.filter(
+          q => q.scheduledDate === dateStr && q.subject === subject && q.questType === 'lecture'
+        );
+
         quests.push({
           id: uuidv4(),
           title: `[${subject}] 복습`,
           description: `오늘 학습한 ${subject} 내용을 복습하세요.`,
           questType: 'review',
           subject,
-          courseId: '',
-          courseName: '',
+          courseId: subjectLectures[0]?.courseId || '',
+          courseName: subjectLectures[0]?.courseName || '',
+          lecturer: subjectLectures[0]?.lecturer,
           chapter: '복습',
           section: null,
           scheduledDate: dateStr,
@@ -1071,98 +1219,15 @@ function generateFallbackCurriculum(
     };
   }
 
-  // A2 시나리오: 남는 날 활용 (강의가 일찍 끝난 경우)
-  const extraDaysOption = options?.extraDaysOption;
-  if (extraDaysOption?.enabled !== false) {
-    const fillWithReview = extraDaysOption?.fillWithReview ?? true;
-    const fillWithPractice = extraDaysOption?.fillWithPractice ?? true;
+  // ⭐ 강의가 끝난 후 남은 날은 비워둠 (사용자가 나중에 복습/문제풀이 추가 가능)
+  // extraDaysOption 제거 - 남은 날 자동 채우기 비활성화
 
-    if (fillWithReview || fillWithPractice) {
-      // 이미 퀘스트가 있는 날짜들
-      const daysWithQuests = new Set(quests.map(q => q.scheduledDate));
-      // 학습한 과목 목록
-      const studiedSubjects = [...new Set(quests.filter(q => q.questType === 'lecture').map(q => q.subject))];
-
-      if (studiedSubjects.length > 0) {
-        // 남은 날들에 복습/문제풀이 퀘스트 추가 (availableDates 사용)
-        for (const dateStr of availableDates) {
-          // 이미 퀘스트가 있는 날은 건너뜀
-          if (daysWithQuests.has(dateStr)) continue;
-
-          const dayOfWeek = getDay(new Date(dateStr));
-
-          // 이 날에 학습 가능한 과목 확인 (요일 설정 준수)
-          const allowedSubjectsForDay = studiedSubjects.filter(subject => {
-            if (!subjectDays?.[subject] || subjectDays[subject].length === 0 || subjectDays[subject].length === 7) return true;
-            return subjectDays[subject].includes(dayOfWeek);
-          });
-
-          if (allowedSubjectsForDay.length === 0) continue;
-
-          // 각 과목에 대해 복습/문제풀이 추가
-          for (const subject of allowedSubjectsForDay) {
-            // 해당 과목의 강의 정보 찾기
-            const subjectLectures = quests.filter(q => q.subject === subject && q.questType === 'lecture');
-            const courseInfo = subjectLectures[0];
-
-            if (fillWithPractice) {
-              quests.push({
-                id: uuidv4(),
-                title: `[${subject}] 복습 문제풀이`,
-                description: `이전에 학습한 ${subject} 내용을 문제로 복습하세요.`,
-                questType: 'practice',
-                subject,
-                courseId: courseInfo?.courseId || '',
-                courseName: courseInfo?.courseName || '',
-                lecturer: courseInfo?.lecturer,
-                chapter: '복습 문제풀이',
-                section: null,
-                scheduledDate: dateStr,
-                estimatedMinutes: 45,
-                status: 'pending',
-                priority: 'medium',
-                studyTips: {
-                  importance: '복습 강화',
-                  keyPoints: ['이전 내용 복습', '오답 정리', '취약점 보완'],
-                  studyMethod: '문제 풀이',
-                },
-              });
-            }
-
-            if (fillWithReview) {
-              quests.push({
-                id: uuidv4(),
-                title: `[${subject}] 개념 복습`,
-                description: `이전에 학습한 ${subject} 개념을 다시 정리하세요.`,
-                questType: 'review',
-                subject,
-                courseId: courseInfo?.courseId || '',
-                courseName: courseInfo?.courseName || '',
-                lecturer: courseInfo?.lecturer,
-                chapter: '개념 복습',
-                section: null,
-                scheduledDate: dateStr,
-                estimatedMinutes: 30,
-                status: 'pending',
-                priority: 'medium',
-                studyTips: {
-                  importance: '개념 정리',
-                  keyPoints: ['핵심 개념 요약', '노트 정리', '암기 필요 사항 확인'],
-                  studyMethod: '복습',
-                },
-              });
-            }
-          }
-        }
-      }
-    }
-  }
-
+  const effectiveDays = availableDates.length;
   return {
     success: true,
     quests,
     summary: generateSummary(quests, effectiveDays),
-    message: '기본 알고리즘으로 학습 커리큘럼이 생성되었습니다.',
+    message: '요일 프로파일 기반으로 학습 커리큘럼이 생성되었습니다.',
   };
 }
 

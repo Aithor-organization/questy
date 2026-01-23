@@ -87,9 +87,18 @@ export interface CurriculumGenerationRequest {
   studentId: string;
   courses: CurriculumCourse[];
   targetDate: string;  // ISO date string (YYYY-MM-DD)
-  dailyStudyHours: number;
-  subjectHours?: Record<string, number | null>;  // 과목별 일일 학습 시간
+  dailyStudyHours?: number; // @deprecated use min/max
+  minDailyStudyHours?: number;
+  maxDailyStudyHours?: number;
+  subjectHours?: Record<string, number | { min: number; max: number } | null>;  // 과목별 일일 학습 시간 (min/max 범위 지원)
   subjectDays?: Record<string, number[]>;  // 과목별 학습 요일 (0=일, 1=월, ..., 6=토)
+
+  // Load Awareness
+  existingLoad?: Array<{
+    date: string;
+    totalMinutes: number;
+    subjects: string[];
+  }>;
   options?: {
     includeOt?: boolean;
     reviewSettings?: {
@@ -132,6 +141,7 @@ export interface CurriculumQuest {
   editable?: boolean;
   practiceNote?: string;
   relatedLectures?: string[];
+  isChecklist?: boolean;  // 체크리스트 형식 (타이머 없음)
 }
 
 // 커리큘럼 생성 결과

@@ -97,23 +97,16 @@ export function CurriculumContent() {
       return { feasible: false, error: '최소 1개 과목의 학습 시간을 설정해주세요.' };
     }
 
-    // 인강은 일일 학습 시간의 60%까지만 사용 가능 (복습/문제풀이 시간 확보)
-    const maxLectureMinutesPerDay = totalDailyMinutes * 0.6;
+    // 인강 시간 100% 사용 (문제풀이 시간 별도 배정 안 함)
+    const maxLectureMinutesPerDay = totalDailyMinutes;
     // 평균 강의 시간: 30분
     const avgLectureMinutes = 30;
-    const maxLecturesPerDay = Math.floor(maxLectureMinutesPerDay / avgLectureMinutes);
+    // 최소 1개 인강 보장
+    const maxLecturesPerDay = Math.max(1, Math.floor(maxLectureMinutesPerDay / avgLectureMinutes));
 
     // 필요한 일수 계산
-    const requiredDays = Math.ceil(totalLectures / Math.max(maxLecturesPerDay, 1));
+    const requiredDays = Math.ceil(totalLectures / maxLecturesPerDay);
     const avgLecturesPerDay = totalLectures / totalDays;
-
-    // 검증
-    if (maxLecturesPerDay < 1) {
-      return {
-        feasible: false,
-        error: `일일 학습 시간(${Math.round(totalDailyMinutes)}분)이 너무 짧습니다. 최소 1시간 이상 필요합니다.`,
-      };
-    }
 
     if (requiredDays > totalDays) {
       return {
