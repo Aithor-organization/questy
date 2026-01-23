@@ -102,7 +102,11 @@ function formatPercent(num: number): string {
   return `${num >= 0 ? '+' : ''}${num}%`;
 }
 
+// 내부 탭 타입
+type StatsTab = 'overview' | 'plans';
+
 export function StatsView() {
+  const [activeTab, setActiveTab] = useState<StatsTab>('overview');
   const [stats, setStats] = useState<StatsData | null>(null);
   const [growth, setGrowth] = useState<GrowthData | null>(null);
   const [referral, setReferral] = useState<ReferralData | null>(null);
@@ -273,10 +277,44 @@ export function StatsView() {
         </div>
       </div>
 
+      {/* 내부 탭 네비게이션 */}
+      <div className="flex gap-1 border-b border-gray-200">
+        <button
+          onClick={() => setActiveTab('overview')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            activeTab === 'overview'
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <BarChart3 className="w-4 h-4 inline-block mr-1" />
+          통계 개요
+        </button>
+        <button
+          onClick={() => setActiveTab('plans')}
+          className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+            activeTab === 'plans'
+              ? 'bg-blue-500 text-white'
+              : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+          }`}
+        >
+          <BookOpen className="w-4 h-4 inline-block mr-1" />
+          플랜 현황
+          {plans && plans.summary.totalPlans > 0 && (
+            <span className="ml-1 px-1.5 py-0.5 text-xs bg-white/30 rounded">
+              {plans.summary.totalPlans}
+            </span>
+          )}
+        </button>
+      </div>
+
       {stats && (
         <>
-          {/* 핵심 지표 카드 */}
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+          {/* 통계 개요 탭 */}
+          {activeTab === 'overview' && (
+            <>
+              {/* 핵심 지표 카드 */}
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
             {/* 총 가입자 */}
             <div className="bg-white p-4 rounded-lg shadow border-l-4 border-blue-500">
               <div className="flex items-center gap-2 text-gray-500 text-sm mb-1">
@@ -509,8 +547,24 @@ export function StatsView() {
             })()}
           </div>
 
-          {/* 사용자별 커리큘럼 생성 현황 */}
-          {plans && (
+          {/* 예비창업패키지 제출 팁 */}
+          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+            <h3 className="text-lg font-semibold text-blue-800 mb-2">
+              예비창업패키지 제출 시 강조 포인트
+            </h3>
+            <ul className="text-sm text-blue-700 space-y-1">
+              <li>• <strong>총 가입자 수</strong>: 베타테스터 모집 성과</li>
+              <li>• <strong>MAU/활성 비율</strong>: 서비스 점착도 (높을수록 좋음)</li>
+              <li>• <strong>D7 리텐션</strong>: 사용자 유지율 (업계 평균 20~30%)</li>
+              <li>• <strong>주간 성장률</strong>: 바이럴/확산 가능성</li>
+              <li>• <strong>유입경로</strong>: 마케팅 채널 효율성</li>
+            </ul>
+          </div>
+            </>
+          )}
+
+          {/* 플랜 현황 탭 */}
+          {activeTab === 'plans' && plans && (
             <div className="bg-white p-4 rounded-lg shadow">
               <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2">
                 <BookOpen className="w-5 h-5" />
@@ -620,19 +674,19 @@ export function StatsView() {
             </div>
           )}
 
-          {/* 예비창업패키지 제출 팁 */}
-          <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
-            <h3 className="text-lg font-semibold text-blue-800 mb-2">
-              예비창업패키지 제출 시 강조 포인트
-            </h3>
-            <ul className="text-sm text-blue-700 space-y-1">
-              <li>• <strong>총 가입자 수</strong>: 베타테스터 모집 성과</li>
-              <li>• <strong>MAU/활성 비율</strong>: 서비스 점착도 (높을수록 좋음)</li>
-              <li>• <strong>D7 리텐션</strong>: 사용자 유지율 (업계 평균 20~30%)</li>
-              <li>• <strong>주간 성장률</strong>: 바이럴/확산 가능성</li>
-              <li>• <strong>유입경로</strong>: 마케팅 채널 효율성</li>
-            </ul>
-          </div>
+          {/* 플랜 데이터 없을 때 */}
+          {activeTab === 'plans' && !plans && (
+            <div className="bg-white p-8 rounded-lg shadow text-center text-gray-500">
+              <BookOpen className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+              <p>플랜 데이터를 불러오는 중이거나 데이터가 없습니다.</p>
+              <button
+                onClick={fetchStats}
+                className="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                다시 시도
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>
