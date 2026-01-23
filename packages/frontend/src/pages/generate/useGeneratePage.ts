@@ -267,7 +267,7 @@ export function useGeneratePage() {
       let dayCount = 0;
 
       while (currentDate <= targetDate) {
-        // 각 날짜에 모든 퀘스트를 배치
+        // 각 날짜에 모든 퀘스트를 배치 (체크리스트 형식 - 타이머 없음)
         manualUnits.forEach((unit, unitIndex) => {
           dailyQuests.push({
             id: crypto.randomUUID(),
@@ -276,7 +276,8 @@ export function useGeneratePage() {
             unitNumber: unitIndex + 1,
             unitTitle: unit.title,
             range: unit.description || unit.title,
-            estimatedMinutes: 30,
+            estimatedMinutes: 0,  // 체크리스트 - 시간 제한 없음
+            isChecklist: true,    // 체크리스트 플래그
             completed: false,
             topics: [unit.title],
             objectives: [`${unit.title} 완료`],
@@ -292,7 +293,7 @@ export function useGeneratePage() {
         currentDate = getNextValidDate(currentDate, true);
       }
     } else {
-      // 일반 모드: 퀘스트를 순차적으로 배치
+      // 일반 모드: 퀘스트를 순차적으로 배치 (체크리스트 형식 - 타이머 없음)
       let currentDate = getNextValidDate(new Date(), false);
       dailyQuests = manualUnits.map((unit, index) => {
         const questDate = index === 0 ? currentDate : getNextValidDate(currentDate, true);
@@ -305,7 +306,8 @@ export function useGeneratePage() {
           unitNumber: index + 1,
           unitTitle: unit.title,
           range: unit.description || unit.title,
-          estimatedMinutes: 30,
+          estimatedMinutes: 0,  // 체크리스트 - 시간 제한 없음
+          isChecklist: true,    // 체크리스트 플래그
           completed: false,
           topics: [unit.title],
           objectives: [`${unit.title} 완료`],
@@ -321,19 +323,19 @@ export function useGeneratePage() {
     const actualDays = new Set(dailyQuests.map(q => q.date)).size;
     const totalQuests = dailyQuests.length;
 
-    // questStore에 직접 추가
+    // questStore에 직접 추가 (체크리스트 형식 - 시간 없음)
     addPlan({
       materialName: materialName.trim(),
       dailyQuests,
       summary: {
         totalDays: actualDays,
         totalUnits: totalQuests,
-        averageMinutesPerDay: Math.round((totalQuests * 30) / actualDays),
-        totalEstimatedHours: Math.round((totalQuests * 30) / 60),
+        averageMinutesPerDay: 0,  // 체크리스트 - 시간 제한 없음
+        totalEstimatedHours: 0,   // 체크리스트 - 시간 제한 없음
       },
       aiMessage: isRepeatMode
-        ? `${manualUnits.length}개의 퀘스트가 ${actualDays}일간 반복 생성되었습니다. (총 ${totalQuests}개)`
-        : `${totalQuests}개의 퀘스트가 생성되었습니다.`,
+        ? `${manualUnits.length}개의 할 일이 ${actualDays}일간 반복 생성되었습니다. (총 ${totalQuests}개)`
+        : `${totalQuests}개의 할 일이 생성되었습니다.`,
     });
 
     // 플래너 페이지로 이동
