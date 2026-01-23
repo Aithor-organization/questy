@@ -926,7 +926,11 @@ export const useAuthStore = create<AuthStore>()(
             result: completed
           });
 
-          set({ user: { ...currentUser, onboardingCompleted: completed } });
+          // 온보딩 미완료 시 needsOnboarding도 설정 (pending 사용자가 재로그인해도 온보딩으로 이동)
+          set({
+            user: { ...currentUser, onboardingCompleted: completed },
+            ...(completed ? {} : { needsOnboarding: true }),
+          });
           return completed;
         } catch (err: any) {
           // AbortError는 React StrictMode 또는 빠른 언마운트로 인한 정상적인 취소
