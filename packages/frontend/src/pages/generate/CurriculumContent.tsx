@@ -196,7 +196,11 @@ export function CurriculumContent() {
             onSubjectHoursChange={setSubjectHours}
             onSubjectDaysChange={setSubjectDays}
             onCurriculumOptionsChange={setCurriculumOptions}
-            onNext={() => setStep('courses')}
+            onNext={() => {
+              // 스텝2로 이동 시 이전 에러 초기화 (설정 변경 후 재검증 가능하도록)
+              setFeasibilityError(null);
+              setStep('courses');
+            }}
           />
         )}
 
@@ -209,9 +213,21 @@ export function CurriculumContent() {
             feasibilityError={feasibilityError}
             onSearch={(query, subject) => searchCourses({ query, subject })}
             onSearchBySubject={(subject, query) => searchCourses({ subject, query })}
-            onSelect={selectCourse}
-            onDeselect={deselectCourse}
-            onUpdateStartChapter={updateCourseStartChapter}
+            onSelect={(course) => {
+              // 강좌 선택 시 이전 에러 초기화 (조건 변경됨)
+              setFeasibilityError(null);
+              selectCourse(course);
+            }}
+            onDeselect={(courseId) => {
+              // 강좌 해제 시 이전 에러 초기화 (조건 변경됨)
+              setFeasibilityError(null);
+              deselectCourse(courseId);
+            }}
+            onUpdateStartChapter={(courseId, chapterIndex) => {
+              // 이어듣기 변경 시 이전 에러 초기화 (조건 변경됨)
+              setFeasibilityError(null);
+              updateCourseStartChapter(courseId, chapterIndex);
+            }}
             onBack={() => setStep('settings')}
             onNext={() => {
               // 멤버십 체크 후 생성

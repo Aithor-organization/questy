@@ -42,13 +42,13 @@ const EXAM_YEAR_OPTIONS = [
 
 // 인강 사이트 옵션
 const PLATFORM_OPTIONS = [
-  { id: 'megastudy', name: '메가스터디', color: 'bg-blue-100 border-blue-300' },
-  { id: 'etoos', name: '이투스', color: 'bg-green-100 border-green-300' },
-  { id: 'daesung', name: '대성마이맥', color: 'bg-purple-100 border-purple-300' },
-  { id: 'ebsi', name: 'EBSi', color: 'bg-orange-100 border-orange-300' },
-  { id: 'skyedu', name: '스카이에듀', color: 'bg-red-100 border-red-300' },
-  { id: 'jinhak', name: '진학사', color: 'bg-yellow-100 border-yellow-300' },
-  { id: 'other', name: '기타', color: 'bg-gray-100 border-gray-300' },
+  { id: 'megastudy', name: '메가스터디' },
+  { id: 'etoos', name: '이투스' },
+  { id: 'daesung', name: '대성마이맥' },
+  { id: 'ebsi', name: 'EBSi' },
+  { id: 'skyedu', name: '스카이에듀' },
+  { id: 'jinhak', name: '진학사' },
+  { id: 'other', name: '기타' },
 ];
 
 // 유입 경로 옵션
@@ -69,6 +69,7 @@ interface OnboardingData {
   selectedTamgu1: string; // 탐구1 선택 과목
   selectedTamgu2: string; // 탐구2 선택 과목
   subscribedPlatforms: string[];
+  subscribedPlatformDetail: string; // 기타 인강 사이트 세부 내용
   dailyStudyHours: number;
   referralSource: string; // 유입 경로
   referralSourceDetail: string; // 기타 커뮤니티 세부 내용
@@ -83,6 +84,7 @@ const INITIAL_DATA: OnboardingData = {
   selectedTamgu1: '',
   selectedTamgu2: '',
   subscribedPlatforms: [],
+  subscribedPlatformDetail: '',
   dailyStudyHours: 8,
   referralSource: '',
   referralSourceDetail: '',
@@ -134,6 +136,7 @@ export function OnboardingPage() {
   // 다음 단계
   const handleNext = () => {
     if (step < totalSteps && isStepValid(step)) {
+      setError(null);  // 스텝 이동 시 에러 초기화
       setStep(step + 1);
     }
   };
@@ -141,6 +144,7 @@ export function OnboardingPage() {
   // 이전 단계
   const handleBack = () => {
     if (step > 1) {
+      setError(null);  // 스텝 이동 시 에러 초기화
       setStep(step - 1);
     }
   };
@@ -197,6 +201,7 @@ export function OnboardingPage() {
           selected_tamgu1: data.selectedTamgu1,
           selected_tamgu2: data.selectedTamgu2,
           subscribed_platforms: data.subscribedPlatforms,
+          subscribed_platform_detail: data.subscribedPlatforms.includes('other') ? data.subscribedPlatformDetail : null,
           daily_study_hours: data.dailyStudyHours,
           referral_source: data.referralSource,
           referral_source_detail: data.referralSource === 'other_community' ? data.referralSourceDetail : null,
@@ -512,7 +517,7 @@ export function OnboardingPage() {
                         onClick={() => togglePlatform(platform.id)}
                         className={`px-4 py-3 border-2 rounded-lg text-sm font-medium transition-all ${
                           data.subscribedPlatforms.includes(platform.id)
-                            ? `${platform.color} border-current`
+                            ? 'border-[var(--ink-blue)] bg-[var(--highlight-blue)] text-[var(--ink-blue)]'
                             : 'border-[var(--paper-lines)] bg-white hover:border-[var(--pencil-gray)]'
                         }`}
                       >
@@ -520,6 +525,19 @@ export function OnboardingPage() {
                       </button>
                     ))}
                   </div>
+
+                  {/* 기타 인강 사이트 선택 시 입력 필드 */}
+                  {data.subscribedPlatforms.includes('other') && (
+                    <div className="mt-3">
+                      <input
+                        type="text"
+                        value={data.subscribedPlatformDetail}
+                        onChange={(e) => setData(prev => ({ ...prev, subscribedPlatformDetail: e.target.value }))}
+                        placeholder="사용 중인 인강 사이트를 입력해주세요"
+                        className="w-full px-4 py-3 border-2 border-[var(--paper-lines)] rounded-lg bg-[var(--paper-cream)] focus:border-[var(--ink-blue)] focus:outline-none text-sm"
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* 하루 순공 시간 */}
