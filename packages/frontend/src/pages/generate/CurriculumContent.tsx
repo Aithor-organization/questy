@@ -9,11 +9,9 @@ import { NotebookPage } from '../../components/notebook/NotebookPage';
 import { useCurriculumGeneration } from '../../hooks/useCurriculumGeneration';
 import { useMembershipCheck } from '../../hooks/useMembershipCheck';
 import { TrialEndedModal } from '../../components/TrialEndedModal';
-import { SOCIAL_SUBJECTS, SCIENCE_SUBJECTS } from '../my/constants';
 import { CourseSelectionStep } from './curriculum-components/CourseSelectionStep';
 import { PreviewStep } from './curriculum-components/PreviewStep';
-import { AIReviewCard } from './curriculum-components/AIReviewCard';
-import type { Course, SelectedCourse, SubjectRatio, SubjectHours, SubjectDays, CurriculumOptions, ValidationResult, CurriculumReviewResult } from '../../types/curriculum';
+import type { SubjectRatio, SubjectHours, SubjectDays, CurriculumOptions, ValidationResult } from '../../types/curriculum';
 
 type Step = 'settings' | 'courses' | 'preview';
 

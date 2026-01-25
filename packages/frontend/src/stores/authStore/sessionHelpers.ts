@@ -11,7 +11,6 @@ import {
   checkAdminStatus,
   isVerifyingSession,
   setVerifyingSession,
-  saveRememberMe,
 } from './utils';
 import { setupAuthStateListener } from './authStateListener';
 

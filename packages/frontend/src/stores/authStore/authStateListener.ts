@@ -46,8 +46,8 @@ export function setupAuthStateListener(set: SetState): void {
  * SIGNED_IN 이벤트 처리
  */
 function handleSignedIn(
-  client: typeof supabase,
-  newSession: NonNullable<Parameters<Parameters<typeof supabase.auth.onAuthStateChange>[0]>[1]>,
+  client: NonNullable<typeof supabase>,
+  newSession: NonNullable<Parameters<Parameters<NonNullable<typeof supabase>['auth']['onAuthStateChange']>[0]>[1]>,
   set: SetState
 ): void {
   const cachedStudentId = localStorage.getItem('questybook_student_id');

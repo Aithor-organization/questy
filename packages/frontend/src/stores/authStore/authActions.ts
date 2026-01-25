@@ -6,7 +6,6 @@
 import { supabase } from '../../lib/supabase';
 import type { User, SetState, GetState } from './types';
 import {
-  log,
   mapSupabaseUser,
   checkAdminStatus,
   saveRememberMe,
