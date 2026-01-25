@@ -181,9 +181,15 @@ function NewPlanContent() {
     ? selectedBook !== null && selectedPages.length > 0
     : manualUnits.length > 0 && materialName.trim().length > 0;
 
-  // 생성 핸들러 (멤버십 체크 포함)
+  // 생성 핸들러 (멤버십 체크 포함 - 직접 만들기 모드는 제외)
   const onGenerate = () => {
-    // 멤버십 체크 (AI 퀘스트 생성은 베타테스터 전용)
+    // 직접 만들기 모드는 AI 기능을 사용하지 않으므로 멤버십 체크 없이 사용 가능
+    if (inputMode === 'manual') {
+      handleManualGenerate();
+      return;
+    }
+
+    // AI 기능 사용 모드 (업로드, 검색)는 멤버십 체크
     if (!checkAndShowModal('AI 퀘스트 생성')) {
       return; // 모달이 표시되고 함수 종료
     }
@@ -193,8 +199,6 @@ function NewPlanContent() {
       handleGenerate();
     } else if (inputMode === 'search') {
       handleAnalyzeBook();
-    } else {
-      handleManualGenerate();
     }
   };
 

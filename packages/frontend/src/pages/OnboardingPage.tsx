@@ -11,6 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 
 // authStore에서 함수들 직접 접근용
 const getSetOnboardingCompleted = () => useAuthStore.getState().setOnboardingCompleted;
+const getLoadMembership = () => useAuthStore.getState().loadMembership;
 
 // 고정 과목 (필수)
 const FIXED_SUBJECTS = ['국어', '수학', '영어', '한국사'] as const;
@@ -227,10 +228,23 @@ export function OnboardingPage() {
         return;
       }
 
-      console.log('[Onboarding] Membership activated:', membershipResult);
+      console.log('[Onboarding] Membership activation result:', membershipResult);
+
+      // RPC 결과 확인 (success: false인 경우도 처리)
+      if (membershipResult && !membershipResult.success) {
+        console.warn('[Onboarding] Membership activation failed:', membershipResult.error);
+        // 실패한 경우에도 프로필은 저장됨 - pending 페이지로 이동
+        getSetOnboardingCompleted()(true);
+        navigate('/pending', { replace: true });
+        return;
+      }
 
       // 성공 - 로컬 상태 업데이트
       getSetOnboardingCompleted()(true);
+
+      // 멤버십 데이터 새로고침 (베타테스터 상태 반영)
+      const loadedMembership = await getLoadMembership()();
+      console.log('[Onboarding] Membership data reloaded:', loadedMembership);
 
       // 베타테스터로 활성화되었으므로 메인 페이지로 이동
       navigate('/', { replace: true });
