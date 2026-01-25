@@ -22,8 +22,6 @@ export { ReportPage } from './ReportPage';
 
 // 채팅 시스템 (카카오톡 스타일)
 export { ChatListPage, ChatRoomPage } from './chat';
-// 하위호환성 유지
-export { ChatPage } from './ChatPage';
 
 // 학습 꿀팁
 export { TipsPage } from './tips';

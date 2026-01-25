@@ -10,29 +10,9 @@ import { useAuthStore } from '../stores/authStore';
 import { supabase } from '../lib/supabase';
 import { refreshSession } from '../lib/session-keepalive';
 import { API_BASE_URL } from '../config';
+import { logQuery, logQueryResult, createLogger } from '../lib/logger';
 
-// Supabase 쿼리 로그 헬퍼
-const logQuery = (table: string, action: string, details?: string) => {
-  const timestamp = new Date().toLocaleTimeString('ko-KR');
-  console.log(
-    `%c[Supabase] 📡 ${table}.${action} (${timestamp})${details ? ` - ${details}` : ''}`,
-    'color: #06b6d4; font-weight: bold;'
-  );
-};
-
-const logQueryResult = (table: string, action: string, count: number | null, error?: string) => {
-  if (error) {
-    console.log(
-      `%c[Supabase] ❌ ${table}.${action} 실패: ${error}`,
-      'color: #ef4444;'
-    );
-  } else {
-    console.log(
-      `%c[Supabase] ✅ ${table}.${action} 완료 (${count ?? 0}건)`,
-      'color: #22c55e;'
-    );
-  }
-};
+const log = createLogger('[useCurriculumGeneration]');
 import type {
   Course,
   SelectedCourse,
@@ -124,7 +104,7 @@ export function useCurriculumGeneration() {
 
         if (error) {
           logQueryResult('user_profiles', 'select', null, error.message);
-          console.log('[useCurriculumGeneration] No profile found, using default');
+          log.debug('No profile found, using default');
           return;
         }
 
@@ -134,7 +114,7 @@ export function useCurriculumGeneration() {
           setProfileStudyHours(data.daily_study_hours);  // 초기값 저장
         }
       } catch (err) {
-        console.error('[useCurriculumGeneration] Failed to load study hours:', err);
+        log.error('Failed to load study hours:', err);
       }
     }
 
@@ -177,7 +157,7 @@ export function useCurriculumGeneration() {
         // 세션 상태 확인 및 갱신 (만료 시 갱신 시도)
         const { data: { session } } = await supabase.auth.getSession();
         if (!session) {
-          console.warn('[useCurriculumGeneration] No active session, attempting refresh...');
+          log.warn('No active session, attempting refresh...');
           const refreshed = await refreshSession(2);
           if (!refreshed) {
             // 세션 갱신 실패 - 사용자에게 재로그인 필요 알림
@@ -208,7 +188,7 @@ export function useCurriculumGeneration() {
 
         // Race condition 체크: 이 요청이 가장 최신 요청인지 확인
         if (currentRequestId !== searchRequestIdRef.current) {
-          console.log('[useCurriculumGeneration] Ignoring stale response for requestId:', currentRequestId);
+          log.debug('Ignoring stale response for requestId:', currentRequestId);
           return;
         }
 
@@ -223,7 +203,7 @@ export function useCurriculumGeneration() {
                                   error.code === '401';
 
           if (isSessionError) {
-            console.log('[useCurriculumGeneration] Session error detected, refreshing and retrying...');
+            log.debug('Session error detected, refreshing and retrying...');
             const refreshed = await refreshSession(2);
             if (refreshed) {
               // 세션 갱신 성공 → 재시도
@@ -250,7 +230,7 @@ export function useCurriculumGeneration() {
                   totalDuration: course.total_duration || '',
                   isCompleted: course.is_completed || false,
                 }));
-                console.log('[useCurriculumGeneration] Retry successful:', courses.length);
+                log.debug('Retry successful:', courses.length);
                 setSearchResults(courses);
                 return;
               }
@@ -282,7 +262,7 @@ export function useCurriculumGeneration() {
       }
 
       // Supabase 없으면 백엔드 폴백 (로컬 개발 등)
-      console.log('[useCurriculumGeneration] Fallback to backend API');
+      log.debug('Fallback to backend API');
       const res = await fetch(`${API_BASE_URL}/api/curriculum/search-courses`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -291,7 +271,7 @@ export function useCurriculumGeneration() {
 
       // Race condition 체크
       if (currentRequestId !== searchRequestIdRef.current) {
-        console.log('[useCurriculumGeneration] Ignoring stale API response for requestId:', currentRequestId);
+        log.debug('Ignoring stale API response for requestId:', currentRequestId);
         return;
       }
 
@@ -305,7 +285,7 @@ export function useCurriculumGeneration() {
       if (currentRequestId !== searchRequestIdRef.current) {
         return;
       }
-      console.error('[useCurriculumGeneration] Search error:', error);
+      log.error('Search error:', error);
       setSearchErrorState(error instanceof Error ? error : new Error('Unknown error'));
     } finally {
       // Race condition 체크: 로딩 상태도 최신 요청만 처리
@@ -318,11 +298,11 @@ export function useCurriculumGeneration() {
   // 퀘스트 생성
   const generateMutation = useMutation({
     mutationFn: async () => {
-      console.log('[useCurriculumGeneration] Starting quest generation...');
-      console.log('[useCurriculumGeneration] API URL:', `${API_BASE_URL}/api/curriculum/generate-quests-ai`);
-      console.log('[useCurriculumGeneration] Selected courses:', selectedCourses.length);
-      console.log('[useCurriculumGeneration] Target date:', targetDate);
-      console.log('[useCurriculumGeneration] Daily study hours:', dailyStudyHours);
+      log.debug('Starting quest generation...');
+      log.debug('API URL:', `${API_BASE_URL}/api/curriculum/generate-quests-ai`);
+      log.debug('Selected courses:', selectedCourses.length);
+      log.debug('Target date:', targetDate);
+      log.debug('Daily study hours:', dailyStudyHours);
 
       // 기존 플랜의 일별 퀘스트 정보 추출 (가용 시간 계산용)
       const existingPlanData = existingPlans.map(plan => ({
@@ -356,7 +336,7 @@ export function useCurriculumGeneration() {
           }),
         });
       } catch (networkError) {
-        console.error('[useCurriculumGeneration] Network error:', networkError);
+        log.error('Network error:', networkError);
         throw new Error(`네트워크 오류: 백엔드 서버에 연결할 수 없습니다 (${API_BASE_URL})`);
       }
 
@@ -368,13 +348,13 @@ export function useCurriculumGeneration() {
       } catch {
         // JSON 파싱 실패 시 일반 에러
         if (!res.ok) {
-          console.error('[useCurriculumGeneration] API error:', res.status, responseText);
+          log.error('API error:', res.status, responseText);
           throw new Error(`퀘스트 생성 실패 (${res.status}): ${responseText}`);
         }
         throw new Error('응답 파싱 실패');
       }
 
-      console.log('[useCurriculumGeneration] API response:', data);
+      log.debug('API response:', data);
 
       // 검증 실패로 인한 에러 응답 (400) - validation 정보 포함
       if (!res.ok || !data.success) {
@@ -397,7 +377,7 @@ export function useCurriculumGeneration() {
 
       // 검증 실패 시 (INVALID) 에러 표시
       if (data.validation?.severity === 'invalid') {
-        console.log('[useCurriculumGeneration] Validation failed:', data.validation);
+        log.debug('Validation failed:', data.validation);
         setShowValidationError(true);
         setGeneratedQuests([]);
         setQuestSummary(null);
@@ -411,7 +391,7 @@ export function useCurriculumGeneration() {
 
       // 리뷰 결과 로깅
       if (data.review) {
-        console.log('[useCurriculumGeneration] AI Review:', data.review.summary, 'Score:', data.review.overallScore);
+        log.debug('AI Review:', data.review.summary, 'Score:', data.review.overallScore);
       }
 
       // 일별 최대 시간 초과 여부 체크
@@ -429,12 +409,12 @@ export function useCurriculumGeneration() {
       }
     },
     onError: (error: Error & { validation?: ValidationResult }) => {
-      console.error('[useCurriculumGeneration] Mutation error:', error);
-      console.error('[useCurriculumGeneration] Error message:', error.message);
+      log.error('Mutation error:', error);
+      log.error('Error message:', error.message);
 
       // 검증 에러인 경우 모달로 표시
       if (error.validation) {
-        console.log('[useCurriculumGeneration] Validation error detected:', error.validation);
+        log.debug('Validation error detected:', error.validation);
         setValidationResult(error.validation);
         setShowValidationError(true);
         setGeneratedQuests([]);
@@ -632,7 +612,7 @@ export function useCurriculumGeneration() {
   // 플래너에 추가 (과목별로 분리하여 각각 저장)
   const addToPlannerAndNavigate = useCallback(() => {
     if (generatedQuests.length === 0) {
-      console.warn('[useCurriculumGeneration] No quests to add');
+      log.warn('No quests to add');
       return;
     }
 
@@ -644,13 +624,13 @@ export function useCurriculumGeneration() {
       return acc;
     }, {} as Record<string, CurriculumQuest[]>);
 
-    console.log('[useCurriculumGeneration] Grouped quests by subject:',
+    log.debug('Grouped quests by subject:',
       Object.keys(questsBySubject).map(s => `${s}: ${questsBySubject[s].length} quests`));
 
     // 각 과목별로 별도의 플랜 생성 및 추가
     Object.entries(questsBySubject).forEach(([subject, quests]) => {
       const plan = convertToQuestPlanForSubject(subject, quests);
-      console.log(`[useCurriculumGeneration] Adding plan for ${subject}:`, plan.materialName);
+      log.debug(`Adding plan for ${subject}:`, plan.materialName);
       addPlan(plan);
     });
 

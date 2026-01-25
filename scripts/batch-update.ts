@@ -22,9 +22,31 @@ import iconv from 'iconv-lite';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY;
-const BATCH_SIZE = parseInt(process.env.BATCH_SIZE || '5', 10);
-const BATCH_DELAY = parseInt(process.env.BATCH_DELAY || '3000', 10);
+const BATCH_SIZE = Math.max(1, parseInt(process.env.BATCH_SIZE || '5', 10) || 5);
+const BATCH_DELAY = Math.max(1000, parseInt(process.env.BATCH_DELAY || '3000', 10) || 3000);
 const REQUEST_DELAY = 1500; // 요청 간 딜레이 (ms)
+
+// 허용된 도메인 목록 (SSRF 방지)
+const ALLOWED_DOMAINS = [
+  'megastudy.net',
+  'mimacstudy.com',
+  'etoos.com',
+  'mega.co.kr',
+];
+
+/**
+ * URL이 허용된 도메인인지 검증 (SSRF 방지)
+ */
+function isAllowedUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return ALLOWED_DOMAINS.some(domain =>
+      parsed.hostname === domain || parsed.hostname.endsWith(`.${domain}`)
+    );
+  } catch {
+    return false;
+  }
+}
 
 if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) {
   console.error('❌ SUPABASE_URL and SUPABASE_SERVICE_KEY are required');
@@ -530,8 +552,17 @@ async function crawlEtoos(url: string): Promise<CrawlResult> {
 
 /**
  * URL로 크롤링 (플랫폼 자동 감지)
+ * SSRF 방지를 위해 URL 검증 포함
  */
 async function crawlUrl(url: string): Promise<CrawlResult> {
+  // SSRF 방지: 허용된 도메인만 크롤링
+  if (!isAllowedUrl(url)) {
+    return {
+      success: false,
+      error: `Blocked: URL domain not in allowed list`,
+    };
+  }
+
   const platform = detectPlatform(url);
 
   if (platform === 'mimac') {
@@ -798,6 +829,8 @@ async function runBatchUpdate() {
 
 // 실행
 runBatchUpdate().catch((err) => {
-  log.error(`치명적 오류: ${err}`);
+  // 에러 메시지에서 민감 정보 제거 (스택 트레이스 노출 방지)
+  const errorMessage = err instanceof Error ? err.message : 'Unknown error';
+  log.error(`치명적 오류: ${errorMessage}`);
   process.exit(1);
 });

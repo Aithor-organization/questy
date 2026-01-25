@@ -135,4 +135,32 @@ export function logTime(label: string) {
   };
 }
 
+/**
+ * Supabase 쿼리 로깅 헬퍼
+ * 개발 모드에서만 쿼리 시작/완료 로그 출력
+ */
+export function logQuery(table: string, action: string, details?: string) {
+  if (!isDev) return;
+  const timestamp = new Date().toLocaleTimeString('ko-KR');
+  console.log(
+    `%c[Supabase] 📡 ${table}.${action} (${timestamp})${details ? ` - ${details}` : ''}`,
+    'color: #06b6d4; font-weight: bold;'
+  );
+}
+
+export function logQueryResult(table: string, action: string, count: number | null, error?: string) {
+  if (!isDev) return;
+  if (error) {
+    console.log(
+      `%c[Supabase] ❌ ${table}.${action} 실패: ${error}`,
+      'color: #ef4444;'
+    );
+  } else {
+    console.log(
+      `%c[Supabase] ✅ ${table}.${action} 완료 (${count ?? 0}건)`,
+      'color: #22c55e;'
+    );
+  }
+}
+
 export default logger;
