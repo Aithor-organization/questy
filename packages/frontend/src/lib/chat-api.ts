@@ -78,11 +78,16 @@ async function getStudentId(): Promise<string | null> {
       }
 
       // students 테이블에서 user_id로 student_id 조회
-      const { data: student } = await supabase
+      const { data: student, error: studentError } = await supabase
         .from('students')
         .select('id')
         .eq('user_id', user.id)
         .maybeSingle();
+
+      if (studentError) {
+        log.error('student 조회 실패:', studentError.message);
+        return null;
+      }
 
       if (student?.id) {
         cachedStudentId = student.id;
@@ -180,13 +185,18 @@ export async function getOrCreateDefaultRoom(): Promise<DbChatRoom | null> {
   if (!studentId) return null;
 
   try {
-    // 기본 채팅방 조회
-    const { data: existingRoom } = await supabase
+    // 기본 채팅방 조회 (.maybeSingle: 없으면 null 반환, .single은 에러 발생)
+    const { data: existingRoom, error: queryError } = await supabase
       .from('chat_rooms')
       .select('*')
       .eq('student_id', studentId)
       .eq('is_default', true)
-      .single();
+      .maybeSingle();
+
+    if (queryError) {
+      log.error('기본 채팅방 조회 실패:', queryError.message);
+      return null;
+    }
 
     if (existingRoom) {
       log.debug('기본 채팅방 조회됨:', existingRoom.id);
