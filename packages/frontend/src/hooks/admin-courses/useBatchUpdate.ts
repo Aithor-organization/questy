@@ -13,6 +13,21 @@ import {
   type BatchProgressData,
 } from './types';
 
+/**
+ * Supabase 액세스 토큰을 포함한 인증 헤더 생성
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (!supabase) return defaultHeaders;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return defaultHeaders;
+
+  return {
+    ...defaultHeaders,
+    'Authorization': `Bearer ${session.access_token}`,
+  };
+}
+
 export function useBatchUpdate() {
   // 배치 업데이트: Supabase에서 강좌 목록 조회 → 백엔드 크롤링 → Supabase 저장
   const batchUpdateCourses = useCallback(async (
@@ -64,15 +79,18 @@ export function useBatchUpdate() {
       let updated = 0;
       let failed = 0;
 
+      // 인증 헤더 미리 가져오기 (루프 외부에서 한 번만)
+      const authHeaders = await getAuthHeaders();
+
       // 각 강좌를 순차적으로 크롤링 및 업데이트
       for (const course of coursesToUpdate) {
         try {
           const prevLectureCount = course.lecture_count || 0;
 
-          // 백엔드에서 크롤링
+          // 백엔드에서 크롤링 (인증 헤더 포함)
           const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl`, {
             method: 'POST',
-            headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
+            headers: { ...authHeaders, 'Content-Type': 'application/json' },
             body: JSON.stringify({ url: course.url }),
           });
 

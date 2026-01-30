@@ -14,6 +14,21 @@ import {
   type Course,
 } from './types';
 
+/**
+ * Supabase 액세스 토큰을 포함한 인증 헤더 생성
+ */
+async function getAuthHeaders(): Promise<Record<string, string>> {
+  if (!supabase) return defaultHeaders;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return defaultHeaders;
+
+  return {
+    ...defaultHeaders,
+    'Authorization': `Bearer ${session.access_token}`,
+  };
+}
+
 // P3: 캐시 설정
 const COURSES_CACHE_KEY = 'courses_by_teacher_';
 const ALL_COURSES_CACHE_KEY = 'all_courses';
@@ -107,10 +122,13 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     setError(null);
 
     try {
+      // 인증 헤더 가져오기
+      const authHeaders = await getAuthHeaders();
+
       // 백엔드에서 크롤링 + 저장 (통합 API)
       const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl-and-save`, {
         method: 'POST',
-        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
         body: JSON.stringify({ url, teacher, subject }),
       });
 
@@ -165,10 +183,13 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     setError(null);
 
     try {
+      // 인증 헤더 가져오기
+      const authHeaders = await getAuthHeaders();
+
       // 백엔드에서 재크롤링 + 저장 (통합 API)
       const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl-and-update/${courseId}`, {
         method: 'POST',
-        headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
+        headers: { ...authHeaders, 'Content-Type': 'application/json' },
       });
 
       const json = await res.json();
@@ -384,6 +405,9 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
     setLoading(true);
     setError(null);
 
+    // 인증 헤더 미리 가져오기 (루프 외부에서 한 번만)
+    const authHeaders = await getAuthHeaders();
+
     const results: Array<{ url: string; success: boolean; course?: Course; error?: string }> = [];
     let successCount = 0;
     let failedCount = 0;
@@ -400,7 +424,7 @@ export function useCourses(onTeachersUpdate?: () => Promise<void>) {
         // 백엔드에서 크롤링 + 저장 (통합 API)
         const res = await fetch(`${CRAWL_API_BASE}/api/admin/crawl-and-save`, {
           method: 'POST',
-          headers: { ...defaultHeaders, 'Content-Type': 'application/json' },
+          headers: { ...authHeaders, 'Content-Type': 'application/json' },
           body: JSON.stringify({ url }),
         });
 
