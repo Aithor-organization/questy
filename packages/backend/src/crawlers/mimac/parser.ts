@@ -150,6 +150,12 @@ export class MimacParser {
         crclmList?: MimacCurriculumItem[];
       };
 
+      // 디버깅: 응답 구조 확인
+      logger.info(`[Mimac Parser] Response keys: ${Object.keys(response || {}).join(', ')}`);
+      if (response.data) {
+        logger.info(`[Mimac Parser] data keys: ${Object.keys(response.data).join(', ')}`);
+      }
+
       // 새로운 구조: data.crclmList
       let crclmList = response.data?.crclmList;
 
@@ -159,9 +165,11 @@ export class MimacParser {
       }
 
       if (!Array.isArray(crclmList)) {
-        logger.warn('crclmList is not an array');
+        logger.warn(`crclmList is not an array - type: ${typeof crclmList}, value: ${JSON.stringify(crclmList).slice(0, 200)}`);
         return curriculum;
       }
+
+      logger.info(`[Mimac Parser] Found ${crclmList.length} items in crclmList`);
 
       for (const item of crclmList) {
         if (item.mvptName) {

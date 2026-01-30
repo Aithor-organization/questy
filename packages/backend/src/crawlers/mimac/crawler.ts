@@ -199,6 +199,9 @@ export class MimacCrawler extends BaseCrawler {
         return [];
       }
 
+      // 디버깅: API 응답 구조 로깅
+      logger.info(`[Mimac] Curriculum API response for ${courseId}: ${JSON.stringify(data).slice(0, 500)}`);
+
       return MimacParser.parseCurriculumResponse(data);
     } catch (error) {
       logger.error(`Failed to fetch curriculum for ${courseId}:`, error);
